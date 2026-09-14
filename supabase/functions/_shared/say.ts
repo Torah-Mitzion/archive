@@ -235,7 +235,66 @@ const S: Record<Lang, Strings> = {
   }
 };
 
+export const SUPPORTED = Object.keys(S) as Lang[];
 export const say = (lang: string): Strings => S[lang as Lang] ?? S.en;
+
+/* Six languages are written by hand above. Everyone else — Portuguese, Italian,
+   Dutch, Yiddish, whatever a diaspora of thirty years speaks — gets the same
+   sentence translated once by the model and remembered for the life of the
+   worker. The rule is the sender's language, not ours: a person who writes in
+   Portuguese is answered in Portuguese, full stop. */
+let MODEL = '', KEY = '';
+export function configureSay(model: string, key: string) { MODEL = model; KEY = key; }
+
+const cache = new Map<string, string>();
+
+export async function phrase(lang: string, pick: (s: Strings) => string): Promise<string> {
+  const l = (lang || 'en').toLowerCase().slice(0, 5);
+  if (SUPPORTED.includes(l as Lang)) return pick(say(l));
+  const english = pick(S.en);
+  if (!KEY) return english;
+  const k = `${l} ${english}`;
+  const hit = cache.get(k);
+  if (hit) return hit;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text:
+            `Translate this WhatsApp message into the language with ISO code "${l}". Keep the tone (warm, brief), keep emoji, keep line breaks, do not add anything. Return ONLY the translation.
+
+${english}` }] }],
+          generationConfig: { temperature: 0.2 }
+        }) });
+    if (!res.ok) return english;
+    const out = (await res.json())?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!out) return english;
+    cache.set(k, out);
+    return out;
+  } catch { return english; }
+}
+
+/* refusalFor, for any language: pick the right refusal, then localise it. */
+export async function refusalIn(lang: string, reasons: string[], scores: Record<string, number> = {}) {
+  return phrase(lang, s => {
+    /* same selection as refusalFor, applied to whichever Strings phrase() chose */
+    const r = s.refuse;
+    const text = reasons.join(' ').toLowerCase();
+    const over = (k: string, n: number) => typeof scores[k] === 'number' && scores[k] >= n;
+    if (text.includes('nobody in the picture')) return r.nopeople;
+    if (text.includes('not a photograph')) return r.notphoto;
+    if (text.includes('sexual') || over('sexual', 45)) return r.sexual;
+    if (text.includes('violence') || text.includes('injur') || over('violence', 55)) return r.violence;
+    if (text.includes('advert') || text.includes('promot') || text.includes('flyer') || over('advertising', 65)) return r.advert;
+    if (text.includes('screenshot') || text.includes('meme') || over('screenshot', 70)) return r.screenshot;
+    if (text.includes('document') || text.includes('private') || over('private_document', 55)) return r.document;
+    if (text.includes('confidence')) return r.unclear;
+    if (text.includes('too large') || text.includes('too many pixels')) return r.toobig;
+    if (text.includes('not a jpeg') || text.includes('unreadable') || text.includes('decode')) return r.badfile;
+    return r.generic;
+  });
+}
 
 /* Turns the screener's reasons into the sentence the sender hears. The
    screener speaks in codes because it is a machine; the sender gets a reason

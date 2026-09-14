@@ -25,7 +25,7 @@
 
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
-import { say, refusalFor } from '../_shared/say.ts';
+import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -60,6 +60,8 @@ const HEYY_API_BASE = Deno.env.get('HEYY_API_BASE') ?? 'https://api.heyy.io';
    signing secret exists; if one appears, WEBHOOK_SIGNATURE_HEADER and
    META_APP_SECRET already handle it and this can go. */
 const HEYY_WEBHOOK_SECRET = Deno.env.get('HEYY_WEBHOOK_SECRET') ?? '';
+
+configureSay(GEMINI_MODEL, GEMINI_KEY);
 
 const SIGNATURE_HEADERS = (Deno.env.get('WEBHOOK_SIGNATURE_HEADER')
   ?? 'x-hub-signature-256,x-hookmyapp-signature-256')
@@ -338,9 +340,19 @@ async function recallLang(ref: string) {
   } catch { return 'en'; }
 }
 
+/* The script someone writes in settles their language when the script is
+   distinctive. Latin script is not — Portuguese, Italian, Dutch and English
+   look alike to a regex — and there the model's reading of the words decides.
+   'en' here means "Latin script, ask the model", not "English". */
 function scriptOf(text: string) {
   if (/[\u0590-\u05FF]/.test(text)) return 'he';
   if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+  if (/[\u0600-\u06FF]/.test(text)) return 'ar';
+  if (/[\u0370-\u03FF]/.test(text)) return 'el';
+  if (/[\u3040-\u30FF]/.test(text)) return 'ja';
+  if (/[\uAC00-\uD7AF]/.test(text)) return 'ko';
+  if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
+  if (/[\u0E00-\u0E7F]/.test(text)) return 'th';
   return 'en';
 }
 
@@ -655,16 +667,29 @@ async function handle(body: any, ch: Channel) {
   // ======================================================================
   if (msg.type === 'text') {
     const text = (msg.text?.body ?? '').trim();
-    const lang = scriptOf(text) !== 'en' ? scriptOf(text) : (contact?.lang ?? 'en');
+    let lang = scriptOf(text) !== 'en' ? scriptOf(text) : (contact?.lang ?? 'en');
 
     /* The first thing anyone ever hears is the welcome: what this is, why it
-       matters, what to do. Everything after that assumes they know. */
+       matters, what to do. Everything after that assumes they know.
+
+       In their language. Latin script alone cannot say whether "Olá" is
+       Portuguese or "Ciao" Italian, and the welcome used to go out in English
+       to both — and then the contact remembered "en", so every bare answer
+       after it came back in English too. One model call here, before the
+       welcome, settles it for the whole conversation. */
     if (!contact) {
+      let first = lang;
+      if (scriptOf(text) === 'en' && /[a-z]{2,}/i.test(text) && GEMINI_KEY) {
+        try { const d = await parseDetails(text, await communityList()); if (d?.language) first = d.language; }
+        catch { /* English it is */ }
+      }
+      lang = first;
       await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
       ch.trace('welcome', { lang });
       await log(waId, 'in', 'text', text);
-      await log(waId, 'out', 'welcome', say(lang).welcome);
-      await ch.reply(from, say(lang).welcome);
+      const w = await phrase(lang, x => x.welcome);
+      await log(waId, 'out', 'welcome', w);
+      await ch.reply(from, w);
       return;
     }
 
@@ -816,14 +841,14 @@ async function handle(body: any, ch: Channel) {
     const greeting = /^(hi|hello|hey|shalom|שלום|היי|הי|привет|здравствуйте|bonjour|salut|hallo|hola)\b/i.test(text)
       || text.length < 4;
     ch.trace('nothing waiting', { greeting });
-    const fallback = greeting ? say(spoken).hello : say(spoken).nophoto;
+    const fallback = await phrase(spoken, x => greeting ? x.hello : x.nophoto);
     await log(waId, 'out', 'text', fallback);
     await ch.reply(from, fallback);
     return;
   }
 
   if (msg.type !== 'image') {
-    await ch.reply(from, say(contact?.lang ?? 'en').nophoto);
+    await ch.reply(from, await phrase(contact?.lang ?? 'en', x => x.nophoto));
     return;
   }
 
@@ -836,7 +861,13 @@ async function handle(body: any, ch: Channel) {
   if (allowed === false) { ch.trace('rate limited', { bucket: `wa:${from}` }); return; }
 
   const caption = (msg.image?.caption ?? '').trim();
-  const lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : (contact?.lang ?? 'en');
+  let lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : (contact?.lang ?? 'en');
+  /* A Latin-script caption from someone whose language we do not yet know:
+     let the model read it rather than assume English. */
+  if (caption && scriptOf(caption) === 'en' && /[a-z]{2,}/i.test(caption) && !contact?.lang && GEMINI_KEY) {
+    try { const d = await parseDetails(caption, await communityList()); if (d?.language) lang = d.language; }
+    catch { /* keep the default */ }
+  }
   const firstEver = !contact;
   await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
 
@@ -850,13 +881,14 @@ async function handle(body: any, ch: Channel) {
     const error = String(e).slice(0, 500);
     ch.trace('fetch failed', { error });
     await log(waId, 'in', 'photo', caption || null);
-    await log(waId, 'out', 'refusal', say(lang).fetchfail, null, { reason: 'could not download it (our fault)' });
+    const ff = await phrase(lang, x => x.fetchfail);
+    await log(waId, 'out', 'refusal', ff, null, { reason: 'could not download it (our fault)' });
     /* Written where it can be read, because the log line this used to be was
        not readable with the deploy token, and a failure nobody can see becomes
        a theory. */
     await remember(waId, { last_error: `fetch: ${error} | ref=${String(msg.image.id).slice(0, 200)}`,
                            last_error_at: new Date().toISOString() });
-    await ch.reply(from, say(lang).fetchfail);
+    await ch.reply(from, ff);
     return;
   }
 
@@ -874,7 +906,7 @@ async function handle(body: any, ch: Channel) {
     await remember(waId, { last_error: `sanitize: ${why} | mime=${mime} bytes=${bytes.length}`,
                            last_error_at: new Date().toISOString() });
     /* A large or unreadable file is a mishap, not an attempt. No strike. */
-    const said = refusalFor(lang, [why]);
+    const said = await refusalIn(lang, [why]);
     await log(waId, 'in', 'photo', caption || null);
     await log(waId, 'out', 'refusal', said, null, { reason: why });
     await ch.reply(from, said);
@@ -885,8 +917,9 @@ async function handle(body: any, ch: Channel) {
   if (Array.isArray(dupe) ? dupe.length > 0 : Boolean(dupe)) {
     ch.trace('duplicate', { of: dupe });
     await log(waId, 'in', 'photo', caption || null);
-    await log(waId, 'out', 'text', say(lang).dupe, null, { reason: 'duplicate' });
-    await ch.reply(from, say(lang).dupe);
+    const d = await phrase(lang, x => x.dupe);
+    await log(waId, 'out', 'text', d, null, { reason: 'duplicate' });
+    await ch.reply(from, d);
     return;
   }
 
@@ -982,7 +1015,7 @@ async function handle(body: any, ch: Channel) {
     const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
       || verdict.reasons.some(r => /scored \d+/.test(r));
     if (harm) await strike(waId, ch.isTest);
-    const said = refusalFor(lang, verdict.reasons, verdict.scores as Record<string, number>);
+    const said = await refusalIn(lang, verdict.reasons, verdict.scores as Record<string, number>);
     await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
     /* The reason is stored in plain words alongside, so "why?" in five minutes
        can be answered with it. The refusal quotes the photograph it refuses. */
@@ -993,8 +1026,17 @@ async function handle(body: any, ch: Channel) {
 
   await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null });
   await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
-  const prefix = firstEver ? say(lang).welcome + '\n\n' : '';
-  await continueConversation(waId, from, photo, lang, ch, false, prefix + say(lang).got + ' ', msg.id ?? null);
+  /* A brand-new contact who sends a photograph with no words has given no
+     language signal at all. Hebrew and English together cover most of this
+     archive's world; the moment they type anything, their language takes over. */
+  const noSignal = firstEver && !caption;
+  const prefix = firstEver
+    ? (noSignal
+        ? say('he').welcome + '\n\n' + say('en').welcome + '\n\n'
+        : await phrase(lang, x => x.welcome) + '\n\n')
+    : '';
+  const got = await phrase(lang, x => x.got);
+  await continueConversation(waId, from, photo, lang, ch, false, prefix + got + ' ', msg.id ?? null);
 }
 
 /* ---- the conversation ----------------------------------------------------- */
@@ -1018,19 +1060,20 @@ async function continueConversation(
 
   if (missing) {
     await remember(waId, { asking: missing, asking_for: photo.id });
-    const s = say(lang);
-    const head = answerWasEmpty ? s.unclear : (lead || (photo.people_text || photo.year ? s.noted : ''));
+    const head = answerWasEmpty
+      ? await phrase(lang, x => x.unclear)
+      : (lead || (photo.people_text || photo.year ? await phrase(lang, x => x.noted) : ''));
+    const q = await phrase(lang, x => x.ask[missing]);
     ch.trace('asking', { photo_id: photo.id, for: missing, quoting: Boolean(quote) });
-    const sentId = await ch.reply(from, head + s.ask[missing], quote);
-    await log(waId, 'out', 'question', head + s.ask[missing], photo.id, { field: missing }, sentId);
+    const sentId = await ch.reply(from, head + q, quote);
+    await log(waId, 'out', 'question', head + q, photo.id, { field: missing }, sentId);
     return;
   }
 
   await remember(waId, { asking: null, asking_for: null });
   const live = await publishIfReady(photo.id, ch);
   ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
-  const s = say(lang);
-  const said = lead + (live ? s.complete : s.completeHeld) + s.more;
+  const said = lead + await phrase(lang, x => (live ? x.complete : x.completeHeld) + x.more);
   const sentId = await ch.reply(from, said, quote);
   await log(waId, 'out', 'text', said, photo.id, {}, sentId);
 }
