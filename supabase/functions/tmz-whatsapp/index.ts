@@ -695,13 +695,20 @@ async function handle(body: any, ch: Channel) {
     });
 
     if (openLive) {
+      /* A value the message STATES overwrites what is there. The first version
+         only filled empty fields, so "sorry, I was confused, it was Melbourne"
+         acknowledged the correction in words and kept Montevideo in the row.
+         People correct themselves; the model only extracts a value when the
+         message actually gives one, so overwriting is safe. The
+         whole-message fallback for who/what still applies only when empty —
+         that one is a guess, and a guess must not replace an answer. */
       const patch: Record<string, unknown> = {};
-      if (communityId && !openLive.community_id) patch.community_id = communityId;
-      if (det.year && !openLive.year) patch.year = det.year;
-      if (contact.asking === 'people' && !openLive.people_text) patch.people_text = det.people || text;
-      else if (det.people && !openLive.people_text) patch.people_text = det.people;
-      if (contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = det.event_note || text;
-      else if (det.event_note && !openLive.occasion_text) patch.occasion_text = det.event_note;
+      if (communityId && communityId !== openLive.community_id) patch.community_id = communityId;
+      if (det.year && det.year !== openLive.year) patch.year = det.year;
+      if (det.people && det.people !== openLive.people_text) patch.people_text = det.people;
+      else if (contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
+      if (det.event_note && det.event_note !== openLive.occasion_text) patch.occasion_text = det.event_note;
+      else if (contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
 
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
