@@ -262,7 +262,7 @@ function drawMap(attempt = 0) {
   /* At world view only what is alive gets a name: open communities, the
      selected one, and the clusters' counts. Alumni are a hollow dot until
      you fly closer — half the text, none of the meaning lost. */
-  const named = zoomed ? markers : markers.filter(m => m.count > 1 || m.sel || !m.c.c);
+  const named = markers;   // every dot may have a name; the placer drops what would collide
   placeLabels(named, blocked, W, H, isRTL());
 
   $('#markers').innerHTML =

@@ -5,14 +5,24 @@
    the same composition survives any viewport. */
 
 const LONF = [
-  [-180, -160, 0,       0.01250], [-160, -70, 0.01250, 0.31250],
-  [ -70,  -45, 0.31250, 0.35625], [ -45,   0, 0.35625, 0.50000],
+  /* North America holds thirty of the fifty-five communities between 100°W
+     and 70°W; that band gets a quarter of the width, the empty Pacific and
+     Atlantic give it up. */
+  /* Offsets from Jerusalem, not longitudes: North America's thirty
+     communities sit between -135 and -100 here, and that band gets a
+     quarter of the width from the empty Pacific and Atlantic. */
+  [-180, -160, 0,       0.01000], [-160, -135, 0.01000, 0.05000],
+  [-135, -100, 0.05000, 0.30000], [-100,  -70, 0.30000, 0.33000],
+  [ -70,  -45, 0.33000, 0.36000], [ -45,   0, 0.36000, 0.50000],
   [   0,   15, 0.50000, 0.54844], [  15, 122, 0.54844, 0.91563],
   [ 122,  180, 0.91563, 1.00000]
 ];
 const LATF = [
-  [ 68,  60, 0,       0.03285], [ 60,  25, 0.03285, 0.46715],
-  [ 25, -10, 0.46715, 0.67153], [-10, -40, 0.67153, 0.96350],
+  /* The 25°–50° band holds nearly everything north of the equator; it gets
+     the height the Arctic and the far north give up. */
+  [ 68,  60, 0,       0.02000], [ 60,  50, 0.02000, 0.09000],
+  [ 50,  25, 0.09000, 0.50000],
+  [ 25, -10, 0.50000, 0.69000], [-10, -40, 0.69000, 0.96350],
   [-40, -45, 0.96350, 1.00000]
 ];
 const JERUSALEM = { lon: 35.22, lat: 31.78 };
@@ -93,7 +103,7 @@ function arc(jx, jy, x, y) {
 
 /* Anything closer than this on screen cannot be told apart, so it collapses into
    one marker carrying a count. Zooming pulls the group back open. */
-const CLUSTER_PX = 24;
+const CLUSTER_PX = 15;
 
 function clusterPoints(pts, selId) {
   const sorted = pts.slice().sort((a, b) => {
