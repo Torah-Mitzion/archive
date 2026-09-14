@@ -664,7 +664,7 @@ function wireLightbox(root) {
     sub: [(f.querySelector('.names') || {}).textContent, (f.querySelector('.mt') || {}).textContent]
       .map(x => (x || '').trim()).filter(Boolean).join(' · '),
     shareUrl: f.dataset.photoId
-      ? `${TMZ_SUPABASE_URL}/functions/v1/tmz-share?p=${encodeURIComponent(f.dataset.photoId)}`
+      ? `https://30.torahmitzion.org/p/${encodeURIComponent(f.dataset.photoId)}.html`
       : location.href
   }));
   figs.forEach((f, i) => {

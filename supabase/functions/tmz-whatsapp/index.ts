@@ -28,6 +28,7 @@ import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
 import { renderNames } from '../_shared/names.ts';
+import { pushSharePage } from '../_shared/sharepage.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -65,6 +66,26 @@ const HEYY_WEBHOOK_SECRET = Deno.env.get('HEYY_WEBHOOK_SECRET') ?? '';
    both go into the messages a sender is asked to forward. */
 const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://30.torahmitzion.org').replace(/\/$/, '');
 const PUBLIC_WA = (Deno.env.get('WHATSAPP_PUBLIC_NUMBER') ?? '972765300609').replace(/[^0-9]/g, '');
+/* A fine-grained GitHub token with contents:write on the site's repository
+   lets a published photograph get its share page at once; without it the
+   local script writes them. */
+const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN') ?? '';
+const SITE_REPO = Deno.env.get('SITE_REPO') ?? 'Torah-Mitzion/archive';
+
+/* Writes docs/p/<id>.html to the site so a link to this photograph unfurls
+   as the photograph. Best effort, recorded when it lands. */
+async function writeSharePage(photoId: string) {
+  if (!GITHUB_TOKEN) return false;
+  try {
+    const p = (await pg(`/tmz_photo?select=id,public_path,year,people_text,people_tr,occasion_text,occasion_tr,` +
+      `tmz_community(slug,tmz_community_tr(lang,name))&id=eq.${photoId}&limit=1`))?.[0];
+    if (!p?.public_path || !p.tmz_community?.slug || p.year == null) return false;
+    const ok = await pushSharePage(p, { siteUrl: SITE_URL, token: GITHUB_TOKEN, repo: SITE_REPO,
+      publicBucket: `${SUPABASE_URL}/storage/v1/object/public/tmz-photo-public` });
+    if (ok) await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ share_page_at: new Date().toISOString() }) });
+    return ok;
+  } catch (e) { console.error('share page', e); return false; }
+}
 
 configureSay(GEMINI_MODEL, GEMINI_KEY);
 
@@ -625,6 +646,16 @@ async function handleSweep(req: Request, url: URL) {
     }
     report.reminded = reminded;
   } catch (e) { report.reminder_error = String(e).slice(0, 120); }
+
+  // 6. published photographs without a share page on the site yet
+  try {
+    if (GITHUB_TOKEN) {
+      const missing = await pg(`/tmz_photo?select=id&status=eq.approved&public_path=not.is.null&share_page_at=is.null&year=not.is.null&limit=5`);
+      let written = 0;
+      for (const p of missing ?? []) if (await writeSharePage(p.id)) written++;
+      report.share_pages = written;
+    }
+  } catch (e) { report.share_page_error = String(e).slice(0, 120); }
 
   // 3. the provider has a newer inbound than we do
   try {
@@ -1664,6 +1695,7 @@ async function publishIfReady(photoId: string, ch: Channel): Promise<false | 'al
       verdict: 'approved', reasons: ['published automatically']
     }])
   });
+  await writeSharePage(photoId);
   return 'fresh';
 }
 

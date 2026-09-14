@@ -18,6 +18,7 @@
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen as screenImage, type Verdict } from '../_shared/screen.ts';
 import { renderNames } from '../_shared/names.ts';
+import { pushSharePage } from '../_shared/sharepage.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -327,5 +328,19 @@ async function publishIfReady(photoId: string) {
       verdict: 'approved', reasons: ['published automatically']
     }])
   });
+  /* The share page, when a token allows it; otherwise the watchdog's turn. */
+  const token = Deno.env.get('GITHUB_TOKEN') ?? '';
+  if (token) {
+    try {
+      const full = (await pg(`/tmz_photo?select=id,public_path,year,people_text,people_tr,occasion_text,occasion_tr,` +
+        `tmz_community(slug,tmz_community_tr(lang,name))&id=eq.${photoId}&limit=1`))?.[0];
+      if (full?.tmz_community?.slug && await pushSharePage(full, {
+        siteUrl: (Deno.env.get('SITE_URL') ?? 'https://30.torahmitzion.org').replace(/\/$/, ''),
+        publicBucket: `${SUPABASE_URL}/storage/v1/object/public/tmz-photo-public`,
+        token, repo: Deno.env.get('SITE_REPO') ?? 'Torah-Mitzion/archive' })) {
+        await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ share_page_at: new Date().toISOString() }) });
+      }
+    } catch (e) { console.error('share page', e); }
+  }
   return true;
 }

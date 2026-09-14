@@ -45,48 +45,9 @@ async function pg(path: string, init: RequestInit & { prefer?: string } = {}) {
 
 // ---- the page --------------------------------------------------------------
 
-/* Everything on the page came from a sender's phone at some point; it goes
-   into an attribute, so all five characters that matter there are escaped. */
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
+import { sharePageHtml } from '../_shared/sharepage.ts';
 const goHome = () => new Response(null, { status: 302, headers: { ...CORS, Location: `${SITE_URL}/` } });
-
-/* One line, the way the site prints it under the photograph: the English
-   rendering when there is one, the sender's own words otherwise. */
-function line(tr: unknown, text: unknown) {
-  const en = (tr as Record<string, string> | null)?.en;
-  return (typeof en === 'string' && en.trim() ? en : String(text ?? '')).trim();
-}
-
-function page(photo: any) {
-  const comm = photo.tmz_community;
-  const trs: { lang: string; name: string }[] = comm?.tmz_community_tr ?? [];
-  const name = trs.find(t => t.lang === 'en')?.name ?? comm.slug;
-  const title = `${name} ${photo.year} — Torah MiTzion 30`;
-  const description = [line(photo.people_tr, photo.people_text), line(photo.occasion_tr, photo.occasion_text)]
-    .filter(Boolean).join(' · ') || 'Thirty years of Torah MiTzion in photographs.';
-  const image = `${PUBLIC_BUCKET}/${photo.public_path}`;
-  const link = `${SITE_URL}/#/c/${comm.slug}/${photo.year}/${photo.id}`;
-
-  const meta = (attr: string, key: string, value: string) =>
-    `<meta ${attr}="${key}" content="${esc(value)}">`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
-${meta('property', 'og:type', 'article')}
-${meta('property', 'og:site_name', 'Torah MiTzion 30')}
-${meta('property', 'og:title', title)}
-${meta('property', 'og:description', description)}
-${meta('property', 'og:image', image)}
-${meta('property', 'og:image:secure_url', image)}
-${meta('property', 'og:url', link)}
-${meta('name', 'twitter:card', 'summary_large_image')}
-${meta('name', 'twitter:image', image)}
-<meta http-equiv="refresh" content="0;url=${esc(link)}">
-<script>location.replace(${JSON.stringify(link)})</script>
-</head><body><a href="${esc(link)}">${esc(title)}</a></body></html>
-`;
-}
+const page = (photo: any) => sharePageHtml(photo, SITE_URL, PUBLIC_BUCKET);
 
 // ---- handler ---------------------------------------------------------------
 
