@@ -149,7 +149,11 @@ async function verifySignature(raw: string, header: string | null) {
    an array. The handler cannot tell the difference, which is the point. */
 interface Channel {
   fetchMedia(ref: string): Promise<{ bytes: Uint8Array; mime: string }>;
-  reply(to: string, text: string): Promise<void>;
+  /* replyTo is the provider's id of the message to quote. Quoting is what lets
+     a person with five photographs in flight see which one a question is
+     about. Returns the provider's id of what was sent, so it can be quoted
+     back in turn. */
+  reply(to: string, text: string, replyTo?: string | null): Promise<string | null>;
   trace(step: string, detail: unknown): void;
   isTest: boolean;
   /* Test console only, and only ever set inside handleSim. Lets the publish,
@@ -160,20 +164,23 @@ interface Channel {
   forceVerdict?: 'publish' | 'hold' | 'reject';
 }
 
-async function reply(to: string, text: string) {
+async function reply(to: string, text: string, replyTo?: string | null): Promise<string | null> {
   if (!WA_TOKEN || !WA_PHONE_ID) {
     console.log(`[no channel configured] would reply to ${to}: ${text}`);
-    return;
+    return null;
   }
   const res = await fetch(`${GRAPH_URL}/${WA_PHONE_ID}/messages`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messaging_product: 'whatsapp', to, type: 'text',
-      text: { body: text, preview_url: false }
+      text: { body: text, preview_url: false },
+      ...(replyTo ? { context: { message_id: replyTo } } : {})
     })
   });
-  if (!res.ok) console.error('reply failed', res.status, await res.text());
+  if (!res.ok) { console.error('reply failed', res.status, await res.text()); return null; }
+  const data = await res.json().catch(() => null);
+  return data?.messages?.[0]?.id ?? null;
 }
 
 /* Spreading a multi-megabyte Uint8Array into String.fromCharCode overflows the
@@ -289,11 +296,31 @@ async function remember(ref: string, patch: Record<string, unknown>) {
    next message is answered by an agent that has forgotten this one. */
 async function log(ref: string, direction: 'in' | 'out', kind: string,
                    text: string | null, photoId: string | null = null,
-                   meta: Record<string, unknown> = {}) {
+                   meta: Record<string, unknown> = {}, providerMsgId: string | null = null) {
   try {
     await pg('/tmz_wa_message', { method: 'POST',
-      body: JSON.stringify([{ ref, direction, kind, text, photo_id: photoId, meta }]) });
+      body: JSON.stringify([{ ref, direction, kind, text, photo_id: photoId, meta,
+                              provider_msg_id: providerMsgId }]) });
   } catch (e) { console.error('log', e); }
+}
+
+/* The photograph a quoted message was about — whether they quoted the
+   photograph itself or the question we asked about it. */
+async function photoQuotedBy(ref: string, providerMsgId: string | null) {
+  if (!providerMsgId) return null;
+  try {
+    const rows = await pg(`/tmz_wa_message?select=photo_id&ref=eq.${encodeURIComponent(ref)}` +
+      `&provider_msg_id=eq.${encodeURIComponent(providerMsgId)}&photo_id=not.is.null&limit=1`);
+    return rows?.[0]?.photo_id ?? null;
+  } catch { return null; }
+}
+
+/* Every photograph of theirs still missing something. More than one means a
+   bare answer is ambiguous. */
+async function openPhotos(ref: string) {
+  const rows = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,created_at` +
+    `&submitter_ref=eq.${encodeURIComponent(ref)}&status=neq.rejected&order=created_at.desc&limit=10`);
+  return (rows ?? []).filter((p: any) => nextMissing(p));
 }
 
 async function history(ref: string, n = 30): Promise<HistoryRow[]> {
@@ -359,26 +386,26 @@ const heyyChannel: Channel = {
     }
     throw new Error(`heyy media: ${last}`);
   },
-  async reply(to: string, text: string) {
+  async reply(to: string, text: string, replyTo?: string | null) {
     if (!HEYY_API_TOKEN || !HEYY_CHANNEL_ID) {
       console.log(`[heyy not configured] would reply to ${to}: ${text}`);
-      return;
+      return null;
     }
-    const res = await fetch(
-      `${HEYY_API_BASE}/v2/${HEYY_CHANNEL_ID}/whatsapp_messages/send`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${HEYY_API_TOKEN}`,
-                   'Content-Type': 'application/json' },
-        /* The handler carries digits only, the way Meta addresses people; Heyy
-           wants it dialable. */
-        body: JSON.stringify({
-          phoneNumber: to.startsWith('+') ? to : `+${to}`,
-          type: 'TEXT',
-          bodyText: text.slice(0, 4096)
-        })
-      });
-    if (!res.ok) console.error('heyy reply failed', res.status, (await res.text()).slice(0, 300));
+    /* v3 rather than v2: only v3 can quote (replyToMessageId), and quoting is
+       the whole point of tracking message ids. The handler carries digits
+       only, the way Meta addresses people; Heyy wants it dialable. */
+    const res = await fetch(`${HEYY_API_BASE}/v3/messages/send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${HEYY_API_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat: { channelId: HEYY_CHANNEL_ID, phoneNumber: to.startsWith('+') ? to : `+${to}` },
+        body: text.slice(0, 4096),
+        ...(replyTo ? { replyToMessageId: replyTo } : {})
+      })
+    });
+    if (!res.ok) { console.error('heyy reply failed', res.status, (await res.text()).slice(0, 300)); return null; }
+    const data = await res.json().catch(() => null);
+    return data?.data?.id ?? data?.id ?? null;
   },
   trace: (step, detail) => console.log('[heyy]', step, JSON.stringify(detail)),
   isTest: false
@@ -400,6 +427,8 @@ function metaEnvelopeFromHeyy(body: any) {
     .find((f: any) => f?.url && /image/i.test(String(f?.contentType ?? '') + ' ' + String(f?.type ?? '')));
 
   const msg: any = { from, id: d?.id ?? crypto.randomUUID() };
+  /* Meta puts the quoted message under context.id; Heyy under replyTo.id. */
+  if (d?.replyTo?.id) msg.context = { id: d.replyTo.id };
   if (file) {
     msg.type = 'image';
     // the download URL stands in for Meta's media id; heyyChannel follows it
@@ -429,7 +458,10 @@ function simChannel(inline: { bytes: Uint8Array; mime: string } | null,
       if (!inline) throw new Error('no image in the simulated message');
       return inline;
     },
-    async reply(_to, text) { replies.push(text); },
+    async reply(_to, text, replyTo) {
+      replies.push(replyTo ? `↩︎[${String(replyTo).slice(0, 8)}] ${text}` : text);
+      return `sim-out-${crypto.randomUUID().slice(0, 8)}`;
+    },
     trace: (step, detail) => { trace.push({ step, detail }); console.log('[sim]', step); },
     isTest: true,
     forceVerdict
@@ -454,7 +486,8 @@ const json = (body: unknown, status = 200) =>
    reads it through the same accessors as a real one. If Meta's shape changes,
    the console breaks too — which is correct: it is supposed to be a mirror. */
 function metaEnvelope(m: any) {
-  const msg: any = { from: m.from, id: `sim.${crypto.randomUUID()}`, type: m.type };
+  const msg: any = { from: m.from, id: m.id ?? `sim.${crypto.randomUUID().slice(0, 8)}`, type: m.type };
+  if (m.reply_to) msg.context = { id: m.reply_to };
   if (m.type === 'image') msg.image = { id: 'sim', caption: m.caption ?? undefined };
   else msg.text = { body: m.text ?? '' };
   return {
@@ -635,18 +668,34 @@ async function handle(body: any, ch: Channel) {
       return;
     }
 
-    await log(waId, 'in', 'text', text);
+    await log(waId, 'in', 'text', text, null, {}, msg.id ?? null);
 
     const comms = await communityList();
     const local = parseLocally(text, comms);
 
-    /* What is this message about? If a photograph is waiting on an answer,
-       that photograph; and whatever was last refused, so "why?" has a referent. */
-    const open = contact.asking_for
-      ? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path` +
-                  `&id=eq.${contact.asking_for}`))?.[0] ?? null
-      : null;
-    const openLive = open && open.status !== 'rejected' ? open : null;
+    /* Which photograph is this about? In order of certainty:
+         1. They quoted a message — the photograph that message was about.
+         2. Exactly one of their photographs is still missing something.
+         3. Several are — then the model is shown all of them, with what each
+            shows, and either picks one from the wording or asks which.
+       And whatever was last refused, so "why?" has a referent. */
+    const candidates = await openPhotos(waId);
+    const quotedPhotoId = await photoQuotedBy(waId, msg.context?.id ?? null);
+    let openLive: any = null;
+    if (quotedPhotoId) {
+      openLive = candidates.find((p: any) => p.id === quotedPhotoId)
+        ?? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description&id=eq.${quotedPhotoId}`))?.[0]
+        ?? null;
+      if (openLive?.status === 'rejected') openLive = null;
+      ch.trace('quoted', { photo_id: quotedPhotoId, resolved: Boolean(openLive) });
+    } else if (candidates.length === 1) {
+      openLive = candidates[0];
+    } else if (candidates.length > 1 && contact.asking_for) {
+      /* Several open; the one we most recently asked about is the default the
+         model may override. */
+      openLive = candidates.find((p: any) => p.id === contact.asking_for) ?? null;
+    }
+    const ambiguous = !quotedPhotoId && candidates.length > 1;
     const past = await history(waId);
     const lastRefusal = [...past].reverse().find(h => h.kind === 'refusal');
 
@@ -661,14 +710,25 @@ async function handle(body: any, ch: Channel) {
           lang, history: past,
           open: openLive ? { id: openLive.id, community: nameOf(openLive.community_id), year: openLive.year,
                              people_text: openLive.people_text, occasion_text: openLive.occasion_text,
-                             status: openLive.status } : null,
+                             status: openLive.status, description: openLive.ai_description ?? null } : null,
+          candidates: ambiguous ? candidates.map((p: any, i: number) => ({
+            index: i + 1, description: p.ai_description ?? 'no description',
+            community: nameOf(p.community_id), year: p.year,
+            missing: nextMissing(p) })) : [],
           communities: comms,
           lastRefusal: lastRefusal ? { reason: String(lastRefusal.meta?.reason ?? ''), at: lastRefusal.created_at } : null,
           photosSent: contact.photos_sent ?? 0,
           message: text
         }));
         ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
-                                people: out.people, occasion: out.occasion });
+                                people: out.people, occasion: out.occasion, target: out.target_photo });
+        /* When several photographs are open and the model could tell which one
+           the answer meant, that one is the target. When it could not, the
+           reply it wrote asks — and nothing is written to any of them. */
+        if (ambiguous) {
+          openLive = out.target_photo ? (candidates[out.target_photo - 1] ?? null) : null;
+          ch.trace(openLive ? 'disambiguated' : 'asking which photograph', { target: out.target_photo });
+        }
       } catch (e) { ch.trace('converse failed', { error: String(e).slice(0, 160) }); }
     }
 
@@ -702,13 +762,19 @@ async function handle(body: any, ch: Channel) {
          message actually gives one, so overwriting is safe. The
          whole-message fallback for who/what still applies only when empty —
          that one is a guess, and a guess must not replace an answer. */
+      /* `asking` is per sender, not per photograph. When a quote routed this
+         answer to a DIFFERENT photograph than the one last asked about, the
+         "whole message is the answer" fallback must not fire — "Cape Town
+         2011" quoted at photograph B is not who is in it, whatever was last
+         asked about photograph A. */
+      const askingThis = contact.asking_for === openLive.id;
       const patch: Record<string, unknown> = {};
       if (communityId && communityId !== openLive.community_id) patch.community_id = communityId;
       if (det.year && det.year !== openLive.year) patch.year = det.year;
       if (det.people && det.people !== openLive.people_text) patch.people_text = det.people;
-      else if (contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
+      else if (askingThis && contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
       if (det.event_note && det.event_note !== openLive.occasion_text) patch.occasion_text = det.event_note;
-      else if (contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
+      else if (askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
 
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -727,11 +793,14 @@ async function handle(body: any, ch: Channel) {
         ch.trace(live ? 'published' : 'complete, held', { photo_id: merged.id });
       }
 
+      /* Quote the photograph this is about, so the question visibly hangs off
+         the right picture even with five in flight. */
+      const quote = await providerIdOfPhoto(waId, merged.id);
       if (out) {
-        await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {});
-        await ch.reply(from, out.reply);
+        const sentId = await ch.reply(from, out.reply, quote);
+        await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {}, sentId);
       } else {
-        await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0);
+        await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0, '', quote);
       }
       return;
     }
@@ -739,8 +808,9 @@ async function handle(body: any, ch: Channel) {
     /* Nothing waiting. The model answers in context — a "why?" after a refusal
        gets the reason; a hello gets a hello. Without the model, a nudge. */
     if (out) {
-      await log(waId, 'out', 'text', out.reply);
-      await ch.reply(from, out.reply);
+      const sentId = await ch.reply(from, out.reply, ambiguous ? null : null);
+      await log(waId, 'out', ambiguous ? 'question' : 'text', out.reply, null,
+                ambiguous ? { field: 'which' } : {}, sentId);
       return;
     }
     const greeting = /^(hi|hello|hey|shalom|שלום|היי|הי|привет|здравствуйте|bonjour|salut|hallo|hola)\b/i.test(text)
@@ -880,6 +950,7 @@ async function handle(body: any, ch: Channel) {
       width: clean.width, height: clean.height, bytes: clean.archiveBytes.length, phash: clean.phash,
       community_id: placed.community_id, year: placed.year,
       people_text: captionPeople, occasion_text: captionOccasion,
+      ai_description: verdict.facts.description ? String(verdict.facts.description).slice(0, 300) : null,
       event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null,
       status: verdict.decision === 'reject' ? 'rejected' : 'pending',
       agent_decision: verdict.decision, needs_rescreen: verdict.decision === 'hold',
@@ -912,18 +983,18 @@ async function handle(body: any, ch: Channel) {
       || verdict.reasons.some(r => /scored \d+/.test(r));
     if (harm) await strike(waId, ch.isTest);
     const said = refusalFor(lang, verdict.reasons, verdict.scores as Record<string, number>);
-    await log(waId, 'in', 'photo', caption || null, photo.id);
+    await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
     /* The reason is stored in plain words alongside, so "why?" in five minutes
-       can be answered with it. */
-    await log(waId, 'out', 'refusal', said, photo.id, { reason: verdict.reasons.join('; ').slice(0, 300) });
-    await ch.reply(from, said);
+       can be answered with it. The refusal quotes the photograph it refuses. */
+    const sentId = await ch.reply(from, said, msg.id ?? null);
+    await log(waId, 'out', 'refusal', said, photo.id, { reason: verdict.reasons.join('; ').slice(0, 300) }, sentId);
     return;
   }
 
   await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null });
-  await log(waId, 'in', 'photo', caption || null, photo.id);
+  await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
   const prefix = firstEver ? say(lang).welcome + '\n\n' : '';
-  await continueConversation(waId, from, photo, lang, ch, false, prefix + say(lang).got + ' ');
+  await continueConversation(waId, from, photo, lang, ch, false, prefix + say(lang).got + ' ', msg.id ?? null);
 }
 
 /* ---- the conversation ----------------------------------------------------- */
@@ -936,7 +1007,7 @@ const ASK_ORDER: Array<'community' | 'year' | 'people' | 'occasion'> =
    found a shoebox will answer one thing gladly and four things not at all. */
 async function continueConversation(
   waId: string, from: string, photo: any, lang: string, ch: Channel,
-  answerWasEmpty: boolean, lead = ''
+  answerWasEmpty: boolean, lead = '', quote: string | null = null
 ) {
   const missing = ASK_ORDER.find(k => {
     if (k === 'community') return !photo.community_id;
@@ -949,9 +1020,9 @@ async function continueConversation(
     await remember(waId, { asking: missing, asking_for: photo.id });
     const s = say(lang);
     const head = answerWasEmpty ? s.unclear : (lead || (photo.people_text || photo.year ? s.noted : ''));
-    ch.trace('asking', { photo_id: photo.id, for: missing });
-    await log(waId, 'out', 'question', head + s.ask[missing], photo.id, { field: missing });
-    await ch.reply(from, head + s.ask[missing]);
+    ch.trace('asking', { photo_id: photo.id, for: missing, quoting: Boolean(quote) });
+    const sentId = await ch.reply(from, head + s.ask[missing], quote);
+    await log(waId, 'out', 'question', head + s.ask[missing], photo.id, { field: missing }, sentId);
     return;
   }
 
@@ -960,8 +1031,18 @@ async function continueConversation(
   ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
   const s = say(lang);
   const said = lead + (live ? s.complete : s.completeHeld) + s.more;
-  await log(waId, 'out', 'text', said, photo.id);
-  await ch.reply(from, said);
+  const sentId = await ch.reply(from, said, quote);
+  await log(waId, 'out', 'text', said, photo.id, {}, sentId);
+}
+
+/* The provider id of the message in which this photograph arrived — what a
+   question about it should quote. */
+async function providerIdOfPhoto(ref: string, photoId: string): Promise<string | null> {
+  try {
+    const rows = await pg(`/tmz_wa_message?select=provider_msg_id&ref=eq.${encodeURIComponent(ref)}` +
+      `&photo_id=eq.${photoId}&direction=eq.in&kind=eq.photo&provider_msg_id=not.is.null&limit=1`);
+    return rows?.[0]?.provider_msg_id ?? null;
+  } catch { return null; }
 }
 
 function nextMissing(photo: any): 'community' | 'year' | 'people' | 'occasion' | null {

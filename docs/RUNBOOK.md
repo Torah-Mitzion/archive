@@ -122,6 +122,11 @@ is refused for good — so the dials want setting before the campaign, not durin
 
 ## 7. Connect Heyy
 
+**First, in Heyy, switch off its own AI on the archive's channel** — Settings →
+AI Employees / Automations, channel "תורה מציון- 5". Two bots on one number
+answer each other's customers; the client's first test showed Heyy's assistant
+replying "how can I help you today?" to a photograph.
+
 In Heyy → Settings → Webhooks → Create webhook, subscribed to
 **`message.received`**:
 

@@ -51,6 +51,8 @@ body{margin:0;font:15px/1.5 Heebo,system-ui,sans-serif;color:var(--ink);
 .t{font-size:10.5px;color:var(--dim);float:inline-end;margin:6px 0 -2px 0;
   margin-inline-start:9px;position:relative;top:3px}
 .tick{color:#4fc3f7;font-size:11px}
+.quote{border-inline-start:3px solid var(--wa-teal);background:rgba(0,0,0,.05);
+  padding:3px 8px;margin:-2px 0 6px;border-radius:4px;font-size:12px;color:#54656f}
 .sys{align-self:center;background:#fdf3d4;color:#7a6320;font-size:12px;padding:5px 12px;
   border-radius:8px;box-shadow:0 1px .5px rgba(0,0,0,.1);max-width:80%;text-align:center}
 .typing{align-self:flex-start;background:var(--in);border-radius:8px;border-start-start-radius:0;
@@ -126,6 +128,10 @@ body{margin:0;font:15px/1.5 Heebo,system-ui,sans-serif;color:var(--ink);
 
     <div class="feed" id="feed"></div>
 
+    <div class="pending" id="quoting" hidden>
+      <span>↩︎ מצטט: <b id="quotingLabel"></b></span>
+      <button id="quotingDrop">ביטול</button>
+    </div>
     <div class="pending" id="pending" hidden>
       <img id="pendingImg" alt="">
       <span id="pendingName"></span>
@@ -199,13 +205,28 @@ const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', mi
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const scroll = () => { feed.scrollTop = feed.scrollHeight; };
 
-function bubble(side, html, tick) {
+let quoting = null;   // { id, label } of the message the next send will quote
+let msgSeq = 0;
+function bubble(side, html, tick, id = null, label = '') {
   const d = document.createElement('div');
   d.className = 'msg ' + side;
   d.innerHTML = html + `<span class="t">${clock()}${tick ? ' <span class="tick">✓✓</span>' : ''}</span>`;
+  if (id) {
+    /* Click a bubble to quote it — the way a long-press works on the phone.
+       This is how "which photograph?" gets answered without ambiguity. */
+    d.dataset.id = id; d.title = 'לחיצה = ציטוט';
+    d.style.cursor = 'pointer';
+    d.onclick = () => {
+      quoting = { id, label };
+      $('quotingLabel').textContent = label;
+      $('quoting').hidden = false;
+      $('text').focus();
+    };
+  }
   feed.appendChild(d); scroll();
   return d;
 }
+$('quotingDrop').onclick = () => { quoting = null; $('quoting').hidden = true; };
 function system(text) {
   const d = document.createElement('div');
   d.className = 'sys'; d.textContent = text;
@@ -317,12 +338,15 @@ async function send() {
   busy = true; $('send').disabled = true;
   const img = held, caption = text;
 
+  const myId = `con-${++msgSeq}`;
   if (img) {
-    bubble('out', `<img src="${img.data}" alt="">${caption ? esc(caption) : ''}`, true);
+    bubble('out', `<img src="${img.data}" alt="">${caption ? esc(caption) : ''}`, true, myId, `תמונה ${msgSeq}`);
     held = null; $('pending').hidden = true; $('text').placeholder = 'הודעה';
   } else {
-    bubble('out', esc(text), true);
+    bubble('out', esc(text), true, myId, text.slice(0, 30));
   }
+  const replyTo = quoting?.id ?? null;
+  quoting = null; $('quoting').hidden = true;
   $('text').value = ''; $('text').style.height = 'auto';
 
   typing(true);
@@ -330,7 +354,7 @@ async function send() {
   try {
     const body = {
       from: $('from').value.trim(), name: $('name').value.trim(),
-      type: img ? 'image' : 'text'
+      type: img ? 'image' : 'text', id: myId, ...(replyTo ? { reply_to: replyTo } : {})
     };
     if (img) { body.image = { data: img.data, mime: img.mime }; body.caption = caption || null; }
     else body.text = text;
@@ -346,7 +370,14 @@ async function send() {
     $('status').textContent = 'מקוון';
     showTrace(out.trace || [], out.error);
     if (!out.replies?.length && !out.error) system('הסוכן לא ענה כלום.');
-    for (const r of out.replies || []) bubble('in', esc(r));
+    for (const r of out.replies || []) {
+      const m = r.match(/^↩︎\[([^\]]+)\] ([\s\S]*)$/);
+      if (m) {
+        const src = feed.querySelector(`[data-id^="${m[1]}"]`);
+        const label = src ? (src.querySelector('img') ? 'תמונה' : src.textContent.slice(0, 40)) : m[1];
+        bubble('in', `<div class="quote">↩︎ ${esc(label)}</div>${esc(m[2])}`);
+      } else bubble('in', esc(r));
+    }
     if (out.error) system('הסוכן נכשל: ' + out.error);
   } catch (err) {
     typing(false);

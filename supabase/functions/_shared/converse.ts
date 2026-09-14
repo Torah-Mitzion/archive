@@ -30,11 +30,21 @@ export interface OpenPhoto {
   people_text: string | null;
   occasion_text: string | null;
   status: string;
+  description?: string | null; // what the screener saw in it
+}
+
+export interface Candidate {
+  index: number;               // 1-based, what target_photo refers to
+  description: string;
+  community: string | null;
+  year: number | null;
+  missing: string | null;
 }
 
 export interface Extracted {
   reply: string;
   intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'other';
+  target_photo: number | null; // which candidate the message was about, when there were several
   community_slug: string | null;
   year: number | null;
   people: string | null;
@@ -50,12 +60,14 @@ export function buildPrompt(opts: {
   lang: string;
   history: HistoryRow[];
   open: OpenPhoto | null;
+  candidates?: Candidate[];
   communities: { slug: string; name: string }[];
   lastRefusal: { reason: string; at: string } | null;
   photosSent: number;
   message: string;
 }) {
   const { lang, history, open, communities, lastRefusal, photosSent, message } = opts;
+  const candidates = opts.candidates ?? [];
   const missing = open
     ? (['community', 'year', 'people', 'occasion'] as const).filter(k =>
         k === 'community' ? !open.community : k === 'year' ? !open.year :
@@ -102,8 +114,12 @@ ${transcript || '(nothing yet — this is their first message)'}
 
 CURRENT STATE:
 - Photographs they have sent so far: ${photosSent}
-${open
-  ? `- Photograph under discussion: community=${open.community ?? 'UNKNOWN'}, year=${open.year ?? 'UNKNOWN'}, who=${open.people_text ?? 'UNKNOWN'}, occasion=${open.occasion_text ?? 'UNKNOWN'}
+${candidates.length > 1
+  ? `- SEVERAL of their photographs are still waiting on answers, and they did not say which this is about:
+${candidates.map(cd => `    [${cd.index}] ${cd.description} — community=${cd.community ?? '?'}, year=${cd.year ?? '?'}, still missing: ${cd.missing}`).join('\n')}
+  If their message plainly fits one of these (by its content, or because it answers what only one is missing), set target_photo to that number and answer for it. If you cannot tell, set target_photo to null and ASK which one, describing them by what they show — e.g. "the one with three people by the flag, or the one at the table?" — never by number.`
+  : open
+  ? `- Photograph under discussion${open.description ? ` (${open.description})` : ''}: community=${open.community ?? 'UNKNOWN'}, year=${open.year ?? 'UNKNOWN'}, who=${open.people_text ?? 'UNKNOWN'}, occasion=${open.occasion_text ?? 'UNKNOWN'}
 - Still missing for it: ${missing.length ? missing.join(', ') : 'nothing — it is complete'}`
   : '- No photograph is waiting on an answer.'}
 ${lastRefusal ? `- Their most recent photograph was REFUSED. Reason: ${lastRefusal.reason}` : ''}
@@ -113,6 +129,7 @@ THEIR NEW MESSAGE: """${message}"""
 Return ONLY JSON:
 {"reply": string,
  "intent": "answer" | "question" | "greeting" | "thanks" | "other",
+ "target_photo": number | null,    // only when several were listed above
  "community_slug": string | null,   // one of the slugs above, if their message names a community
  "year": number | null,             // 1990-2030, if their message gives a year
  "people": string | null,           // names, if their message says who is in the photograph
@@ -145,6 +162,7 @@ export async function converse(model: string, key: string, prompt: string): Prom
   return {
     reply: out.reply.trim().slice(0, 1500),
     intent: out.intent ?? 'other',
+    target_photo: Number.isInteger(out.target_photo) && out.target_photo > 0 ? out.target_photo : null,
     community_slug: out.community_slug ?? null,
     year: Number.isInteger(out.year) && out.year >= 1990 && out.year <= 2030 ? out.year : null,
     people: out.people ? String(out.people).slice(0, 500) : null,
