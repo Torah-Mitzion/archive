@@ -346,11 +346,12 @@ function photoArt(p) {
     <circle cx="${c2 % 190 + 25}" cy="92" r="14" fill="#1B2B48"/></svg>`;
 }
 
-function avatar(size) {
-  return `<svg viewBox="0 0 64 64" width="100%" height="100%">
-    <rect width="64" height="64" fill="#16223A"/>
-    <circle cx="32" cy="25" r="10" fill="#243352"/>
-    <path d="M12 60 a20 20 0 0 1 40 0 z" fill="#243352"/></svg>`;
+/* No portraits are held yet, so a grey silhouette would only be a placeholder
+   pretending to be a photograph. The first letter of the name, set in the
+   serif, says who without pretending to show them. */
+function initial(name) {
+  const ch = String(name || '').trim().replace(/^(הרב|רב|Rabbi|Rav)\s+/i, '').charAt(0);
+  return `<span class="ini" aria-hidden="true">${esc(ch || '·')}</span>`;
 }
 
 async function communityView(id, year) {
@@ -375,7 +376,7 @@ async function communityView(id, year) {
   const rail = h.rows.map(o => {
     const d = Math.abs(o.year - yr);
     return `<button class="ry${o.year === yr ? ' on' : ''}${o.n === 0 ? ' none' : ''}" data-year="${o.year}"
-      style="font-size:${Math.max(11, 46 - d * 4.6).toFixed(1)}px; opacity:${Math.max(0.2, 1 - d * 0.11).toFixed(2)}">${o.year}</button>`;
+      style="--ry:${Math.max(11, 46 - d * 4.6).toFixed(1)}px; opacity:${Math.max(0.2, 1 - d * 0.11).toFixed(2)}">${o.year}</button>`;
   }).join('');
 
   const peopleNamed = photos.reduce((a, p) => a + (p.people || 0), 0);
@@ -383,7 +384,7 @@ async function communityView(id, year) {
   const roshBlock = rosh ? `
     <section class="rosh-band">
       <div class="rosh-main">
-        <div class="pf big">${avatar()}</div>
+        <div class="pf big">${initial(rosh.person)}</div>
         <div class="rosh-txt">
           <span class="eyebrow gold">${esc(t('yr.rosh'))}</span>
           <h3>${esc(rosh.person || '')}</h3>
@@ -396,9 +397,9 @@ async function communityView(id, year) {
       <div class="house">
         <span class="eyebrow">${esc(t('yr.household'))}</span>
         <div class="people">${household.map(p => `
-          <div class="card"><div class="pf">${avatar()}</div>
+          <div class="card">${initial(p.person)}<span class="card-txt">
             <span class="pn">${esc(p.person || '')}</span>
-            <span class="pr">${esc(p.role === 'spouse' ? t('nav.shlichim') : t('yr.child'))}</span></div>`).join('')}
+            <span class="pr">${esc(p.role === 'spouse' ? t('yr.spouse') : t('yr.child'))}</span></span></div>`).join('')}
         </div>
       </div>` : ''}
     </section>` : '';
@@ -408,10 +409,10 @@ async function communityView(id, year) {
       <div class="sec-head"><span>${esc(t('yr.cohort'))} <span dir="ltr">${yr}</span></span>
         <span class="dim">${num(cohort.length)}</span></div>
       <div class="cohort">${cohort.map(p => `
-        <div class="card"><div class="pf">${avatar()}</div>
+        <div class="card">${initial(p.person)}<span class="card-txt">
           <span class="pn">${esc(p.person || '')}</span>
           <span class="pr">${esc(p.institution
-            || (p.role === 'child' ? t('yr.child') : t('nav.shlichim')))}</span></div>`).join('')}
+            || (p.role === 'child' ? t('yr.child') : p.role === 'spouse' ? t('yr.spouse') : t('nav.shlichim')))}</span></span></div>`).join('')}
       </div>
     </section>` : '';
 
