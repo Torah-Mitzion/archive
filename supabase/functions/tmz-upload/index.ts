@@ -245,7 +245,7 @@ Deno.serve(async req => {
         ? 'Sorry — that image did not pass our automatic check, so it was not added.'
         : live
           ? 'Thank you. It is on the site now.'
-          : 'Thank you. It is in the archive and will appear once we know where it belongs.'
+          : 'Thank you. It is safely in and will take its place in the album once we know where it belongs.'
     });
   } catch (e) {
     console.error(e);
