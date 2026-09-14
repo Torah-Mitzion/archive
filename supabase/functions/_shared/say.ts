@@ -35,6 +35,11 @@ type Strings = {
   slowdown: string;         // rate limited; said rather than silence
   missed: string;           // the watchdog found an unanswered message
   reminder: string;         // a day later, a photograph still lacks a place or a year
+  seeIt: string;            // "{url}" — it is on the site, here
+  portraitHint: string;     // how to send a picture of yourself
+  pitch1: string;           // please share the bot and the site
+  pitch2: string;           // "{site}" "{wa}" — the forwardable message itself
+  pitch3: string;           // pass it on; and send more
   portraitLinked: string;   // "{name}" — their picture is now on their entries
   portraitWhich: string;    // "{list}" — several people by that name
   portraitNone: string;     // the name is not in the register
@@ -43,7 +48,7 @@ type Strings = {
 
 const S: Record<Lang, Strings> = {
   en: {
-    welcome: 'Hello, and welcome to the Torah MiTzion 30 photograph archive. 📷\n\nWe are gathering photographs from thirty years of kollels around the world — shlichim, families, communities, celebrations — and we would love yours.\n\nJust send a photograph here. I will ask you a couple of quick questions about it so it can go on the site with a name and a year. Old, blurry, scanned — all welcome.',
+    welcome: 'Hello, and welcome to the Torah MiTzion 30 photograph archive. 📷\n\nWe are gathering photographs from thirty years of kollels around the world — shlichim, families, communities, celebrations — and we would love yours.\n\nJust send a photograph here. I will ask you a couple of quick questions about it so it can go on the site with a name and a year. Old, blurry, scanned — all welcome.\n\nWere you a shaliach or shlicha? Send a picture of yourself with the words “this is me” and your name, and it will appear next to your name on the site.',
     hello: 'Hello again! Send a photograph whenever you like — I can take several in a row.',
     nophoto: 'Send a photograph whenever you are ready. Old prints, scans, phone photos — anything from a Torah MiTzion community.',
     got: 'Got it, thank you! 🙏',
@@ -77,13 +82,18 @@ const S: Record<Lang, Strings> = {
     slowdown: 'You have sent a lot in a short time — thank you! Give me a few minutes to catch up, then carry on.',
     missed: 'Sorry — it looks like I missed your last message. That was my fault. Could you send it again? If it was a photograph, just send it once more.',
     reminder: 'Your photograph from yesterday is still waiting on one detail before it can go up. ',
+    seeIt: 'You can see it on the site here:\n{url}',
+    portraitHint: 'Were you a shaliach or shlicha? Send a picture of yourself with the words “this is me” and your name, and it will appear next to your name on the site.',
+    pitch1: 'To grow and fill our albums from every year, we would love you to share the bot and the site with shlichim, community members and partners along the way.',
+    pitch2: '📷 Torah MiTzion is gathering thirty years of photographs — every kollel, every year.\nFind your year at {site}\nSend your photographs straight to the archive on WhatsApp: {wa}',
+    pitch3: 'We would be glad if you passed that message on 🙏 — and if you have more photographs, send them here.',
     portraitLinked: 'Lovely — that will be your picture on the site, next to {name}. ',
     portraitWhich: 'I found more than one person by that name: {list}. Which community were you in, so I know which is you?',
     portraitNone: 'I could not find that name in the register. How is it written in Hebrew or in English?',
     blocked: ''
   },
   he: {
-    welcome: 'שלום, וברוכים הבאים לארכיון התמונות של תורה מציון 30. 📷\n\nאנחנו אוספים תמונות משלושים שנות כוללים ברחבי העולם — שליחים, משפחות, קהילות, שמחות — ונשמח לשלכם.\n\nפשוט שלחו לכאן תמונה. אשאל כמה שאלות קצרות עליה כדי שתעלה לאתר עם שם ושנה. ישנה, מטושטשת, סרוקה — הכול מתקבל בברכה.',
+    welcome: 'שלום, וברוכים הבאים לארכיון התמונות של תורה מציון 30. 📷\n\nאנחנו אוספים תמונות משלושים שנות כוללים ברחבי העולם — שליחים, משפחות, קהילות, שמחות — ונשמח לשלכם.\n\nפשוט שלחו לכאן תמונה. אשאל כמה שאלות קצרות עליה כדי שתעלה לאתר עם שם ושנה. ישנה, מטושטשת, סרוקה — הכול מתקבל בברכה.\n\nהייתם שליחים או שליחות? שלחו תמונה של עצמכם עם המילים ״זו תמונה שלי״ והשם שלכם, והיא תופיע ליד השם שלכם באתר.',
     hello: 'שלום שוב! שלחו תמונה מתי שתרצו — אפשר כמה ברצף.',
     nophoto: 'שלחו תמונה כשנוח לכם. תדפיסים ישנים, סריקות, צילומי טלפון — כל דבר מקהילה של תורה מציון.',
     got: 'קיבלתי, תודה! 🙏',
@@ -117,13 +127,18 @@ const S: Record<Lang, Strings> = {
     slowdown: 'שלחתם הרבה בזמן קצר — תודה! תנו לי כמה דקות להדביק את הפער, ואז המשיכו.',
     missed: 'מצטערים — נראה שפספסתי את ההודעה האחרונה שלכם. זו טעות שלי. אפשר לשלוח שוב? אם זו הייתה תמונה, פשוט שלחו אותה עוד פעם.',
     reminder: 'התמונה ששלחתם אתמול עדיין מחכה לפרט אחד לפני שתעלה. ',
+    seeIt: 'אפשר לראות אותה באתר כאן:\n{url}',
+    portraitHint: 'הייתם שליחים או שליחות? שלחו תמונה של עצמכם עם המילים ״זו תמונה שלי״ והשם שלכם, והיא תופיע ליד השם שלכם באתר.',
+    pitch1: 'כדי לצמוח ולמלא את אלבומי התמונות שלנו מכל השנים, נשמח שתשתפו את הבוט והאתר עם שליחים, חברי קהילות ושותפים לדרך.',
+    pitch2: '📷 תורה מציון אוספת תמונות משלושים שנה — כל כולל, כל שנה.\nמצאו את השנה שלכם: {site}\nשלחו תמונות ישירות לארכיון בוואטסאפ: {wa}',
+    pitch3: 'נשמח אם תעבירו את ההודעה הזו הלאה 🙏 — ואם יש לכם עוד תמונות, שלחו אותן לכאן.',
     portraitLinked: 'יופי — זו תהיה התמונה שלכם באתר, ליד {name}. ',
     portraitWhich: 'מצאתי יותר מאדם אחד בשם הזה: {list}. באיזו קהילה הייתם, כדי שאדע מי מהם אתם?',
     portraitNone: 'לא מצאתי את השם הזה ברישומים. איך הוא נכתב בעברית או באנגלית?',
     blocked: ''
   },
   ru: {
-    welcome: 'Здравствуйте, и добро пожаловать в фотоархив «Тора МиЦион 30». 📷\n\nМы собираем фотографии тридцати лет колелей по всему миру — шлихим, семьи, общины, праздники — и будем рады вашим.\n\nПросто пришлите фотографию сюда. Я задам пару коротких вопросов, чтобы она попала на сайт с именем и годом. Старые, нечёткие, отсканированные — всё подходит.',
+    welcome: 'Здравствуйте, и добро пожаловать в фотоархив «Тора МиЦион 30». 📷\n\nМы собираем фотографии тридцати лет колелей по всему миру — шлихим, семьи, общины, праздники — и будем рады вашим.\n\nПросто пришлите фотографию сюда. Я задам пару коротких вопросов, чтобы она попала на сайт с именем и годом. Старые, нечёткие, отсканированные — всё подходит.\n\nВы были шалиахом или шлихой? Пришлите свою фотографию со словами «это я» и своим именем — она появится рядом с вашим именем на сайте.',
     hello: 'Снова здравствуйте! Присылайте фотографию, когда захотите — можно несколько подряд.',
     nophoto: 'Присылайте фотографию, когда будет удобно. Старые снимки, сканы, фото с телефона — всё из общин «Тора МиЦион».',
     got: 'Получил, спасибо! 🙏',
@@ -157,13 +172,18 @@ const S: Record<Lang, Strings> = {
     slowdown: 'Вы прислали много за короткое время — спасибо! Дайте мне несколько минут догнать, и продолжайте.',
     missed: 'Извините — похоже, я пропустил ваше последнее сообщение. Это моя вина. Пришлёте ещё раз? Если это была фотография, просто отправьте её снова.',
     reminder: 'Ваша вчерашняя фотография всё ещё ждёт одной детали, прежде чем попасть на сайт. ',
+    seeIt: 'Её можно увидеть на сайте здесь:\n{url}',
+    portraitHint: 'Вы были шалиахом или шлихой? Пришлите свою фотографию со словами «это я» и своим именем — она появится рядом с вашим именем на сайте.',
+    pitch1: 'Чтобы наши альбомы за все годы наполнились, мы будем рады, если вы поделитесь ботом и сайтом со шлихим, членами общин и друзьями.',
+    pitch2: '📷 Тора ми-Цион собирает фотографии тридцати лет — каждый колель, каждый год.\nНайдите свой год: {site}\nПрисылайте фотографии прямо в архив через WhatsApp: {wa}',
+    pitch3: 'Будем рады, если вы перешлёте это сообщение 🙏 — а если у вас есть ещё фотографии, присылайте их сюда.',
     portraitLinked: 'Отлично — это будет ваше фото на сайте, рядом с именем {name}. ',
     portraitWhich: 'Нашёл несколько человек с таким именем: {list}. В какой общине вы были, чтобы я понял, кто из них вы?',
     portraitNone: 'Не нашёл такого имени в реестре. Как оно пишется на иврите или по-английски?',
     blocked: ''
   },
   fr: {
-    welcome: 'Bonjour, et bienvenue dans les archives photographiques Torah MiTzion 30. 📷\n\nNous rassemblons les photographies de trente ans de kollels à travers le monde — shlichim, familles, communautés, fêtes — et les vôtres nous feraient très plaisir.\n\nEnvoyez simplement une photographie ici. Je vous poserai deux ou trois questions rapides pour qu’elle figure sur le site avec un nom et une année. Ancienne, floue, scannée — tout est bienvenu.',
+    welcome: 'Bonjour, et bienvenue dans les archives photographiques Torah MiTzion 30. 📷\n\nNous rassemblons les photographies de trente ans de kollels à travers le monde — shlichim, familles, communautés, fêtes — et les vôtres nous feraient très plaisir.\n\nEnvoyez simplement une photographie ici. Je vous poserai deux ou trois questions rapides pour qu’elle figure sur le site avec un nom et une année. Ancienne, floue, scannée — tout est bienvenu.\n\nVous avez été chaliah ou chliha ? Envoyez une photo de vous avec les mots « c’est moi » et votre nom, et elle apparaîtra à côté de votre nom sur le site.',
     hello: 'Rebonjour ! Envoyez une photographie quand vous voulez — j’en prends plusieurs à la suite.',
     nophoto: 'Envoyez une photographie quand vous êtes prêt. Tirages anciens, scans, photos de téléphone — tout ce qui vient d’une communauté Torah MiTzion.',
     got: 'Bien reçu, merci ! 🙏',
@@ -197,13 +217,18 @@ const S: Record<Lang, Strings> = {
     slowdown: 'Vous en avez envoyé beaucoup en peu de temps — merci ! Laissez-moi quelques minutes pour rattraper, puis continuez.',
     missed: 'Désolé — il semble que j’aie manqué votre dernier message. C’est ma faute. Pourriez-vous le renvoyer ? Si c’était une photographie, renvoyez-la simplement.',
     reminder: 'Votre photographie d’hier attend encore un détail avant de pouvoir être publiée. ',
+    seeIt: 'Vous pouvez la voir sur le site ici :\n{url}',
+    portraitHint: 'Vous avez été chaliah ou chliha ? Envoyez une photo de vous avec les mots « c’est moi » et votre nom, et elle apparaîtra à côté de votre nom sur le site.',
+    pitch1: 'Pour remplir nos albums de toutes les années, nous serions heureux que vous partagiez le bot et le site avec des chlihim, des membres de communautés et des compagnons de route.',
+    pitch2: '📷 Torah MiTzion rassemble trente ans de photographies — chaque kollel, chaque année.\nTrouvez votre année : {site}\nEnvoyez vos photographies directement aux archives sur WhatsApp : {wa}',
+    pitch3: 'Nous serions heureux que vous transmettiez ce message 🙏 — et si vous avez d’autres photographies, envoyez-les ici.',
     portraitLinked: 'Parfait — ce sera votre photo sur le site, à côté de {name}. ',
     portraitWhich: 'J’ai trouvé plusieurs personnes de ce nom : {list}. Dans quelle communauté étiez-vous, pour que je sache laquelle est vous ?',
     portraitNone: 'Je n’ai pas trouvé ce nom dans le registre. Comment s’écrit-il en hébreu ou en anglais ?',
     blocked: ''
   },
   de: {
-    welcome: 'Hallo und willkommen im Fotoarchiv Torah MiTzion 30. 📷\n\nWir sammeln Fotos aus dreißig Jahren Kollels weltweit — Schlichim, Familien, Gemeinden, Feiern — und freuen uns über Ihre.\n\nSchicken Sie einfach ein Foto hierher. Ich stelle ein, zwei kurze Fragen dazu, damit es mit Namen und Jahr auf die Website kann. Alt, unscharf, gescannt — alles willkommen.',
+    welcome: 'Hallo und willkommen im Fotoarchiv Torah MiTzion 30. 📷\n\nWir sammeln Fotos aus dreißig Jahren Kollels weltweit — Schlichim, Familien, Gemeinden, Feiern — und freuen uns über Ihre.\n\nSchicken Sie einfach ein Foto hierher. Ich stelle ein, zwei kurze Fragen dazu, damit es mit Namen und Jahr auf die Website kann. Alt, unscharf, gescannt — alles willkommen.\n\nWaren Sie Schaliach oder Schlicha? Schicken Sie ein Bild von sich mit den Worten „das bin ich“ und Ihrem Namen – es erscheint neben Ihrem Namen auf der Website.',
     hello: 'Hallo nochmal! Schicken Sie ein Foto, wann immer Sie mögen — auch mehrere hintereinander.',
     nophoto: 'Schicken Sie ein Foto, wann es passt. Alte Abzüge, Scans, Handyfotos — alles aus einer Torah-MiTzion-Gemeinde.',
     got: 'Angekommen, danke! 🙏',
@@ -237,13 +262,18 @@ const S: Record<Lang, Strings> = {
     slowdown: 'Sie haben in kurzer Zeit viel geschickt — danke! Geben Sie mir ein paar Minuten zum Aufholen, dann weiter.',
     missed: 'Entschuldigung — ich habe Ihre letzte Nachricht offenbar verpasst. Das war mein Fehler. Könnten Sie sie noch einmal schicken? Wenn es ein Foto war, einfach noch einmal senden.',
     reminder: 'Ihr Foto von gestern wartet noch auf ein Detail, bevor es online gehen kann. ',
+    seeIt: 'Hier ist es auf der Website zu sehen:\n{url}',
+    portraitHint: 'Waren Sie Schaliach oder Schlicha? Schicken Sie ein Bild von sich mit den Worten „das bin ich“ und Ihrem Namen – es erscheint neben Ihrem Namen auf der Website.',
+    pitch1: 'Damit unsere Alben aus allen Jahren voll werden, freuen wir uns, wenn Sie den Bot und die Website mit Schlichim, Gemeindemitgliedern und Weggefährten teilen.',
+    pitch2: '📷 Torah MiTzion sammelt dreißig Jahre Fotos – jedes Kollel, jedes Jahr.\nFinden Sie Ihr Jahr: {site}\nSchicken Sie Ihre Fotos direkt per WhatsApp ins Archiv: {wa}',
+    pitch3: 'Wir freuen uns, wenn Sie diese Nachricht weiterleiten 🙏 – und wenn Sie noch Fotos haben, schicken Sie sie hierher.',
     portraitLinked: 'Schön — das wird Ihr Bild auf der Seite, neben {name}. ',
     portraitWhich: 'Ich habe mehrere Personen mit diesem Namen gefunden: {list}. In welcher Gemeinde waren Sie, damit ich weiß, wer Sie sind?',
     portraitNone: 'Diesen Namen finde ich nicht im Register. Wie wird er auf Hebräisch oder Englisch geschrieben?',
     blocked: ''
   },
   es: {
-    welcome: 'Hola, y bienvenido al archivo fotográfico Torah MiTzion 30. 📷\n\nEstamos reuniendo fotografías de treinta años de kolelim en todo el mundo — shlijim, familias, comunidades, celebraciones — y nos encantaría tener las suyas.\n\nSimplemente envíe una fotografía aquí. Le haré un par de preguntas rápidas para que aparezca en el sitio con un nombre y un año. Antigua, borrosa, escaneada — todo es bienvenido.',
+    welcome: 'Hola, y bienvenido al archivo fotográfico Torah MiTzion 30. 📷\n\nEstamos reuniendo fotografías de treinta años de kolelim en todo el mundo — shlijim, familias, comunidades, celebraciones — y nos encantaría tener las suyas.\n\nSimplemente envíe una fotografía aquí. Le haré un par de preguntas rápidas para que aparezca en el sitio con un nombre y un año. Antigua, borrosa, escaneada — todo es bienvenido.\n\n¿Fuiste shaliaj o shlijá? Envía una foto tuya con las palabras «este soy yo» y tu nombre, y aparecerá junto a tu nombre en el sitio.',
     hello: '¡Hola de nuevo! Envíe una fotografía cuando quiera — puedo recibir varias seguidas.',
     nophoto: 'Envíe una fotografía cuando esté listo. Copias antiguas, escaneos, fotos de teléfono — cualquier cosa de una comunidad Torah MiTzion.',
     got: '¡Recibida, gracias! 🙏',
@@ -277,6 +307,11 @@ const S: Record<Lang, Strings> = {
     slowdown: 'Ha enviado mucho en poco tiempo — ¡gracias! Deme unos minutos para ponerme al día y siga.',
     missed: 'Lo siento — parece que me perdí su último mensaje. Fue culpa mía. ¿Podría enviarlo de nuevo? Si era una fotografía, simplemente envíela otra vez.',
     reminder: 'Tu fotografía de ayer todavía espera un detalle antes de poder publicarse. ',
+    seeIt: 'Puedes verla en el sitio aquí:\n{url}',
+    portraitHint: '¿Fuiste shaliaj o shlijá? Envía una foto tuya con las palabras «este soy yo» y tu nombre, y aparecerá junto a tu nombre en el sitio.',
+    pitch1: 'Para llenar nuestros álbumes de todos los años, nos encantaría que compartieras el bot y el sitio con shlijim, miembros de las comunidades y compañeros de camino.',
+    pitch2: '📷 Torah MiTzion está reuniendo treinta años de fotografías: cada kolel, cada año.\nEncuentra tu año: {site}\nEnvía tus fotografías directamente al archivo por WhatsApp: {wa}',
+    pitch3: 'Nos alegraría que reenviaras este mensaje 🙏 — y si tienes más fotografías, envíalas aquí.',
     portraitLinked: 'Perfecto — esa será tu foto en el sitio, junto a {name}. ',
     portraitWhich: 'Encontré a más de una persona con ese nombre: {list}. ¿En qué comunidad estuviste, para saber cuál eres?',
     portraitNone: 'No encontré ese nombre en el registro. ¿Cómo se escribe en hebreo o en inglés?',

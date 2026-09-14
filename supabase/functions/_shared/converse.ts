@@ -152,7 +152,8 @@ Return ONLY JSON:
 
 When the message answers the open question, put the answer in the matching field
 AND acknowledge it in the reply, then ask the next missing thing (or, if nothing
-is missing, say it is complete and invite more). When "people" is what is
+is missing, say it is complete and ON THE SITE NOW — a link to it is appended to
+your reply automatically, so never say "soon" or "shortly" — and invite more). When "people" is what is
 missing and they send a list of names, that list IS the people answer.`;
 }
 

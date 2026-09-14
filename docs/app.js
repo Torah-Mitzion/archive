@@ -434,7 +434,7 @@ async function communityView(id, year) {
         <span class="dim">${num(photos.length)} ${esc(t('band.held'))}</span></div>
       <div class="photos">
         ${photos.map((p, i) => `
-          <figure class="photo" data-photo="${i}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
+          <figure class="photo" data-photo="${i}" data-photo-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
             <img src="${esc(p.url)}" alt="${esc(p.event_name || '')}" loading="lazy">
             <figcaption><span class="ev">${esc(p.event_name || '')}</span>
               <span class="mt">${p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : ''}
@@ -728,7 +728,7 @@ function aboutView() {
 function parseRoute() {
   const h = (location.hash || '#/').replace(/^#\/?/, '');
   const parts = h.split('/').filter(Boolean);
-  if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null };
+  if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null, photo: parts[3] || null };
   if (parts[0] === 'contribute') return { name: 'contribute' };
   if (parts[0] === 'communities') return { name: 'communities' };
   if (parts[0] === 'shlichim') return { name: 'shlichim' };
@@ -806,6 +806,12 @@ async function render() {
     const on = root.querySelector('.ry.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
     wireLightbox(root);
+    /* A link straight to one photograph — the one the WhatsApp agent sends
+       the moment it goes up — opens on it. */
+    if (r.photo) {
+      const fig = root.querySelector(`[data-photo-id="${CSS.escape(r.photo)}"]`);
+      if (fig) { fig.scrollIntoView({ block: 'center' }); fig.click(); }
+    }
   } else if (r.name === 'communities') {
     root.innerHTML = shell() + banner() + communitiesView() + footer();
     wireShell();

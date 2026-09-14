@@ -10,7 +10,7 @@
 -- will try to re-run everything from the beginning and fail on the first
 -- `create table`. If you do paste it, tell whoever runs the next migration.
 --
--- 36 migrations.
+-- 37 migrations.
 
 -- ═══════════════════════════════════════════════════════════════════
 -- 20260903120001_enums.sql
@@ -2073,3 +2073,11 @@ returns jsonb language sql stable as $$
   from tmz_person p join hit on hit.person_id = p.id;
 $$;
 grant execute on function tmz_person_search(text, tmz_lang_code, integer, text) to anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 20260914120001_pitched.sql
+-- ═══════════════════════════════════════════════════════════════════
+/* The ask to share the archive goes out once per sender, after their first
+   photograph is published. This is where "once" is remembered. */
+alter table tmz_wa_contact add column if not exists pitched_at timestamptz;
+comment on column tmz_wa_contact.pitched_at is 'When the share-the-archive messages were sent to this contact (once).';

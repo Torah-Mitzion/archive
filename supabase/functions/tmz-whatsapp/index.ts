@@ -60,6 +60,10 @@ const HEYY_API_BASE = Deno.env.get('HEYY_API_BASE') ?? 'https://api.heyy.io';
    signing secret exists; if one appears, WEBHOOK_SIGNATURE_HEADER and
    META_APP_SECRET already handle it and this can go. */
 const HEYY_WEBHOOK_SECRET = Deno.env.get('HEYY_WEBHOOK_SECRET') ?? '';
+/* Where a published photograph can be seen, and how to reach this agent —
+   both go into the messages a sender is asked to forward. */
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://30.torahmitzion.org').replace(/\/$/, '');
+const PUBLIC_WA = (Deno.env.get('WHATSAPP_PUBLIC_NUMBER') ?? '972765300609').replace(/[^0-9]/g, '');
 
 configureSay(GEMINI_MODEL, GEMINI_KEY);
 
@@ -1043,17 +1047,23 @@ async function handle(body: any, ch: Channel) {
       /* The state machine still decides what is missing and whether the
          photograph publishes; the model only chose the words. */
       const missing = nextMissing(merged);
+      /* Quote the photograph this is about, so the question visibly hangs off
+         the right picture even with five in flight. */
+      const quote = await providerIdOfPhoto(waId, merged.id);
       if (missing) {
         await remember(waId, { asking: missing, asking_for: merged.id });
       } else {
         await remember(waId, { asking: null, asking_for: null });
         const live = await publishIfReady(merged.id, ch);
         ch.trace(live ? 'published' : 'complete, held', { photo_id: merged.id });
+        if (live === 'fresh') {
+          /* The model's acknowledgement, then the link — the one thing it
+             cannot write, because it does not know the address. */
+          await announcePublished(merged.id, waId, from, spoken, ch, quote, out ? out.reply + '\n\n' : '', Boolean(out));
+          return;
+        }
       }
 
-      /* Quote the photograph this is about, so the question visibly hangs off
-         the right picture even with five in flight. */
-      const quote = await providerIdOfPhoto(waId, merged.id);
       if (out) {
         const sentId = await ch.reply(from, out.reply, quote);
         await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {}, sentId);
@@ -1316,7 +1326,10 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
   /* It passed, and it may already have everything it needs. */
   await publishPortraitIfLinked(photoId, ch);
   const live = await publishIfReady(photoId, ch);
-  if (live) ch.trace('published after screening', { photo_id: photoId });
+  if (live === 'fresh') {
+    ch.trace('published after screening', { photo_id: photoId });
+    if (from) await announcePublished(photoId, waId, from, lang, ch, quote);
+  }
 }
 
 /* ---- portraits ------------------------------------------------------------ */
@@ -1474,6 +1487,7 @@ async function continueConversation(
   await remember(waId, { asking: null, asking_for: null });
   const live = await publishIfReady(photo.id, ch);
   ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
+  if (live === 'fresh') { await announcePublished(photo.id, waId, from, lang, ch, quote, lead); return; }
   const said = lead + await phrase(lang, x => (live ? x.complete : x.completeHeld) + x.more);
   const sentId = await ch.reply(from, said, quote);
   await log(waId, 'out', 'text', said, photo.id, {}, sentId);
@@ -1575,13 +1589,13 @@ function parseLocally(text: string, comms: { slug: string; names?: string[]; nam
 /* The single door to the public bucket. Everything that publishes goes through
    here, so the conditions are stated once: screening said publish, the
    photograph has somewhere to appear, and it is not already up. */
-async function publishIfReady(photoId: string, ch: Channel) {
+async function publishIfReady(photoId: string, ch: Channel): Promise<false | 'already' | 'fresh'> {
   const rows = await pg(
     `/tmz_photo?select=id,community_id,year,derived_path,storage_path,public_path,agent_decision,status` +
     `&id=eq.${photoId}`);
   const p = rows?.[0];
   if (!p) return false;
-  if (p.public_path) return true;
+  if (p.public_path) return 'already';
   if (p.agent_decision !== 'publish') return false;
   if (!p.community_id || !p.year) return false;
   if (!AUTO_PUBLISH) return false;
@@ -1616,7 +1630,47 @@ async function publishIfReady(photoId: string, ch: Channel) {
       verdict: 'approved', reasons: ['published automatically']
     }])
   });
-  return true;
+  return 'fresh';
+}
+
+/* ---- the moment it goes up ------------------------------------------------- */
+
+/* Said once per photograph, the moment it is on the site: where to see it,
+   with a link that opens on that very picture. The first time it happens for
+   a sender, three more messages follow — the ask to share, the message to
+   forward (site link, WhatsApp link), and the thanks — and never again for
+   that sender. */
+async function announcePublished(photoId: string, waId: string, from: string, lang: string,
+                                 ch: Channel, quote: string | null, lead = '', modelSpoke = false) {
+  const p = (await pg(`/tmz_photo?select=id,year,community_id,tmz_community(slug)&id=eq.${photoId}`))?.[0];
+  const slug = p?.tmz_community?.slug;
+  const url = slug && p?.year ? `${SITE_URL}/#/c/${slug}/${p.year}/${photoId}` : `${SITE_URL}/`;
+  /* When the model already wrote the acknowledgement, only the link is added
+     to it — the one thing it cannot write, because it does not know the address. */
+  const first = lead + (modelSpoke ? '' : await phrase(lang, x => x.complete) + '\n\n') +
+    (await phrase(lang, x => x.seeIt)).replace('{url}', url);
+  const id = await ch.reply(from, first, quote);
+  await log(waId, 'out', 'text', first, photoId, { reason: 'published', url }, id);
+
+  const c = await contactOf(waId);
+  if (c?.pitched_at) {
+    if (modelSpoke) return;   // it already invited more
+    const more = await phrase(lang, x => x.more.trim());
+    const id2 = await ch.reply(from, more);
+    await log(waId, 'out', 'text', more, photoId, {}, id2);
+    return;
+  }
+  const wa = `https://wa.me/${PUBLIC_WA}`;
+  const lines = [
+    await phrase(lang, x => x.pitch1),
+    (await phrase(lang, x => x.pitch2)).replace('{site}', SITE_URL).replace('{wa}', wa),
+    await phrase(lang, x => x.pitch3) + '\n\n' + await phrase(lang, x => x.portraitHint)
+  ];
+  for (const text of lines) {
+    const sid = await ch.reply(from, text);
+    await log(waId, 'out', 'text', text, null, { reason: 'pitch' }, sid);
+  }
+  await remember(waId, { pitched_at: new Date().toISOString() });
 }
 
 /* ---- contacts and abuse -------------------------------------------------- */

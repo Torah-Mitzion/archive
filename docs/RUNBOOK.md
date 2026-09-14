@@ -159,6 +159,13 @@ a real one is accepted and placed.
   the photograph is placed in, otherwise the sender is asked which; no match
   asks for the spelling. The back office can clear `portrait_path` on a
   person to take a portrait down.
+- **The moment it goes up.** A published photograph is announced with a link
+  that opens on that very picture (`…/#/c/<community>/<year>/<photo id>`).
+  The first time it happens for a sender, three more messages follow — the
+  ask to share, a forwardable message with the site and the WhatsApp link
+  (`SITE_URL`, `WHATSAPP_PUBLIC_NUMBER`; defaults are the live values), and
+  the thanks with the portrait hint — and never again for that sender
+  (`tmz_wa_contact.pitched_at`).
 - **Reminders.** The watchdog nudges once, a day later, about a photograph
   that passed screening but still lacks a community or a year (the two things
   without which it has no page). Never more than once per photograph, never
