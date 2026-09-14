@@ -143,6 +143,17 @@ node scripts/heyy-check.mjs
 It posts a Heyy-shaped event, confirms a wrong secret is refused, and confirms
 a real one is accepted and placed.
 
+## 7b. Arm the watchdog
+
+The sweep runs every two minutes from `pg_cron` and needs its URL (with the
+secret) in a service-role-only table — never in git:
+
+```bash
+curl -s -X POST -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"   -H 'Content-Type: application/json' -H 'Prefer: resolution=merge-duplicates'   -d "[{\"key\":\"sweep_url\",\"value\":\"$SUPABASE_URL/functions/v1/tmz-whatsapp?sweep=$HEYY_WEBHOOK_SECRET\"}]"   "$SUPABASE_URL/rest/v1/tmz_settings?on_conflict=key"
+```
+
+Confirm it fires: `supabase db query "select start_time,status from cron.job_run_details order by start_time desc limit 3" --linked`.
+
 ## 8. Subdomain
 
 Add one DNS record at whoever hosts `torahmitzion.org`:

@@ -375,6 +375,25 @@ const liveChannel: Channel = {
    is a POST to their send endpoint rather than to the Graph API. */
 const heyyChannel: Channel = {
   async fetchMedia(ref: string) {
+    /* Bounded: a download that hangs must not hang the sender's reply. */
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 25_000);
+    try { return await heyyFetchMedia(ref, ctl.signal); }
+    finally { clearTimeout(timer); }
+  },
+  async reply(to: string, text: string, replyTo?: string | null) {
+    /* One retry. A provider blip is not a reason for silence. */
+    const first = await heyySend(to, text, replyTo);
+    if (first !== undefined) return first;
+    await new Promise(r => setTimeout(r, 1500));
+    return (await heyySend(to, text, replyTo)) ?? null;
+  },
+  trace: (step, detail) => console.log('[heyy]', step, JSON.stringify(detail)),
+  isTest: false
+};
+
+async function heyyFetchMedia(ref: string, signal: AbortSignal) {
+  {
     /* metaEnvelopeFromHeyy puts the attachment's download URL where Meta would
        put a media id, so "fetching media" here is just following it.
 
@@ -385,8 +404,8 @@ const heyyChannel: Channel = {
        not. Whichever answers with an image wins; anything else is reported as
        what it was, not as a bad photograph. */
     const attempts: RequestInit[] = HEYY_API_TOKEN
-      ? [{ headers: { Authorization: `Bearer ${HEYY_API_TOKEN}` } }, {}]
-      : [{}];
+      ? [{ headers: { Authorization: `Bearer ${HEYY_API_TOKEN}` }, signal }, { signal }]
+      : [{ signal }];
     let last = '';
     for (const init of attempts) {
       const res = await fetch(ref, init);
@@ -397,8 +416,12 @@ const heyyChannel: Channel = {
       last = `${res.status} ${type}`.trim();
     }
     throw new Error(`heyy media: ${last}`);
-  },
-  async reply(to: string, text: string, replyTo?: string | null) {
+  }
+}
+
+/* undefined = failed (retry me); null = sent but no id; string = sent id */
+async function heyySend(to: string, text: string, replyTo?: string | null): Promise<string | null | undefined> {
+  {
     if (!HEYY_API_TOKEN || !HEYY_CHANNEL_ID) {
       console.log(`[heyy not configured] would reply to ${to}: ${text}`);
       return null;
@@ -415,13 +438,11 @@ const heyyChannel: Channel = {
         ...(replyTo ? { replyToMessageId: replyTo } : {})
       })
     });
-    if (!res.ok) { console.error('heyy reply failed', res.status, (await res.text()).slice(0, 300)); return null; }
+    if (!res.ok) { console.error('heyy reply failed', res.status, (await res.text()).slice(0, 300)); return undefined; }
     const data = await res.json().catch(() => null);
     return data?.data?.id ?? data?.id ?? null;
-  },
-  trace: (step, detail) => console.log('[heyy]', step, JSON.stringify(detail)),
-  isTest: false
-};
+  }
+}
 
 /* Heyy's event, rewritten as the envelope Meta sends — so one handler serves
    both providers and neither one gets a private code path to rot in. */
@@ -510,6 +531,105 @@ function metaEnvelope(m: any) {
   };
 }
 
+/* THE WATCHDOG. Runs every two minutes from pg_cron, and exists so that no
+ * failure above — a killed isolate, a webhook the provider never sent, a
+ * model that would not answer — can leave a person unanswered for longer than
+ * that. Three sweeps:
+ *
+ *   1. Photographs still unscreened or held: screen them now.
+ *   2. Contacts whose last inbound message has no reply after it: apologise
+ *      and ask them to resend. This is the case where we received something
+ *      and died before answering.
+ *   3. Chats the provider knows about whose newest inbound message is newer
+ *      than anything we logged: the same apology. This is the case where the
+ *      provider never delivered the webhook at all — the one no amount of
+ *      care in this function can otherwise see.
+ *
+ * Gated by the same secret as the webhook: anyone who can call the sweep can
+ * make the agent speak. */
+async function handleSweep(req: Request, url: URL) {
+  if (!HEYY_WEBHOOK_SECRET) return new Response('not configured', { status: 503 });
+  const given = url.searchParams.get('sweep') ?? '';
+  if (given.length !== HEYY_WEBHOOK_SECRET.length) return new Response('forbidden', { status: 403 });
+  let diff = 0;
+  for (let i = 0; i < HEYY_WEBHOOK_SECRET.length; i++) diff |= given.charCodeAt(i) ^ HEYY_WEBHOOK_SECRET.charCodeAt(i);
+  if (diff !== 0) return new Response('forbidden', { status: 403 });
+
+  const report: Record<string, unknown> = {};
+  const ch = heyyChannel;
+
+  // 1. unscreened / held photographs
+  try {
+    const stuck = await pg(`/tmz_photo?select=id,storage_path,submitter_ref,rescreen_attempts,created_at` +
+      `&status=eq.pending&or=(agent_decision.is.null,needs_rescreen.is.true)&rescreen_attempts=lt.${RESCREEN_MAX_ATTEMPTS}` +
+      `&created_at=lt.${encodeURIComponent(new Date(Date.now() - 60_000).toISOString())}` +
+      `&order=created_at.asc&limit=${RESCREEN_PER_MESSAGE}`);
+    report.rescreened = 0;
+    for (const p of stuck ?? []) {
+      try { await rescreen(p, ch); (report.rescreened as number)++; }
+      catch (e) { console.error('sweep rescreen', p.id, e); }
+    }
+  } catch (e) { report.rescreen_error = String(e).slice(0, 120); }
+
+  // 2. received, never answered
+  try {
+    const cutoff = new Date(Date.now() - 90_000).toISOString();
+    const contacts = await pg(`/tmz_wa_contact?select=ref,lang&is_test=is.false&last_seen=lt.${encodeURIComponent(cutoff)}` +
+      `&last_seen=gt.${encodeURIComponent(new Date(Date.now() - 6 * 3600_000).toISOString())}&limit=200`);
+    let apologised = 0;
+    for (const c of contacts ?? []) {
+      const last = await pg(`/tmz_wa_message?select=direction,created_at,kind&ref=eq.${encodeURIComponent(c.ref)}&order=created_at.desc&limit=1`);
+      const l = last?.[0];
+      if (!l || l.direction !== 'in') continue;
+      if (new Date(l.created_at).getTime() > Date.now() - 90_000) continue;
+      const from = c.ref.replace(/^wa:/, '');
+      const said = await phrase(c.lang ?? 'en', x => x.missed);
+      const id = await ch.reply(from, said);
+      await log(c.ref, 'out', 'text', said, null, { reason: 'sweep: inbound without reply' }, id);
+      apologised++;
+    }
+    report.apologised = apologised;
+  } catch (e) { report.apologise_error = String(e).slice(0, 120); }
+
+  // 3. the provider has a newer inbound than we do
+  try {
+    if (HEYY_API_TOKEN && HEYY_CHANNEL_ID) {
+      const res = await fetch(`${HEYY_API_BASE}/v3/chats/search`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HEYY_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: { channelId: HEYY_CHANNEL_ID }, limit: 50 })
+      });
+      const chats = res.ok ? ((await res.json())?.data ?? []) : [];
+      let missed = 0;
+      for (const chat of chats) {
+        const lm = chat?.latestMessage;
+        if (!lm || lm.sender !== 'inbound') continue;
+        const at = new Date(lm.timestamp).getTime();
+        if (at > Date.now() - 90_000 || at < Date.now() - 6 * 3600_000) continue;
+        const phone = String(chat?.handle?.value ?? '').replace(/[^0-9]/g, '');
+        if (!phone) continue;
+        const ref = `wa:${phone}`;
+        // did we log anything inbound at or after that time?
+        const ours = await pg(`/tmz_wa_message?select=id&ref=eq.${encodeURIComponent(ref)}&direction=eq.in` +
+          `&created_at=gte.${encodeURIComponent(new Date(at - 5000).toISOString())}&limit=1`);
+        if (ours?.length) continue;
+        // and have we not already apologised for this one?
+        const apo = await pg(`/tmz_wa_message?select=id&ref=eq.${encodeURIComponent(ref)}&direction=eq.out` +
+          `&created_at=gte.${encodeURIComponent(new Date(at).toISOString())}&limit=1`);
+        if (apo?.length) continue;
+        const c = await contactOf(ref);
+        const said = await phrase(c?.lang ?? 'he', x => x.missed);
+        const id = await ch.reply(phone, said);
+        await log(ref, 'out', 'text', said, null, { reason: 'sweep: provider has an inbound we never received', provider_ts: lm.timestamp }, id);
+        missed++;
+      }
+      report.missed_at_provider = missed;
+    }
+  } catch (e) { report.provider_error = String(e).slice(0, 120); }
+
+  return json(report);
+}
+
 async function handleHeyy(req: Request, url: URL) {
   if (!HEYY_WEBHOOK_SECRET) return new Response('heyy webhook not configured', { status: 503 });
   const given = url.searchParams.get('heyy') ?? '';
@@ -530,7 +650,7 @@ async function handleHeyy(req: Request, url: URL) {
 
   /* 200 first, work after: Heyy retries on anything else, and a slow screening
      call would have it sending the same photograph again. */
-  queueMicrotask(() => handleAndDrain(envelope, heyyChannel).catch(e => console.error('heyy', e)));
+  background(handleAndDrain(envelope, heyyChannel));
   return new Response('ok', { status: 200 });
 }
 
@@ -599,6 +719,7 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (url.searchParams.has('sim') && req.method === 'POST') return handleSim(req, url);
   if (url.searchParams.has('heyy') && req.method === 'POST') return handleHeyy(req, url);
+  if (url.searchParams.has('sweep') && req.method === 'POST') return handleSweep(req, url);
 
   // Meta's verification handshake
   if (req.method === 'GET') {
@@ -623,7 +744,7 @@ Deno.serve(async req => {
   // Always 200 quickly; Meta retries anything else, and a retry storm on a
   // slow Gemini call would duplicate photographs.
   const body = JSON.parse(raw);
-  queueMicrotask(() => handleAndDrain(body, liveChannel).catch(e => console.error('handler', e)));
+  background(handleAndDrain(body, liveChannel));
   return new Response('ok', { status: 200 });
 });
 
@@ -636,9 +757,54 @@ Deno.serve(async req => {
    plain "hello" — and the drain should not depend on which. Getting that wrong
    is exactly why the first version never ran: the commonest follow-up message
    is a text, and the text branch was the one place it was missing. */
+/* THE ROOT CAUSE OF EVERY SILENT PHOTOGRAPH.
+ *
+ * The webhook answers 200 at once and does the real work afterwards — it has
+ * to, because the provider retries anything slower. That work was scheduled
+ * with queueMicrotask, and in this runtime nothing keeps an isolate alive after
+ * its response has gone out. A text message is fast enough to finish before
+ * the teardown; a photograph — download, decode, two model calls — is not, and
+ * was being killed mid-flight with no trace at all: not even the rate-limit
+ * counter, the first database call on the path, had run. The follow-up drain
+ * that should have re-screened a held photograph died the same way, eight
+ * times in a row, which is why rescreen_attempts sat at zero.
+ *
+ * EdgeRuntime.waitUntil is the runtime's own contract for exactly this: the
+ * isolate stays up until the promise settles. */
+function background(p: Promise<unknown>) {
+  const guarded = p.catch(e => console.error('background', e));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt && typeof rt.waitUntil === 'function') rt.waitUntil(guarded);
+}
+
 async function handleAndDrain(body: any, ch: Channel) {
+  const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  const from = msg?.from as string | undefined;
+  const waId = from ? `wa:${from}` : null;
+
+  /* Idempotency. With the work now surviving the response, a provider retry
+     or a replayed webhook must not answer twice. Same message id, same sender,
+     already logged — done. */
+  if (waId && msg?.id && await alreadySeen(waId, String(msg.id))) {
+    ch.trace('duplicate delivery', { id: msg.id });
+    return;
+  }
+
   try {
     await handle(body, ch);
+  } catch (e) {
+    /* The last resort. Nothing above should throw, but if something does the
+       sender must not be left staring at a blue tick. */
+    const error = String(e).slice(0, 500);
+    console.error('handle', error);
+    if (waId && from) {
+      await remember(waId, { last_error: `handle: ${error}`, last_error_at: new Date().toISOString() });
+      const c = await contactOf(waId);
+      const said = await phrase(c?.lang ?? 'en', x => x.fetchfail);
+      await log(waId, 'out', 'refusal', said, null, { reason: `internal error: ${error.slice(0, 120)}` });
+      await ch.reply(from, said);
+    }
   } finally {
     if (!ch.forceVerdict) {
       try { await drainBacklog(ch); } catch (e) { console.error('drain', e); }
@@ -656,11 +822,15 @@ async function handle(body: any, ch: Channel) {
   ch.trace('received', { type: msg.type, from });
 
   const contact = await contactOf(waId);
+  const displayName = value?.contacts?.[0]?.profile?.name ?? null;
   if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
     ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
+    /* Told once. Silence looks like a fault; a sentence looks like a decision. */
+    const said = await phrase(contact.lang ?? 'en', x => x.paused);
+    await log(waId, 'out', 'text', said, null, { reason: 'blocked' });
+    await ch.reply(from, said);
     return;
   }
-  const displayName = value?.contacts?.[0]?.profile?.name ?? null;
 
   // ======================================================================
   // TEXT — an answer to the open question, a greeting, or small talk
@@ -719,6 +889,15 @@ async function handle(body: any, ch: Channel) {
       /* Several open; the one we most recently asked about is the default the
          model may override. */
       openLive = candidates.find((p: any) => p.id === contact.asking_for) ?? null;
+    } else if (candidates.length === 0) {
+      /* Nothing is missing anything — but "I remembered who is in the photo I
+         sent" is still about a photograph, and the row said "unknown" while
+         the agent thanked them for the names. The most recent photograph of
+         theirs, if it is recent, is what they mean. */
+      const recent = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,created_at` +
+        `&submitter_ref=eq.${encodeURIComponent(waId)}&status=neq.rejected&order=created_at.desc&limit=1`);
+      const r = recent?.[0];
+      if (r && Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000) openLive = r;
     }
     const ambiguous = !quotedPhotoId && candidates.length > 1;
     const past = await history(waId);
@@ -730,7 +909,7 @@ async function handle(body: any, ch: Channel) {
     let out: Awaited<ReturnType<typeof converse>> | null = null;
     if (GEMINI_KEY) {
       try {
-        const nameOf = (id: string | null) => id ? (comms.find(c => c.id === id)?.name ?? null) : null;
+        const nameOf = (id: string | null) => id ? (comms.find((c: any) => c.id === id)?.name ?? null) : null;
         out = await converse(GEMINI_MODEL, GEMINI_KEY, buildPrompt({
           lang, history: past,
           open: openLive ? { id: openLive.id, community: nameOf(openLive.community_id), year: openLive.year,
@@ -858,7 +1037,13 @@ async function handle(body: any, ch: Channel) {
   const allowed = await rpc('tmz_rate_take', {
     p_bucket: `wa:${from}`, p_limit: 40, p_window_seconds: 3600
   });
-  if (allowed === false) { ch.trace('rate limited', { bucket: `wa:${from}` }); return; }
+  if (allowed === false) {
+    ch.trace('rate limited', { bucket: `wa:${from}` });
+    const said = await phrase(contact?.lang ?? 'en', x => x.slowdown);
+    await log(waId, 'out', 'text', said, null, { reason: 'rate limited' });
+    await ch.reply(from, said);
+    return;
+  }
 
   const caption = (msg.image?.caption ?? '').trim();
   let lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : (contact?.lang ?? 'en');
@@ -923,36 +1108,17 @@ async function handle(body: any, ch: Channel) {
     return;
   }
 
-  // ---- screening ----
-  let verdict: Verdict;
-  if (ch.forceVerdict) {
-    verdict = {
-      decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {},
-      passes: [{ pass: 'assess', raw: null }, { pass: 'challenge', raw: null }],
-      reasons: ['VERDICT FORCED BY THE TEST CONSOLE — no model looked at this picture']
-    };
-    ch.trace('screening SKIPPED (forced)', { decision: ch.forceVerdict });
-  } else if (!GEMINI_KEY) {
-    verdict = holdBecause('no screening key configured');
-  } else {
-    try {
-      verdict = await screen(toBase64(clean.archiveBytes), 'image/jpeg', {
-        model: GEMINI_MODEL, key: GEMINI_KEY, minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
-      });
-    } catch (e) {
-      ch.trace('screening unavailable', { error: String(e).slice(0, 300) });
-      verdict = holdBecause(`screening unavailable: ${String(e).slice(0, 200)}`);
-    }
-  }
-  if (!AUTO_PUBLISH && verdict.decision === 'publish') {
-    verdict = { ...verdict, decision: 'hold', reasons: ['auto-publish is switched off', ...verdict.reasons] };
-  }
-  ch.trace('screened', {
-    decision: verdict.decision, confidence: verdict.confidence,
-    reasons: verdict.reasons, scores: verdict.scores, facts: verdict.facts
-  });
-
+  // ---- record first, so the sender can be answered at once ----
   // ---- record ----
+  /* Screening is the slow part — two model calls, and on a busy day a retry
+     or two. It used to happen before the sender heard anything, which meant
+     ten seconds of nothing after the most vulnerable thing a person does in
+     this conversation: hand over a photograph. The question we ask does not
+     depend on the verdict, so it goes out first, quoting the photograph, and
+     the verdict follows. Nothing publishes until the verdict says so —
+     publishIfReady insists on agent_decision = 'publish' — so answering first
+     costs no safety. If the verdict is a refusal, it arrives as a follow-up
+     that also quotes the photograph. */
   const [submission] = await pg('/tmz_submission', {
     method: 'POST', prefer: 'return=representation',
     body: JSON.stringify([{
@@ -983,52 +1149,17 @@ async function handle(body: any, ch: Channel) {
       width: clean.width, height: clean.height, bytes: clean.archiveBytes.length, phash: clean.phash,
       community_id: placed.community_id, year: placed.year,
       people_text: captionPeople, occasion_text: captionOccasion,
-      ai_description: verdict.facts.description ? String(verdict.facts.description).slice(0, 300) : null,
-      event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null,
-      status: verdict.decision === 'reject' ? 'rejected' : 'pending',
-      agent_decision: verdict.decision, needs_rescreen: verdict.decision === 'hold',
+      /* agent_decision stays null until the screener has spoken; the sweep
+         picks up anything left that way. */
+      status: 'pending', agent_decision: null, needs_rescreen: false,
       source: 'whatsapp', submission_id: submission.id, submitter_ref: waId
     }])
   });
 
-  await pg('/tmz_moderation', {
-    method: 'POST',
-    body: JSON.stringify([
-      ...verdict.passes.map(p => ({
-        photo_id: photo.id, model: GEMINI_MODEL, pass: p.pass,
-        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: null,
-        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
-      })),
-      {
-        photo_id: photo.id, model: ch.forceVerdict ? 'forced (test console)' : GEMINI_MODEL, pass: 'final',
-        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: verdict.decision,
-        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
-      }
-    ])
-  });
-
-  if (verdict.decision === 'reject') {
-    ch.trace('rejected', { photo_id: photo.id, reasons: verdict.reasons });
-    /* Harm is a strike. Scope ("nobody in it") and uncertainty are not — the
-       sender did nothing wrong and should not be silenced for it. */
-    const text = verdict.reasons.join(' ').toLowerCase();
-    const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
-      || verdict.reasons.some(r => /scored \d+/.test(r));
-    if (harm) await strike(waId, ch.isTest);
-    const said = await refusalIn(lang, verdict.reasons, verdict.scores as Record<string, number>);
-    await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
-    /* The reason is stored in plain words alongside, so "why?" in five minutes
-       can be answered with it. The refusal quotes the photograph it refuses. */
-    const sentId = await ch.reply(from, said, msg.id ?? null);
-    await log(waId, 'out', 'refusal', said, photo.id, { reason: verdict.reasons.join('; ').slice(0, 300) }, sentId);
-    return;
-  }
-
   await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null });
   await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
-  /* A brand-new contact who sends a photograph with no words has given no
-     language signal at all. Hebrew and English together cover most of this
-     archive's world; the moment they type anything, their language takes over. */
+
+  /* The answer goes out now. */
   const noSignal = firstEver && !caption;
   const prefix = firstEver
     ? (noSignal
@@ -1037,6 +1168,141 @@ async function handle(body: any, ch: Channel) {
     : '';
   const got = await phrase(lang, x => x.got);
   await continueConversation(waId, from, photo, lang, ch, false, prefix + got + ' ', msg.id ?? null);
+
+  /* And the verdict follows, on the sanitised master. */
+  await screenPhoto(photo.id, clean.archiveBytes, waId, from, lang, ch, msg.id ?? null);
+}
+
+/* Screens a photograph that has already been acknowledged, records the
+   verdict, and — only if it was refused — tells the sender, quoting the
+   photograph so it is clear which one. Shared with the sweep, so a photograph
+   whose first screening died is finished by the same code. */
+async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, from: string,
+                           lang: string, ch: Channel, quote: string | null) {
+  let verdict: Verdict;
+  if (ch.forceVerdict) {
+    verdict = {
+      decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {},
+      passes: [{ pass: 'assess', raw: null }, { pass: 'challenge', raw: null }],
+      reasons: ['VERDICT FORCED BY THE TEST CONSOLE — no model looked at this picture']
+    };
+    ch.trace('screening SKIPPED (forced)', { decision: ch.forceVerdict });
+  } else if (!GEMINI_KEY) {
+    verdict = holdBecause('no screening key configured');
+  } else {
+    try {
+      verdict = await screen(toBase64(bytes), 'image/jpeg', {
+        model: GEMINI_MODEL, key: GEMINI_KEY, minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+      });
+    } catch (e) {
+      ch.trace('screening unavailable', { error: String(e).slice(0, 300) });
+      verdict = holdBecause(`screening unavailable: ${String(e).slice(0, 200)}`);
+    }
+  }
+  if (!AUTO_PUBLISH && verdict.decision === 'publish') {
+    verdict = { ...verdict, decision: 'hold', reasons: ['auto-publish is switched off', ...verdict.reasons] };
+  }
+  ch.trace('screened', { decision: verdict.decision, confidence: verdict.confidence,
+                         reasons: verdict.reasons, scores: verdict.scores, facts: verdict.facts });
+
+  await pg(`/tmz_photo?id=eq.${photoId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      agent_decision: verdict.decision,
+      needs_rescreen: verdict.decision === 'hold',
+      status: verdict.decision === 'reject' ? 'rejected' : 'pending',
+      ai_description: verdict.facts.description ? String(verdict.facts.description).slice(0, 300) : null,
+      event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null
+    })
+  });
+  await pg('/tmz_moderation', {
+    method: 'POST',
+    body: JSON.stringify([
+      ...verdict.passes.map(p => ({
+        photo_id: photoId, model: GEMINI_MODEL, pass: p.pass,
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: null,
+        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+      })),
+      {
+        photo_id: photoId, model: ch.forceVerdict ? 'forced (test console)' : GEMINI_MODEL, pass: 'final',
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: verdict.decision,
+        scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
+      }
+    ])
+  });
+
+  if (verdict.decision === 'reject') {
+    ch.trace('rejected', { photo_id: photoId, reasons: verdict.reasons });
+    const text = verdict.reasons.join(' ').toLowerCase();
+    const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
+      || verdict.reasons.some(r => /scored \d+/.test(r));
+    if (harm) await strike(waId, ch.isTest);
+    const said = await refusalIn(lang, verdict.reasons, verdict.scores as Record<string, number>);
+    const sentId = await ch.reply(from, said, quote);
+    await log(waId, 'out', 'refusal', said, photoId, { reason: verdict.reasons.join('; ').slice(0, 300) }, sentId);
+    /* The question we already asked is moot. */
+    await remember(waId, { asking: null, asking_for: null });
+    return;
+  }
+
+  /* It passed, and it may already have everything it needs. */
+  const live = await publishIfReady(photoId, ch);
+  if (live) ch.trace('published after screening', { photo_id: photoId });
+}
+
+/* ---- the backlog ---------------------------------------------------------- */
+
+const RESCREEN_PER_MESSAGE = 3;
+const RESCREEN_MAX_ATTEMPTS = 5;
+
+/* Anything the screener could not answer for earlier — or never got to, when
+   the isolate died under it — gets another chance now. No scheduler needed
+   for the common case: every message that arrives is a chance to drain the
+   backlog. The sweep covers the quiet hours. */
+async function drainBacklog(ch: Channel) {
+  if (!GEMINI_KEY) return;
+  let waiting;
+  try {
+    waiting = await pg(
+      `/tmz_photo?select=id,storage_path,submitter_ref,rescreen_attempts,created_at` +
+      `&status=eq.pending&or=(agent_decision.is.null,needs_rescreen.is.true)` +
+      `&rescreen_attempts=lt.${RESCREEN_MAX_ATTEMPTS}` +
+      `&created_at=lt.${encodeURIComponent(new Date(Date.now() - 30_000).toISOString())}` +
+      `&order=created_at.asc&limit=${RESCREEN_PER_MESSAGE}`);
+  } catch (e) { console.error('backlog', e); return; }
+  if (!waiting?.length) return;
+
+  ch.trace('backlog', { waiting: waiting.length });
+  for (const p of waiting) {
+    try { await rescreen(p, ch); }
+    catch (e) { console.error('rescreen', p.id, e); }
+  }
+}
+
+/* The same judgement the photograph would have had on arrival, made now. The
+   bytes come back from the private bucket — the sanitised master, so nothing
+   unsafe is being re-read. A refusal is sent to the sender, quoting the
+   photograph, exactly as it would have been the first time. */
+async function rescreen(p: any, ch: Channel) {
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${p.storage_path}`,
+    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+  if (!res.ok) throw new Error(`fetch master ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+
+  const ref: string = p.submitter_ref ?? '';
+  const from = ref.replace(/^wa:/, '');
+  const c = ref ? await contactOf(ref) : null;
+  const lang = c?.lang ?? 'en';
+  const quote = ref ? await providerIdOfPhoto(ref, p.id) : null;
+
+  /* Bump the attempt first, so a screener that dies mid-call still counts. */
+  await pg(`/tmz_photo?id=eq.${p.id}`, {
+    method: 'PATCH', body: JSON.stringify({ rescreen_attempts: (p.rescreen_attempts ?? 0) + 1 })
+  });
+
+  await screenPhoto(p.id, bytes, ref, from, lang, ch, quote);
+  ch.trace('rescreened', { photo_id: p.id, attempt: (p.rescreen_attempts ?? 0) + 1 });
 }
 
 /* ---- the conversation ----------------------------------------------------- */
@@ -1220,6 +1486,14 @@ async function publishIfReady(photoId: string, ch: Channel) {
 
 /* ---- contacts and abuse -------------------------------------------------- */
 
+async function alreadySeen(ref: string, providerMsgId: string) {
+  try {
+    const rows = await pg(`/tmz_wa_message?select=id&ref=eq.${encodeURIComponent(ref)}` +
+      `&provider_msg_id=eq.${encodeURIComponent(providerMsgId)}&direction=eq.in&limit=1`);
+    return (rows?.length ?? 0) > 0;
+  } catch { return false; }
+}
+
 async function contactOf(ref: string) {
   try {
     const rows = await pg(`/tmz_wa_contact?select=*&ref=eq.${encodeURIComponent(ref)}`);
@@ -1246,7 +1520,7 @@ async function putObject(bucket: string, key: string, bytes: Uint8Array) {
     method: 'POST',
     headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
                'Content-Type': 'image/jpeg', 'x-upsert': 'true' },
-    body: bytes
+    body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   });
   if (!res.ok) throw new Error(`storage ${bucket}/${key} → ${res.status} ${await res.text()}`);
 }

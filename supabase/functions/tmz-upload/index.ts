@@ -262,7 +262,7 @@ async function putObject(key: string, bytes: Uint8Array) {
       apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
       'Content-Type': 'image/jpeg', 'x-upsert': 'true'
     },
-    body: bytes
+    body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   });
   if (!res.ok) throw new Error(`storage ${key} → ${res.status} ${await res.text()}`);
 }

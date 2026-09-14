@@ -31,6 +31,9 @@ type Strings = {
     toobig: string; badfile: string; generic: string;
   };
   fetchfail: string;        // OUR failure, not theirs — never a strike
+  paused: string;           // they are blocked; said once rather than silence
+  slowdown: string;         // rate limited; said rather than silence
+  missed: string;           // the watchdog found an unanswered message
   blocked: string;
 };
 
@@ -66,6 +69,9 @@ const S: Record<Lang, Strings> = {
       generic: 'I cannot add that one, sorry.'
     },
     fetchfail: 'Sorry — I could not download that one. It is a glitch on my side, not yours. Could you send it again?',
+    paused: 'I have had to pause this conversation for a day after several photographs I could not accept. You are welcome back tomorrow.',
+    slowdown: 'You have sent a lot in a short time — thank you! Give me a few minutes to catch up, then carry on.',
+    missed: 'Sorry — it looks like I missed your last message. That was my fault. Could you send it again? If it was a photograph, just send it once more.',
     blocked: ''
   },
   he: {
@@ -99,6 +105,9 @@ const S: Record<Lang, Strings> = {
       generic: 'את זו אי אפשר להוסיף, מצטערים.'
     },
     fetchfail: 'מצטערים — לא הצלחתי להוריד את זו. תקלה אצלי, לא אצלכם. אפשר לשלוח שוב?',
+    paused: 'נאלצתי להשהות את השיחה הזו ליום אחרי כמה תמונות שלא יכולתי לקבל. מחר נשמח לראותכם שוב.',
+    slowdown: 'שלחתם הרבה בזמן קצר — תודה! תנו לי כמה דקות להדביק את הפער, ואז המשיכו.',
+    missed: 'מצטערים — נראה שפספסתי את ההודעה האחרונה שלכם. זו טעות שלי. אפשר לשלוח שוב? אם זו הייתה תמונה, פשוט שלחו אותה עוד פעם.',
     blocked: ''
   },
   ru: {
@@ -132,6 +141,9 @@ const S: Record<Lang, Strings> = {
       generic: 'Эту добавить не могу, извините.'
     },
     fetchfail: 'Извините — не смог скачать эту. Сбой у меня, не у вас. Пришлёте ещё раз?',
+    paused: 'Мне пришлось приостановить этот разговор на день после нескольких фотографий, которые я не смог принять. Завтра будем рады снова.',
+    slowdown: 'Вы прислали много за короткое время — спасибо! Дайте мне несколько минут догнать, и продолжайте.',
+    missed: 'Извините — похоже, я пропустил ваше последнее сообщение. Это моя вина. Пришлёте ещё раз? Если это была фотография, просто отправьте её снова.',
     blocked: ''
   },
   fr: {
@@ -165,6 +177,9 @@ const S: Record<Lang, Strings> = {
       generic: 'Je ne peux pas ajouter celle-ci, désolé.'
     },
     fetchfail: 'Désolé — je n’ai pas pu télécharger celle-ci. C’est un souci de mon côté, pas du vôtre. Pourriez-vous la renvoyer ?',
+    paused: 'J’ai dû mettre cette conversation en pause pour une journée après plusieurs photographies que je n’ai pas pu accepter. Vous êtes le bienvenu demain.',
+    slowdown: 'Vous en avez envoyé beaucoup en peu de temps — merci ! Laissez-moi quelques minutes pour rattraper, puis continuez.',
+    missed: 'Désolé — il semble que j’aie manqué votre dernier message. C’est ma faute. Pourriez-vous le renvoyer ? Si c’était une photographie, renvoyez-la simplement.',
     blocked: ''
   },
   de: {
@@ -198,6 +213,9 @@ const S: Record<Lang, Strings> = {
       generic: 'Das kann ich leider nicht aufnehmen.'
     },
     fetchfail: 'Entschuldigung — ich konnte es nicht herunterladen. Das liegt an mir, nicht an Ihnen. Könnten Sie es noch einmal schicken?',
+    paused: 'Ich musste dieses Gespräch nach mehreren Fotos, die ich nicht annehmen konnte, für einen Tag pausieren. Morgen gern wieder.',
+    slowdown: 'Sie haben in kurzer Zeit viel geschickt — danke! Geben Sie mir ein paar Minuten zum Aufholen, dann weiter.',
+    missed: 'Entschuldigung — ich habe Ihre letzte Nachricht offenbar verpasst. Das war mein Fehler. Könnten Sie sie noch einmal schicken? Wenn es ein Foto war, einfach noch einmal senden.',
     blocked: ''
   },
   es: {
@@ -231,6 +249,9 @@ const S: Record<Lang, Strings> = {
       generic: 'Esa no puedo añadirla, lo siento.'
     },
     fetchfail: 'Lo siento — no pude descargar esa. Es un fallo mío, no suyo. ¿Podría enviarla de nuevo?',
+    paused: 'He tenido que pausar esta conversación un día tras varias fotografías que no pude aceptar. Bienvenido de nuevo mañana.',
+    slowdown: 'Ha enviado mucho en poco tiempo — ¡gracias! Deme unos minutos para ponerme al día y siga.',
+    missed: 'Lo siento — parece que me perdí su último mensaje. Fue culpa mía. ¿Podría enviarlo de nuevo? Si era una fotografía, simplemente envíela otra vez.',
     blocked: ''
   }
 };
