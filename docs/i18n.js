@@ -70,7 +70,7 @@ const STRINGS = {
     'chat.goto': 'Open',
     'chat.busy': 'Could not reach the guide right now. Try again in a moment.',
     'chat.all': 'All years',
-    'foot.source': 'Names, years and communities taken from torahmitzion.org. The photographs are still being collected.',
+    'foot.source': 'Nombres, años y comunidades de los registros de Torah MiTzion. Las fotografías siguen recopilándose.',
     'u.loading': 'Loading…',
     'err.load': 'Could not reach the archive.',
     'yr.child': 'child',
