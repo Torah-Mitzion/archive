@@ -219,11 +219,18 @@ function drawMap(attempt = 0) {
   const jx = proj.fx(JERUSALEM.lon), jy = proj.fy(JERUSALEM.lat);
   const step = Math.max(7, W / 190);
 
-  let arcs = '', selArc = '';
+  /* One path per community, so an arc can light up under the pointer and
+     be clicked like the dot it leads to; a wide invisible twin gives the
+     pointer something to hit. The selected community's arc is drawn last,
+     on top. */
+  let arcs = '', hits = '';
   const pts = STATE.communities.map(c => {
     const mx = proj.fx(c.lon), my = proj.fy(c.lat);
     const seg = arc(jx, jy, mx, my);
-    if (c.id === view.sel) selArc = seg; else arcs += seg;
+    const sel = c.id === view.sel;
+    const path = `<path class="arc${sel ? ' sel' : ''}" data-arc="${esc(c.id)}" d="${seg}" stroke-width="${((sel ? 1.5 : 0.8) / s).toFixed(3)}"/>`;
+    if (sel) arcs += path; else arcs = path + arcs;
+    hits += `<path class="arc-hit" data-arc="${esc(c.id)}" d="${seg}" stroke-width="${(14 / s).toFixed(3)}"/>`;
     return { c, mx, my, x: mx * s + tx, y: my * s + ty };
   });
 
@@ -231,8 +238,7 @@ function drawMap(attempt = 0) {
   $('#mapSvg').innerHTML = `
     <g style="transform: translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(4)})">
       <path d="${stipple(proj, W, H, s, tx, ty, step)}" stroke="#33518A" stroke-width="${(2.15 / s).toFixed(3)}" stroke-linecap="round" fill="none"/>
-      <path d="${arcs}" stroke="#E8C87D" stroke-width="${(0.8 / s).toFixed(3)}" fill="none" opacity="0.16" stroke-linecap="round"/>
-      <path d="${selArc}" stroke="#FBEFCF" stroke-width="${(1.5 / s).toFixed(3)}" fill="none" opacity="0.9" stroke-linecap="round"/>
+      ${arcs}${hits}
     </g>`;
 
   const zg = $('#zionGlow');
@@ -275,7 +281,7 @@ function drawMap(attempt = 0) {
      </div>` +
     markers.map((m, i) => {
       if (m.count > 1) {
-        return `<div class="mk" style="left:${m.x}px; top:${m.y}px">
+        return `<div class="mk" data-members="${esc(m.members.map(p => p.c.id).join(','))}" style="left:${m.x}px; top:${m.y}px">
                   <button class="clus" data-cluster="${i}">${m.count}</button></div>`;
       }
       const cls = m.sel ? 'is-sel' : (m.c.c ? 'is-alumni' : 'is-active');
@@ -285,16 +291,39 @@ function drawMap(attempt = 0) {
         ? `<span class="lbl" ${m.sel ? `data-go="${m.c.id}" role="link" title="${esc(t('cta.fly'))}"` : ''} style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
             m.label[2] === 'e' ? 'translate(-100%,-50%)' : m.label[2] === 'm' ? 'translate(-50%,-50%)' : 'translateY(-50%)'
           }">${esc(m.name)}</span>` : '';
-      return `<div class="mk ${cls}" style="left:${m.x}px; top:${m.y}px">
+      return `<div class="mk ${cls}" data-id="${esc(m.c.id)}" data-name="${esc(m.name)}" style="left:${m.x}px; top:${m.y}px">
                 <button class="hit" data-pick="${m.c.id}" aria-label="${esc(m.name)}"></button>
                 <span class="dot"></span>${lab}</div>`;
     }).join('');
 
+  /* An arc under the pointer lights up with its city; a click on it does
+     what a click on the dot does. */
+  const pick = id => {
+    if (view.sel === id) { location.hash = `#/c/${id}`; return; }
+    view.sel = id; drawStrip(); drawMap();
+  };
+  const hot = (id, on) => {
+    $('#mapSvg').querySelectorAll(`.arc[data-arc="${CSS.escape(id)}"]`).forEach(a => a.classList.toggle('hot', on));
+    /* The dot itself, or the cluster it is folded into — the name still shows. */
+    const mk = $('#markers').querySelector(`.mk[data-id="${CSS.escape(id)}"]`)
+      ?? [...$('#markers').querySelectorAll('.mk[data-members]')].find(m => m.dataset.members.split(',').includes(id));
+    if (!mk) return;
+    mk.classList.toggle('hot', on);
+    const name = mk.dataset.name ?? tf(findCommunity(id)?.name);
+    if (on && !mk.querySelector('.lbl')) {
+      mk.insertAdjacentHTML('beforeend', `<span class="lbl tmp" style="left:${mk.dataset.members ? 18 : 13}px; top:0; transform:translateY(-50%)">${esc(name)}</span>`);
+    } else if (!on) mk.querySelector('.lbl.tmp')?.remove();
+  };
+  $('#mapSvg').querySelectorAll('.arc-hit').forEach(h => {
+    h.onmouseenter = () => hot(h.dataset.arc, true);
+    h.onmouseleave = () => hot(h.dataset.arc, false);
+    h.onclick = () => pick(h.dataset.arc);
+  });
+
   $('#markers').querySelectorAll('[data-pick]').forEach(b => {
-    b.onclick = () => {
-      if (view.sel === b.dataset.pick) { location.hash = `#/c/${b.dataset.pick}`; return; }
-      view.sel = b.dataset.pick; drawStrip(); drawMap();
-    };
+    b.onclick = () => pick(b.dataset.pick);
+    b.onmouseenter = () => hot(b.dataset.pick, true);
+    b.onmouseleave = () => hot(b.dataset.pick, false);
   });
   $('#markers').querySelectorAll('[data-go]').forEach(l => {
     l.onclick = () => { location.hash = `#/c/${l.dataset.go}`; };

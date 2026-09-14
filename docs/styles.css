@@ -88,7 +88,15 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
              border-radius: 50%; pointer-events: none;
              transition: opacity 700ms ease, left 900ms cubic-bezier(.22,.61,.36,1), top 900ms cubic-bezier(.22,.61,.36,1);
              background: radial-gradient(circle, rgba(232,200,125,.13) 0%, rgba(91,143,214,.05) 30%, rgba(7,11,22,0) 62%); }
-.markers { position: absolute; inset: 0; }
+.markers { position: absolute; inset: 0; pointer-events: none; }
+.markers .hit, .markers .clus, .markers .lbl[data-go] { pointer-events: auto; }
+/* arcs: faint, lit under the pointer, the selected one brightest */
+.arc { stroke: #E8C87D; fill: none; opacity: .16; stroke-linecap: round; transition: opacity .15s; }
+.arc.sel { stroke: #FBEFCF; opacity: .9; }
+.arc.hot { stroke: #FBEFCF; opacity: 1; }
+.arc-hit { stroke: transparent; fill: none; pointer-events: stroke; cursor: pointer; }
+.mk.hot .dot { box-shadow: 0 0 0 4px rgba(232,200,125,.22), 0 0 18px 4px rgba(232,200,125,.6); }
+.mk.hot .lbl { color: var(--gold-hi); }
 
 .mk { position: absolute; width: 0; height: 0;
       transition: left 900ms cubic-bezier(.22,.61,.36,1), top 900ms cubic-bezier(.22,.61,.36,1); }
