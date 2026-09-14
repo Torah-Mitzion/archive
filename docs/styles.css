@@ -615,7 +615,10 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
 
   /* year page: the people on the left, the photographs on the right */
   .cv .yr-cols { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 42fr 58fr; gap: 0 36px; }
-  .yr-left { min-height: 0; overflow-y: auto; padding-bottom: 16px; scrollbar-width: thin; }
+  /* The floating buttons sit over the bottom corner; the scrolling columns
+     carry enough bottom padding that their last rows can scroll clear of them. */
+  .yr-left { min-height: 0; overflow-y: auto; padding-bottom: 130px; scrollbar-width: thin; }
+  .yr-right .photos, .idx-grid .idx-list, .cv.shlichim .sh-out { padding-bottom: 130px; }
   .yr-right { min-height: 0; display: flex; flex-direction: column; }
   .yr-right .sec { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   .yr-right .sec-head { flex: 0 0 auto; }
