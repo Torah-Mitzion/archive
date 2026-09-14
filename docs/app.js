@@ -246,7 +246,8 @@ function drawMap(attempt = 0) {
   /* .hero is a full-width flex row with a gap in the middle; blocking it whole
      walls off the entire top strip and starves Europe of labels. Measure the two
      halves it actually occupies. */
-  const blocked = ['.hero-l', '.hero-stats', '#regions', '#strip'].map(sel => {
+  /* The floating AI button sits over the Pacific corner, right where Sydney is. */
+  const blocked = ['.hero-l', '.hero-stats', '#regions', '#strip', '.chat'].map(sel => {
     const e = $(sel); if (!e || e.hidden) return null;
     const r = e.getBoundingClientRect();
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
