@@ -149,6 +149,21 @@ node scripts/heyy-check.mjs
 It posts a Heyy-shaped event, confirms a wrong secret is refused, and confirms
 a real one is accepted and placed.
 
+## 7a. What the agent does on its own
+
+- **Portraits.** A sender who says a photograph is of themselves ("this is me,
+  Avi Kannai" — as a caption or a message about a photograph) has the name
+  matched against the register. One match links it; after screening the
+  picture becomes that person's portrait on every year page they appear on
+  (`tmz_person.portrait_path`). Several matches are narrowed by the community
+  the photograph is placed in, otherwise the sender is asked which; no match
+  asks for the spelling. The back office can clear `portrait_path` on a
+  person to take a portrait down.
+- **Reminders.** The watchdog nudges once, a day later, about a photograph
+  that passed screening but still lacks a community or a year (the two things
+  without which it has no page). Never more than once per photograph, never
+  to a blocked or test sender.
+
 ## 7b. Arm the watchdog
 
 The sweep runs every two minutes from `pg_cron` and needs its URL (with the

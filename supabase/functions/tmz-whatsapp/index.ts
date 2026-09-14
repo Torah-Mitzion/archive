@@ -261,8 +261,12 @@ Message: """${text}"""
 
 Return ONLY JSON:
 {"community_slug":string|null,"year":number|null,"people":string|null,
- "event_note":string|null,"language":string,"is_answer":boolean}
+ "event_note":string|null,"language":string,"is_answer":boolean,
+ "self_portrait":boolean,"person_name":string|null}
 
+self_portrait is true when the message says the photograph is of the sender
+themselves, meant as their own picture ("this is me", "זו תמונה שלי", "my
+photo for the site"); person_name is the name they give for it, else null.
 community_slug must be one of the slugs above or null. year is 1996-2026 or
 null. people is whoever they named. event_note is the occasion if mentioned.
 language is the ISO code of the language the message is WRITTEN in — judge it
@@ -320,7 +324,7 @@ async function photoQuotedBy(ref: string, providerMsgId: string | null) {
 /* Every photograph of theirs still missing something. More than one means a
    bare answer is ambiguous. */
 async function openPhotos(ref: string) {
-  const rows = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,created_at` +
+  const rows = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,portrait_of,portrait_name,created_at` +
     `&submitter_ref=eq.${encodeURIComponent(ref)}&status=neq.rejected&order=created_at.desc&limit=10`);
   return (rows ?? []).filter((p: any) => nextMissing(p));
 }
@@ -591,6 +595,32 @@ async function handleSweep(req: Request, url: URL) {
     report.apologised = apologised;
   } catch (e) { report.apologise_error = String(e).slice(0, 120); }
 
+  // 4. a photograph that passed a day ago and still has no place or year: one nudge
+  try {
+    const day = 24 * 3600_000;
+    const waiting = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year,people_text,occasion_text` +
+      `&status=eq.pending&agent_decision=eq.publish&or=(community_id.is.null,year.is.null)&submitter_ref=like.wa:%25` +
+      `&created_at=lt.${encodeURIComponent(new Date(Date.now() - day).toISOString())}` +
+      `&created_at=gt.${encodeURIComponent(new Date(Date.now() - 8 * day).toISOString())}&order=created_at.asc&limit=20`);
+    let reminded = 0;
+    for (const p of waiting ?? []) {
+      const already = await pg(`/tmz_wa_message?select=id&photo_id=eq.${p.id}&direction=eq.out&meta->>reason=eq.reminder&limit=1`);
+      if (already?.length) continue;
+      const c = await contactOf(p.submitter_ref);
+      if (!c || c.is_test || (c.blocked_until && new Date(c.blocked_until) > new Date())) continue;
+      const missing = nextMissing(p);
+      if (!missing) continue;
+      const lang = c.lang ?? 'en';
+      const said = await phrase(lang, x => x.reminder) + await phrase(lang, x => x.ask[missing]);
+      const from = p.submitter_ref.replace(/^wa:/, '');
+      const id = await ch.reply(from, said, await providerIdOfPhoto(p.submitter_ref, p.id));
+      await log(p.submitter_ref, 'out', 'question', said, p.id, { reason: 'reminder', field: missing }, id);
+      await remember(p.submitter_ref, { asking: missing, asking_for: p.id });
+      reminded++;
+    }
+    report.reminded = reminded;
+  } catch (e) { report.reminder_error = String(e).slice(0, 120); }
+
   // 3. the provider has a newer inbound than we do
   try {
     if (HEYY_API_TOKEN && HEYY_CHANNEL_ID) {
@@ -674,9 +704,16 @@ async function handleSim(req: Request, url: URL) {
        photograph still serving from its public URL, which is precisely the
        bug this console was built to catch. */
     const doomed = await pg(
-      `/tmz_photo?select=storage_path,derived_path,public_path` +
+      `/tmz_photo?select=storage_path,derived_path,public_path,portrait_of` +
       `&submitter_ref=like.${encodeURIComponent(ref + '%')}`) ?? [];
     let files = 0;
+    /* A test portrait must not stay on a real person's entry. */
+    for (const pid of new Set(doomed.map((p: any) => p.portrait_of).filter(Boolean))) {
+      const r = await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-public/portraits/${pid}.jpg`, {
+        method: 'DELETE', headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+      if (r.ok) files++;
+      await pg(`/tmz_person?id=eq.${pid}`, { method: 'PATCH', body: JSON.stringify({ portrait_path: null }) });
+    }
     for (const p of doomed) {
       for (const [bucket, key] of [
         ['tmz-photo-originals', p.storage_path],
@@ -883,7 +920,7 @@ async function handle(body: any, ch: Channel) {
     let openLive: any = null;
     if (quotedPhotoId) {
       openLive = candidates.find((p: any) => p.id === quotedPhotoId)
-        ?? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description&id=eq.${quotedPhotoId}`))?.[0]
+        ?? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,portrait_of,portrait_name&id=eq.${quotedPhotoId}`))?.[0]
         ?? null;
       if (openLive?.status === 'rejected') openLive = null;
       ch.trace('quoted', { photo_id: quotedPhotoId, resolved: Boolean(openLive) });
@@ -898,7 +935,7 @@ async function handle(body: any, ch: Channel) {
          sent" is still about a photograph, and the row said "unknown" while
          the agent thanked them for the names. The most recent photograph of
          theirs, if it is recent, is what they mean. */
-      const recent = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,created_at` +
+      const recent = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,portrait_of,portrait_name,created_at` +
         `&submitter_ref=eq.${encodeURIComponent(waId)}&status=neq.rejected&order=created_at.desc&limit=1`);
       const r = recent?.[0];
       if (r && Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000) openLive = r;
@@ -962,6 +999,16 @@ async function handle(body: any, ch: Channel) {
       ...(det.year ? { year: det.year } : {})
     });
 
+    if (openLive && out?.intent === 'portrait') {
+      const line = await linkPortrait(openLive, out.person_name, waId, from, lang, ch);
+      if (line) {
+        const quote = await providerIdOfPhoto(waId, openLive.id);
+        const sentId = await ch.reply(from, line, quote);
+        await log(waId, 'out', 'text', line, openLive.id, { reason: 'portrait' }, sentId);
+        return;
+      }
+    }
+
     if (openLive) {
       /* A value the message STATES overwrites what is there. The first version
          only filled empty fields, so "sorry, I was confused, it was Melbourne"
@@ -987,6 +1034,9 @@ async function handle(body: any, ch: Channel) {
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
         ch.trace('attached', { photo_id: openLive.id, patch });
+        if (patch.community_id && openLive.portrait_name && !openLive.portrait_of) {
+          await publishPortraitIfLinked(openLive.id, ch);
+        }
       }
       const merged = { ...openLive, ...patch };
 
@@ -1142,12 +1192,16 @@ async function handle(body: any, ch: Channel) {
 
   const placed = await placeFrom(caption, contact, ch);
 
-  /* A caption that names people or an occasion is already an answer. */
+  /* A caption that names people or an occasion is already an answer — and a
+     caption that says "this is me" makes it a portrait. */
   let captionPeople: string | null = null, captionOccasion: string | null = null;
+  let portraitName: string | null = null, selfPortrait = false;
   if (caption && GEMINI_KEY) {
     try {
       const d = await parseDetails(caption, await communityList());
       captionPeople = d.people || null; captionOccasion = d.event_note || null;
+      selfPortrait = Boolean(d.self_portrait);
+      portraitName = d.person_name || (selfPortrait ? (d.people || displayName) : null);
     } catch { /* the questions will ask */ }
   }
 
@@ -1170,12 +1224,16 @@ async function handle(body: any, ch: Channel) {
 
   /* The answer goes out now. */
   const noSignal = firstEver && !caption;
-  const prefix = firstEver
+  let prefix = firstEver
     ? (noSignal
         ? say('he').welcome + '\n\n' + say('en').welcome + '\n\n'
         : await phrase(lang, x => x.welcome) + '\n\n')
     : '';
   const got = await phrase(lang, x => x.got);
+  if (selfPortrait) {
+    const line = await linkPortrait(photo, portraitName, waId, from, lang, ch, true);
+    if (line) prefix += line;
+  }
   await continueConversation(waId, from, photo, lang, ch, false, prefix + got + ' ', msg.id ?? null);
 
   /* And the verdict follows, on the sanitised master. */
@@ -1256,8 +1314,75 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
   }
 
   /* It passed, and it may already have everything it needs. */
+  await publishPortraitIfLinked(photoId, ch);
   const live = await publishIfReady(photoId, ch);
   if (live) ch.trace('published after screening', { photo_id: photoId });
+}
+
+/* ---- portraits ------------------------------------------------------------ */
+
+/* "This is me." Matches the name they gave against the register and links
+   the photograph to that person. Exactly one match links at once; several
+   are narrowed by the community the photograph is placed in, and failing
+   that the sender is asked which; none asks for the spelling. Returns the
+   sentence to say, or null when there was nothing to say (quiet = true lets
+   the caller fold it into a longer message). */
+async function linkPortrait(photo: any, name: string | null, waId: string, from: string,
+                            lang: string, ch: Channel, quiet = false): Promise<string | null> {
+  const wanted = (name ?? '').trim();
+  if (!wanted) return null;
+  const slug = photo.community_id
+    ? (await pg(`/tmz_community?select=slug&id=eq.${photo.community_id}`))?.[0]?.slug ?? null : null;
+  let hits: any[] = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8, community_slug: slug }).catch(() => []);
+  if (!hits.length && slug) hits = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8 }).catch(() => []);
+  ch.trace('portrait', { name: wanted, matches: hits.length, community: slug });
+
+  if (hits.length === 1) {
+    await pg(`/tmz_photo?id=eq.${photo.id}`, { method: 'PATCH',
+      body: JSON.stringify({ portrait_of: hits[0].id, portrait_name: wanted, people_text: photo.people_text ?? wanted }) });
+    photo.portrait_of = hits[0].id; photo.people_text = photo.people_text ?? wanted;
+    if (photo.agent_decision === 'publish') await publishPortraitIfLinked(photo.id, ch);
+    return (await phrase(lang, x => x.portraitLinked)).replace('{name}', hits[0].name);
+  }
+  await pg(`/tmz_photo?id=eq.${photo.id}`, { method: 'PATCH', body: JSON.stringify({ portrait_name: wanted }) });
+  if (hits.length > 1) {
+    const list = hits.slice(0, 5).map((h: any) => {
+      const t = (h.tenures ?? [])[0];
+      return t ? `${h.name} (${t.community_name} ${t.from})` : h.name;
+    }).join(', ');
+    return (await phrase(lang, x => x.portraitWhich)).replace('{list}', list) + (quiet ? '\n\n' : '');
+  }
+  return (await phrase(lang, x => x.portraitNone)) + (quiet ? '\n\n' : '');
+}
+
+/* A photograph that resolved to a person and passed screening becomes that
+   person's picture: a copy in the public bucket under portraits/, and the path
+   on the person. Independent of community and year — a portrait needs
+   neither to be useful. */
+async function publishPortraitIfLinked(photoId: string, ch: Channel) {
+  const p = (await pg(`/tmz_photo?select=id,portrait_of,portrait_name,community_id,derived_path,storage_path,agent_decision&id=eq.${photoId}`))?.[0];
+  if (!p || p.agent_decision !== 'publish' || !AUTO_PUBLISH) return false;
+  /* A name that could not be settled earlier may settle now that a community is known. */
+  if (!p.portrait_of && p.portrait_name && p.community_id) {
+    const slug = (await pg(`/tmz_community?select=slug&id=eq.${p.community_id}`))?.[0]?.slug;
+    const hits = slug ? await rpc('tmz_person_search', { q: p.portrait_name, want: 'en', lim: 3, community_slug: slug }).catch(() => []) : [];
+    if (hits.length === 1) {
+      await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ portrait_of: hits[0].id }) });
+      p.portrait_of = hits[0].id;
+    }
+  }
+  if (!p.portrait_of) return false;
+  const dest = `portraits/${p.portrait_of}.jpg`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/copy`, {
+    method: 'POST',
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: 'tmz-photo-originals', sourceKey: p.derived_path ?? p.storage_path,
+                           destinationBucket: 'tmz-photo-public', destinationKey: dest })
+  });
+  if (!res.ok) { ch.trace('portrait publish failed', { status: res.status }); return false; }
+  await pg(`/tmz_person?id=eq.${p.portrait_of}`, { method: 'PATCH', body: JSON.stringify({ portrait_path: dest }) });
+  ch.trace('portrait published', { photo_id: photoId, person: p.portrait_of });
+  return true;
 }
 
 /* ---- the backlog ---------------------------------------------------------- */

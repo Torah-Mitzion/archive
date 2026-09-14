@@ -43,7 +43,8 @@ export interface Candidate {
 
 export interface Extracted {
   reply: string;
-  intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'other';
+  intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'portrait' | 'other';
+  person_name: string | null;  // when the photograph is a portrait of the sender (or of one named person)
   target_photo: number | null; // which candidate the message was about, when there were several
   community_slug: string | null;
   year: number | null;
@@ -96,7 +97,15 @@ may have such photographs. Your whole purpose:
 3. When a photograph was refused, explain WHY plainly if they ask, using the
    recorded reason, and say what would work instead. Never say "did not pass our
    check" without the reason.
-4. Be warm, brief and specific. Two or three sentences at most. Answer what they
+4. A PORTRAIT: if they say a photograph is of THEMSELVES (or of one named
+   shaliach) and they want it as their picture on the site — "this is me",
+   "זו תמונה שלי", "that's my picture for the site" — set intent "portrait" and
+   person_name to the name they give (their own name, as they wrote it). If they
+   did not give a name, set person_name to null and ask for it in the reply. A
+   separate step matches the name against the register and answers about that;
+   your reply should acknowledge and, if a name was given, say nothing about
+   whether it was found.
+5. Be warm, brief and specific. Two or three sentences at most. Answer what they
    actually said. Never repeat a question they have just answered. Never ask for
    something you already know. If they ask something off-topic, answer briefly
    and steer back.
@@ -132,7 +141,8 @@ THEIR NEW MESSAGE: """${message}"""
 
 Return ONLY JSON:
 {"reply": string,
- "intent": "answer" | "question" | "greeting" | "thanks" | "other",
+ "intent": "answer" | "question" | "greeting" | "thanks" | "portrait" | "other",
+ "person_name": string | null,     // only with intent "portrait": whose picture it is
  "target_photo": number | null,    // only when several were listed above
  "community_slug": string | null,   // one of the slugs above, if their message names a community
  "year": number | null,             // 1990-2030, if their message gives a year
@@ -166,6 +176,7 @@ export async function converse(model: string, key: string, prompt: string): Prom
   return {
     reply: out.reply.trim().slice(0, 1500),
     intent: out.intent ?? 'other',
+    person_name: out.person_name ? String(out.person_name).slice(0, 120) : null,
     target_photo: Number.isInteger(out.target_photo) && out.target_photo > 0 ? out.target_photo : null,
     community_slug: out.community_slug ?? null,
     year: Number.isInteger(out.year) && out.year >= 1990 && out.year <= 2030 ? out.year : null,

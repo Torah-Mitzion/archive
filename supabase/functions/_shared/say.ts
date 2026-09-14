@@ -34,6 +34,10 @@ type Strings = {
   paused: string;           // they are blocked; said once rather than silence
   slowdown: string;         // rate limited; said rather than silence
   missed: string;           // the watchdog found an unanswered message
+  reminder: string;         // a day later, a photograph still lacks a place or a year
+  portraitLinked: string;   // "{name}" — their picture is now on their entries
+  portraitWhich: string;    // "{list}" — several people by that name
+  portraitNone: string;     // the name is not in the register
   blocked: string;
 };
 
@@ -72,6 +76,10 @@ const S: Record<Lang, Strings> = {
     paused: 'I have had to pause this conversation for a day after several photographs I could not accept. You are welcome back tomorrow.',
     slowdown: 'You have sent a lot in a short time — thank you! Give me a few minutes to catch up, then carry on.',
     missed: 'Sorry — it looks like I missed your last message. That was my fault. Could you send it again? If it was a photograph, just send it once more.',
+    reminder: 'Your photograph from yesterday is still waiting on one detail before it can go up. ',
+    portraitLinked: 'Lovely — that will be your picture on the site, next to {name}. ',
+    portraitWhich: 'I found more than one person by that name: {list}. Which community were you in, so I know which is you?',
+    portraitNone: 'I could not find that name in the register. How is it written in Hebrew or in English?',
     blocked: ''
   },
   he: {
@@ -108,6 +116,10 @@ const S: Record<Lang, Strings> = {
     paused: 'נאלצתי להשהות את השיחה הזו ליום אחרי כמה תמונות שלא יכולתי לקבל. מחר נשמח לראותכם שוב.',
     slowdown: 'שלחתם הרבה בזמן קצר — תודה! תנו לי כמה דקות להדביק את הפער, ואז המשיכו.',
     missed: 'מצטערים — נראה שפספסתי את ההודעה האחרונה שלכם. זו טעות שלי. אפשר לשלוח שוב? אם זו הייתה תמונה, פשוט שלחו אותה עוד פעם.',
+    reminder: 'התמונה ששלחתם אתמול עדיין מחכה לפרט אחד לפני שתעלה. ',
+    portraitLinked: 'יופי — זו תהיה התמונה שלכם באתר, ליד {name}. ',
+    portraitWhich: 'מצאתי יותר מאדם אחד בשם הזה: {list}. באיזו קהילה הייתם, כדי שאדע מי מהם אתם?',
+    portraitNone: 'לא מצאתי את השם הזה ברישומים. איך הוא נכתב בעברית או באנגלית?',
     blocked: ''
   },
   ru: {
@@ -144,6 +156,10 @@ const S: Record<Lang, Strings> = {
     paused: 'Мне пришлось приостановить этот разговор на день после нескольких фотографий, которые я не смог принять. Завтра будем рады снова.',
     slowdown: 'Вы прислали много за короткое время — спасибо! Дайте мне несколько минут догнать, и продолжайте.',
     missed: 'Извините — похоже, я пропустил ваше последнее сообщение. Это моя вина. Пришлёте ещё раз? Если это была фотография, просто отправьте её снова.',
+    reminder: 'Ваша вчерашняя фотография всё ещё ждёт одной детали, прежде чем попасть на сайт. ',
+    portraitLinked: 'Отлично — это будет ваше фото на сайте, рядом с именем {name}. ',
+    portraitWhich: 'Нашёл несколько человек с таким именем: {list}. В какой общине вы были, чтобы я понял, кто из них вы?',
+    portraitNone: 'Не нашёл такого имени в реестре. Как оно пишется на иврите или по-английски?',
     blocked: ''
   },
   fr: {
@@ -180,6 +196,10 @@ const S: Record<Lang, Strings> = {
     paused: 'J’ai dû mettre cette conversation en pause pour une journée après plusieurs photographies que je n’ai pas pu accepter. Vous êtes le bienvenu demain.',
     slowdown: 'Vous en avez envoyé beaucoup en peu de temps — merci ! Laissez-moi quelques minutes pour rattraper, puis continuez.',
     missed: 'Désolé — il semble que j’aie manqué votre dernier message. C’est ma faute. Pourriez-vous le renvoyer ? Si c’était une photographie, renvoyez-la simplement.',
+    reminder: 'Votre photographie d’hier attend encore un détail avant de pouvoir être publiée. ',
+    portraitLinked: 'Parfait — ce sera votre photo sur le site, à côté de {name}. ',
+    portraitWhich: 'J’ai trouvé plusieurs personnes de ce nom : {list}. Dans quelle communauté étiez-vous, pour que je sache laquelle est vous ?',
+    portraitNone: 'Je n’ai pas trouvé ce nom dans le registre. Comment s’écrit-il en hébreu ou en anglais ?',
     blocked: ''
   },
   de: {
@@ -216,6 +236,10 @@ const S: Record<Lang, Strings> = {
     paused: 'Ich musste dieses Gespräch nach mehreren Fotos, die ich nicht annehmen konnte, für einen Tag pausieren. Morgen gern wieder.',
     slowdown: 'Sie haben in kurzer Zeit viel geschickt — danke! Geben Sie mir ein paar Minuten zum Aufholen, dann weiter.',
     missed: 'Entschuldigung — ich habe Ihre letzte Nachricht offenbar verpasst. Das war mein Fehler. Könnten Sie sie noch einmal schicken? Wenn es ein Foto war, einfach noch einmal senden.',
+    reminder: 'Ihr Foto von gestern wartet noch auf ein Detail, bevor es online gehen kann. ',
+    portraitLinked: 'Schön — das wird Ihr Bild auf der Seite, neben {name}. ',
+    portraitWhich: 'Ich habe mehrere Personen mit diesem Namen gefunden: {list}. In welcher Gemeinde waren Sie, damit ich weiß, wer Sie sind?',
+    portraitNone: 'Diesen Namen finde ich nicht im Register. Wie wird er auf Hebräisch oder Englisch geschrieben?',
     blocked: ''
   },
   es: {
@@ -252,6 +276,10 @@ const S: Record<Lang, Strings> = {
     paused: 'He tenido que pausar esta conversación un día tras varias fotografías que no pude aceptar. Bienvenido de nuevo mañana.',
     slowdown: 'Ha enviado mucho en poco tiempo — ¡gracias! Deme unos minutos para ponerme al día y siga.',
     missed: 'Lo siento — parece que me perdí su último mensaje. Fue culpa mía. ¿Podría enviarlo de nuevo? Si era una fotografía, simplemente envíela otra vez.',
+    reminder: 'Tu fotografía de ayer todavía espera un detalle antes de poder publicarse. ',
+    portraitLinked: 'Perfecto — esa será tu foto en el sitio, junto a {name}. ',
+    portraitWhich: 'Encontré a más de una persona con ese nombre: {list}. ¿En qué comunidad estuviste, para saber cuál eres?',
+    portraitNone: 'No encontré ese nombre en el registro. ¿Cómo se escribe en hebreo o en inglés?',
     blocked: ''
   }
 };

@@ -15,6 +15,7 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    'sh.any': 'Any community', 'sh.narrow': 'narrow by community',
     'idx.title': 'Every community',
     'idx.sub': 'Fifty-five kollels over thirty years, by region. The span is the years anyone served there; the count is the photographs held.',
     'idx.open': 'open',
@@ -100,6 +101,7 @@ const STRINGS = {
     'banner.demoOff': 'Show the real archive',
   },
   he: {
+    'sh.any': 'כל הקהילות', 'sh.narrow': 'צמצמו לפי קהילה',
     'idx.title': 'כל הקהילות',
     'idx.sub': 'חמישים וחמישה כוללים בשלושים שנה, לפי אזור. הטווח הוא השנים שבהן שירת שם מישהו; המספר הוא התמונות שנאספו.',
     'idx.open': 'פעילה',
@@ -185,6 +187,7 @@ const STRINGS = {
     'banner.demoOff': 'להצגת הארכיון האמיתי',
   },
   ru: {
+    'sh.any': 'Любая община', 'sh.narrow': 'уточните общину',
     'idx.title': 'Все общины',
     'idx.sub': 'Пятьдесят пять колелей за тридцать лет, по регионам. Диапазон — годы, когда там кто-то служил; число — собранные фотографии.',
     'idx.open': 'действует',
@@ -270,6 +273,7 @@ const STRINGS = {
     'banner.demoOff': 'Показать настоящий архив',
   },
   fr: {
+    'sh.any': 'Toute communauté', 'sh.narrow': 'précisez la communauté',
     'idx.title': 'Toutes les communautés',
     'idx.sub': 'Cinquante-cinq kollels en trente ans, par région. La plage indique les années où quelqu’un y a servi ; le nombre, les photographies rassemblées.',
     'idx.open': 'ouvert',
@@ -355,6 +359,7 @@ const STRINGS = {
     'banner.demoOff': 'Voir les vraies archives',
   },
   de: {
+    'sh.any': 'Jede Gemeinde', 'sh.narrow': 'nach Gemeinde eingrenzen',
     'idx.title': 'Alle Gemeinden',
     'idx.sub': 'Fünfundfünfzig Kollels in dreißig Jahren, nach Region. Die Spanne sind die Jahre, in denen dort jemand diente; die Zahl die gesammelten Fotos.',
     'idx.open': 'aktiv',
@@ -440,6 +445,7 @@ const STRINGS = {
     'banner.demoOff': 'Echtes Archiv zeigen',
   },
   es: {
+    'sh.any': 'Cualquier comunidad', 'sh.narrow': 'acota por comunidad',
     'idx.title': 'Todas las comunidades',
     'idx.sub': 'Cincuenta y cinco kolelim en treinta años, por región. El rango son los años en que alguien sirvió allí; el número, las fotografías reunidas.',
     'idx.open': 'activo',

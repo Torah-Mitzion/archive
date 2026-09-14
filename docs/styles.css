@@ -527,7 +527,8 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
 [dir="rtl"] .idx-st { letter-spacing: 0; text-transform: none; font-size: 11px; }
 .idx-st.open { color: var(--gold-lo); }
 .idx-n { font-family: var(--serif); font-size: 14px; text-align: end; color: var(--dim2); font-variant-numeric: tabular-nums; }
-.sh-form input { width: 100%; padding: 13px 16px; border-radius: 3px; border: 1px solid var(--line2); background: var(--raise);
+.sh-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.sh-form input { flex: 1 1 260px; width: auto; padding: 13px 16px; border-radius: 3px; border: 1px solid var(--line2); background: var(--raise);
                  color: var(--ivory); font: inherit; font-size: 16px; }
 .sh-form input:focus { outline: none; border-color: rgba(232,200,125,.6); }
 .sh-out { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
@@ -545,3 +546,9 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
   .idx-st { grid-column: 1; }
   .idx-n { grid-column: 2; }
 }
+.sh-form select { flex: 0 1 220px; padding: 12px 14px; border-radius: 3px; border: 1px solid var(--line2);
+                  background: var(--raise); color: var(--ivory); font: inherit; font-size: 14px; }
+.ini-img { object-fit: cover; border-color: rgba(232,200,125,.45); }
+.about-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.about-cta .btn-ghost { display: inline-flex; align-items: center; padding: 11px 16px; border: 1px solid rgba(232,200,125,.4);
+                        border-radius: 2px; font-size: 13px; }

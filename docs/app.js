@@ -351,7 +351,8 @@ function photoArt(p) {
 /* No portraits are held yet, so a grey silhouette would only be a placeholder
    pretending to be a photograph. The first letter of the name, set in the
    serif, says who without pretending to show them. */
-function initial(name) {
+function initial(name, portrait) {
+  if (portrait) return `<img class="ini ini-img" src="${esc(TMZApi.photoUrl(portrait))}" alt="${esc(name || '')}" loading="lazy">`;
   const ch = String(name || '').trim().replace(/^(הרב|רב|Rabbi|Rav)\s+/i, '').charAt(0);
   return `<span class="ini" aria-hidden="true">${esc(ch || '·')}</span>`;
 }
@@ -386,7 +387,7 @@ async function communityView(id, year) {
   const roshBlock = rosh ? `
     <section class="rosh-band">
       <div class="rosh-main">
-        <div class="pf big">${initial(rosh.person)}</div>
+        <div class="pf big">${initial(rosh.person, rosh.portrait)}</div>
         <div class="rosh-txt">
           <span class="eyebrow gold">${esc(t('yr.rosh'))}</span>
           <h3>${esc(rosh.person || '')}</h3>
@@ -399,7 +400,7 @@ async function communityView(id, year) {
       <div class="house">
         <span class="eyebrow">${esc(t('yr.household'))}</span>
         <div class="people">${household.map(p => `
-          <div class="card">${initial(p.person)}<span class="card-txt">
+          <div class="card">${initial(p.person, p.portrait)}<span class="card-txt">
             <span class="pn">${esc(p.person || '')}</span>
             <span class="pr">${esc(p.role === 'spouse' ? t('yr.spouse') : t('yr.child'))}</span></span></div>`).join('')}
         </div>
@@ -411,7 +412,7 @@ async function communityView(id, year) {
       <div class="sec-head"><span>${esc(t('yr.cohort'))} <span dir="ltr">${yr}</span></span>
         <span class="dim">${num(cohort.length)}</span></div>
       <div class="cohort">${cohort.map(p => `
-        <div class="card">${initial(p.person)}<span class="card-txt">
+        <div class="card">${initial(p.person, p.portrait)}<span class="card-txt">
           <span class="pn">${esc(p.person || '')}</span>
           <span class="pr">${esc(p.institution
             || (p.role === 'child' ? t('yr.child') : p.role === 'spouse' ? t('yr.spouse') : t('nav.shlichim')))}</span></span></div>`).join('')}
@@ -479,7 +480,7 @@ async function communityView(id, year) {
    string "[WHATSAPP NUMBER]" to every visitor, which is worse than saying
    nothing: it invites someone to message a number that does not exist. Set it
    here when the channel is connected and the line appears by itself. */
-const WHATSAPP_NUMBER = '';
+const WHATSAPP_NUMBER = '+972 76-530-0609';
 
 /* ---- contribute ---------------------------------------------------------- */
 
@@ -668,26 +669,31 @@ function shlichimView() {
     <span class="eyebrow gold">${esc(t('nav.shlichim'))}</span>
     <h1>${esc(t('sh.title'))}</h1>
     <p class="lede">${esc(t('sh.sub'))}</p>
-    <form class="sh-form" id="shForm"><input id="shQ" type="search" autocomplete="off" placeholder="${esc(t('sh.placeholder'))}" aria-label="${esc(t('sh.title'))}"></form>
+    <form class="sh-form" id="shForm">
+      <input id="shQ" type="search" autocomplete="off" placeholder="${esc(t('sh.placeholder'))}" aria-label="${esc(t('sh.title'))}">
+      <select id="shC" aria-label="${esc(t('con.f1'))}"><option value="">${esc(t('sh.any'))}</option>${
+        STATE.communities.slice().sort((a, b) => tf(a.name).localeCompare(tf(b.name)))
+          .map(c => `<option value="${esc(c.id)}">${esc(tf(c.name))}</option>`).join('')}</select>
+    </form>
     <div id="shOut" class="sh-out"><p class="dim">${esc(t('sh.hint'))}</p></div>
   </div>`;
 }
 
 function wireShlichim() {
-  const q = $('#shQ'), out = $('#shOut');
+  const q = $('#shQ'), out = $('#shOut'), sel = $('#shC');
   let timer = null, seq = 0;
   const run = async () => {
     const term = q.value.trim();
     if (term.length < 2) { out.innerHTML = `<p class="dim">${esc(t('sh.hint'))}</p>`; return; }
     const my = ++seq;
     let rows;
-    try { rows = await TMZApi.searchPeople(term, LANG); }
+    try { rows = await TMZApi.searchPeople(term, LANG, sel.value || null); }
     catch (e) { if (my === seq) out.innerHTML = `<p class="warn">${esc(t('err.load'))}</p>`; return; }
     if (my !== seq) return;
     if (!rows.length) { out.innerHTML = `<p class="dim">${esc(t('sh.none'))}</p>`; return; }
-    out.innerHTML = `<p class="dim sh-count">${num(rows.length)} ${esc(t('sh.results'))}</p>` + rows.map(p => `
+    out.innerHTML = `<p class="dim sh-count">${num(rows.length)} ${esc(t('sh.results'))}${rows.length >= 100 ? ' · ' + esc(t('sh.narrow')) : ''}</p>` + rows.map(p => `
       <div class="sh-person">
-        ${initial(p.name)}
+        ${initial(p.name, p.portrait)}
         <div class="sh-body">
           <span class="sh-name">${esc(p.name)}</span>
           <div class="sh-tenures">${(p.tenures || []).map(x => `
@@ -699,6 +705,7 @@ function wireShlichim() {
       </div>`).join('');
   };
   q.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 250); };
+  sel.onchange = run;
   $('#shForm').onsubmit = e => { e.preventDefault(); clearTimeout(timer); run(); };
   q.focus();
 }
@@ -711,7 +718,8 @@ function aboutView() {
     <p>${esc(t('ab.p1'))}</p>
     <p>${esc(t('ab.p2'))}</p>
     <p>${esc(t('ab.p3'))}</p>
-    <p><a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a></p>
+    <p class="about-cta"><a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a>
+      ${WHATSAPP_NUMBER ? `<a class="btn-ghost" dir="ltr" href="https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}">WhatsApp ${esc(WHATSAPP_NUMBER)}</a>` : ''}</p>
   </div>`;
 }
 
