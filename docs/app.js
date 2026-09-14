@@ -44,9 +44,9 @@ function shell() {
     </a>
     <nav class="nav">
       <a href="#/" data-nav="map">${esc(t('nav.map'))}</a>
-      <a href="#/" data-nav="communities">${esc(t('nav.communities'))}</a>
-      <a href="#/" data-nav="shlichim">${esc(t('nav.shlichim'))}</a>
-      <a href="#/" data-nav="about">${esc(t('nav.about'))}</a>
+      <a href="#/communities" data-nav="communities">${esc(t('nav.communities'))}</a>
+      <a href="#/shlichim" data-nav="shlichim">${esc(t('nav.shlichim'))}</a>
+      <a href="#/about" data-nav="about">${esc(t('nav.about'))}</a>
       <div class="langpick">
         <button class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false">
           ${LANGS.find(l => l.id === LANG).label}
@@ -85,6 +85,8 @@ function footer() {
 }
 
 function wireShell() {
+  const here = parseRoute().name;
+  document.querySelectorAll('.nav [data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === here));
   const btn = $('#langBtn'), menu = $('#langMenu');
   if (btn) {
     btn.onclick = e => {
@@ -462,7 +464,7 @@ async function communityView(id, year) {
              of whom are shlichim, and both of whom were on the screen. -->
         <div class="stat"><span class="v">${num((rosh ? 1 : 0) + household.length + cohort.length)}</span><span class="k">${esc(t('u.shlichim'))}</span></div>
         <div class="stat"><span class="v">${num(photos.length)}</span><span class="k">${esc(t('u.photographs'))}</span></div>
-        <div class="stat"><span class="v">${num(peopleNamed)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>
+        ${peopleNamed ? `<div class="stat"><span class="v">${num(peopleNamed)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>` : ''}
       </div>
     </div>
 
@@ -540,8 +542,15 @@ function wireContribute() {
   const consent = $('#u_consent'), result = $('#upResult');
   let ready = null;
 
-  const refresh = () => { send.disabled = !(ready && consent.checked); };
+  /* Community and year are required here: unlike WhatsApp there is no
+     conversation afterwards to ask for them, and a photograph without them
+     has no page to appear on. */
+  const comm = $('#u_comm'), year = $('#u_year');
+  const placed = () => Boolean(comm.value) && /^(199\d|20[0-2]\d)$/.test(year.value.trim());
+  const refresh = () => { send.disabled = !(ready && consent.checked && placed()); };
   consent.onchange = refresh;
+  comm.onchange = refresh;
+  year.oninput = refresh;
 
   async function take(file) {
     if (!file) return;
@@ -628,6 +637,84 @@ function wireLightbox(root) {
   });
 }
 
+/* ---- communities, shlichim, about ------------------------------------------ */
+
+function communitiesView() {
+  const regions = ['na', 'la', 'eu', 'oc'].filter(r => STATE.communities.some(c => c.rg === r));
+  const block = rg => {
+    const rows = STATE.communities.filter(c => c.rg === rg)
+      .sort((a, b) => a.f - b.f || tf(a.name).localeCompare(tf(b.name)));
+    return `<section class="idx-region">
+      <h2 class="eyebrow gold">${esc(t('region.' + rg))} <span class="dim">${num(rows.length)}</span></h2>
+      <div class="idx-list">${rows.map(c => `
+        <a class="idx-row" href="#/c/${esc(c.id)}">
+          <span class="idx-name">${esc(tf(c.name))}</span>
+          <span class="idx-span" dir="ltr">${c.f}–${c.c || ''}</span>
+          <span class="idx-st ${c.c ? 'closed' : 'open'}">${esc(c.c ? t('idx.closed') : t('idx.open'))}</span>
+          <span class="idx-n">${c.total ? num(c.total) : '<span class="warn">0</span>'}</span>
+        </a>`).join('')}</div>
+    </section>`;
+  };
+  return `<div class="cv idx">
+    <span class="eyebrow gold">${esc(t('nav.communities'))}</span>
+    <h1>${esc(t('idx.title'))}</h1>
+    <p class="lede">${esc(t('idx.sub'))}</p>
+    ${regions.map(block).join('')}
+  </div>`;
+}
+
+function shlichimView() {
+  return `<div class="cv idx">
+    <span class="eyebrow gold">${esc(t('nav.shlichim'))}</span>
+    <h1>${esc(t('sh.title'))}</h1>
+    <p class="lede">${esc(t('sh.sub'))}</p>
+    <form class="sh-form" id="shForm"><input id="shQ" type="search" autocomplete="off" placeholder="${esc(t('sh.placeholder'))}" aria-label="${esc(t('sh.title'))}"></form>
+    <div id="shOut" class="sh-out"><p class="dim">${esc(t('sh.hint'))}</p></div>
+  </div>`;
+}
+
+function wireShlichim() {
+  const q = $('#shQ'), out = $('#shOut');
+  let timer = null, seq = 0;
+  const run = async () => {
+    const term = q.value.trim();
+    if (term.length < 2) { out.innerHTML = `<p class="dim">${esc(t('sh.hint'))}</p>`; return; }
+    const my = ++seq;
+    let rows;
+    try { rows = await TMZApi.searchPeople(term, LANG); }
+    catch (e) { if (my === seq) out.innerHTML = `<p class="warn">${esc(t('err.load'))}</p>`; return; }
+    if (my !== seq) return;
+    if (!rows.length) { out.innerHTML = `<p class="dim">${esc(t('sh.none'))}</p>`; return; }
+    out.innerHTML = `<p class="dim sh-count">${num(rows.length)} ${esc(t('sh.results'))}</p>` + rows.map(p => `
+      <div class="sh-person">
+        ${initial(p.name)}
+        <div class="sh-body">
+          <span class="sh-name">${esc(p.name)}</span>
+          <div class="sh-tenures">${(p.tenures || []).map(x => `
+            <a class="chat-link" href="#/c/${esc(x.community)}/${x.from}">
+              <b>${esc(x.community_name)}</b>
+              <span dir="ltr">${x.from}${x.to && x.to !== x.from ? '–' + x.to : ''}</span>
+              <em>${esc(t('role.' + x.role))}</em></a>`).join('')}</div>
+        </div>
+      </div>`).join('');
+  };
+  q.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 250); };
+  $('#shForm').onsubmit = e => { e.preventDefault(); clearTimeout(timer); run(); };
+  q.focus();
+}
+
+function aboutView() {
+  return `<div class="cv idx about">
+    <span class="eyebrow gold">${esc(t('nav.about'))}</span>
+    <h1>${esc(t('ab.title'))}</h1>
+    <p class="verse">${VERSE}</p>
+    <p>${esc(t('ab.p1'))}</p>
+    <p>${esc(t('ab.p2'))}</p>
+    <p>${esc(t('ab.p3'))}</p>
+    <p><a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a></p>
+  </div>`;
+}
+
 /* ---- router -------------------------------------------------------------- */
 
 function parseRoute() {
@@ -635,6 +722,9 @@ function parseRoute() {
   const parts = h.split('/').filter(Boolean);
   if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null };
   if (parts[0] === 'contribute') return { name: 'contribute' };
+  if (parts[0] === 'communities') return { name: 'communities' };
+  if (parts[0] === 'shlichim') return { name: 'shlichim' };
+  if (parts[0] === 'about') return { name: 'about' };
   return { name: 'map' };
 }
 
@@ -708,6 +798,16 @@ async function render() {
     const on = root.querySelector('.ry.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
     wireLightbox(root);
+  } else if (r.name === 'communities') {
+    root.innerHTML = shell() + banner() + communitiesView() + footer();
+    wireShell();
+  } else if (r.name === 'shlichim') {
+    root.innerHTML = shell() + shlichimView() + footer();
+    wireShell();
+    wireShlichim();
+  } else if (r.name === 'about') {
+    root.innerHTML = shell() + aboutView() + footer();
+    wireShell();
   } else {
     root.innerHTML = shell() + contributeView() + footer();
     wireShell();

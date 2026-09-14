@@ -116,8 +116,10 @@ const rpc = async (fn, args) => (await fetch(`${U}/rest/v1/rpc/${fn}`, {
 const map = await rpc('tmz_map_payload', { want: 'en' });
 check('the map payload answers anonymously', Array.isArray(map?.communities),
       `${map?.communities?.length ?? 0} communities`);
-check('it carries the real communities', (map?.communities?.length ?? 0) === 23,
-      `expected 23, got ${map?.communities?.length ?? 0}`);
+/* The register's 55, give or take a community added or removed in the back
+   office — anything far below that means the roster import did not land. */
+check('it carries the real communities', (map?.communities?.length ?? 0) >= 50,
+      `expected the register's ~55, got ${map?.communities?.length ?? 0}`);
 
 for (const fn of ['tmz_coverage', 'tmz_intake_stats', 'tmz_contributors']) {
   const res = await fetch(`${U}/rest/v1/rpc/${fn}`, {

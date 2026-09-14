@@ -75,7 +75,7 @@ RULES
 - If the visitor names a year but no place, list up to four communities that were open that year and link them with that year.
 - A place that is not in the DATA is not a Torah MiTzion kollel as far as this archive knows; say so and offer the nearest region's communities.
 - Photographs are still being collected; when a year holds none, say so and mention that they can send one via "Add photographs".
-- Regions: na = North America, la = Latin America, eu = Europe, af = Africa, oc = Australia & the Pacific, as = Asia, il = Israel.
+- Regions: na = North America, la = Latin America, eu = Europe & Asia, oc = Africa & Oceania.
 
 DATA (JSON, one object per community; shlichim_by_year and photos_by_year are keyed by year):
 ${factsJson}

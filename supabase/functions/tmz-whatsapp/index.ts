@@ -825,7 +825,11 @@ async function handle(body: any, ch: Channel) {
   const displayName = value?.contacts?.[0]?.profile?.name ?? null;
   if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
     ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
-    /* Told once. Silence looks like a fault; a sentence looks like a decision. */
+    /* Told once. Silence looks like a fault; a sentence looks like a decision —
+       and repeating the sentence on every message looks like a bot to argue with. */
+    await log(waId, 'in', msg.type === 'image' ? 'photo' : 'text', msg.text?.body ?? null, null, {}, msg.id ?? null);
+    const lastOut = (await history(waId, 3)).reverse().find(h => h.direction === 'out');
+    if (lastOut?.meta?.reason === 'blocked') return;
     const said = await phrase(contact.lang ?? 'en', x => x.paused);
     await log(waId, 'out', 'text', said, null, { reason: 'blocked' });
     await ch.reply(from, said);
@@ -856,7 +860,7 @@ async function handle(body: any, ch: Channel) {
       lang = first;
       await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
       ch.trace('welcome', { lang });
-      await log(waId, 'in', 'text', text);
+      await log(waId, 'in', 'text', text, null, {}, msg.id ?? null);
       const w = await phrase(lang, x => x.welcome);
       await log(waId, 'out', 'welcome', w);
       await ch.reply(from, w);
@@ -1027,7 +1031,12 @@ async function handle(body: any, ch: Channel) {
   }
 
   if (msg.type !== 'image') {
-    await ch.reply(from, await phrase(contact?.lang ?? 'en', x => x.nophoto));
+    /* Voice notes, stickers, videos, documents. Logged with the provider id so
+       a redelivery is a no-op, and answered with the nudge. */
+    await log(waId, 'in', msg.type ?? 'other', null, null, {}, msg.id ?? null);
+    const said = await phrase(contact?.lang ?? 'en', x => x.nophoto);
+    await log(waId, 'out', 'text', said, null, { reason: `unsupported: ${msg.type}` });
+    await ch.reply(from, said);
     return;
   }
 
@@ -1237,6 +1246,7 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
     const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
       || verdict.reasons.some(r => /scored \d+/.test(r));
     if (harm) await strike(waId, ch.isTest);
+    if (!from) return;   // a web upload being re-screened has nobody to tell
     const said = await refusalIn(lang, verdict.reasons, verdict.scores as Record<string, number>);
     const sentId = await ch.reply(from, said, quote);
     await log(waId, 'out', 'refusal', said, photoId, { reason: verdict.reasons.join('; ').slice(0, 300) }, sentId);

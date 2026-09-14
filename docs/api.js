@@ -138,4 +138,10 @@ async function loadTeaser(n, lang) {
   return (rows || []).map(p => ({ ...p, url: photoUrl(p.path) }));
 }
 
-window.TMZApi = { loadMap, loadYear, loadTeaser, historyFrom, photoUrl, DEMO };
+/* ---- people --------------------------------------------------------------- */
+
+async function searchPeople(q, lang) {
+  return await rpc('tmz_person_search', { q, want: lang, lim: 40 }) || [];
+}
+
+window.TMZApi = { loadMap, loadYear, loadTeaser, searchPeople, historyFrom, photoUrl, DEMO };

@@ -5,12 +5,13 @@ import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
 /* ---- dashboard ----------------------------------------------------------- */
 
 export async function dashboard() {
-  const [comms, people, photos, pending] = await Promise.all([
+  const [comms, peopleN, photosN, pendingN] = await Promise.all([
     sb.from('tmz_community').select('id,slug,closed_year'),
-    sb.from('tmz_person').select('id'),
-    sb.from('tmz_photo').select('id', { filter: { status: 'eq.approved' } }),
-    sb.from('tmz_photo').select('id', { filter: { status: 'eq.pending' } })
+    sb.count('tmz_person'),
+    sb.count('tmz_photo', { status: 'eq.approved' }),
+    sb.count('tmz_photo', { status: 'eq.pending' })
   ]);
+  const people = { length: peopleN }, photos = { length: photosN }, pending = { length: pendingN };
   const open = comms.filter(c => !c.closed_year).length;
 
   $('#page').innerHTML = `
@@ -303,34 +304,45 @@ async function deleteCommunity(c) {
 /* ---- people -------------------------------------------------------------- */
 
 export async function people() {
-  const rows = await sb.from('tmz_person', {}).select(
+  const rows = await sb.all('tmz_person',
     'id,slug,birth_year,tmz_person_tr(lang,display_name),tmz_tenure(id)',
-    { order: 'slug.asc.nullslast', limit: 500 }
-  );
+    { order: 'slug.asc.nullslast' });
   $('#page').innerHTML = `
     <div class="page-head">
       <div><h1>People</h1>
         <p>${rows.length} people. Each can hold tenures at any number of communities.</p></div>
       <button class="btn solid" id="newP">+ New person</button>
     </div>
+    <div class="field" style="max-width:360px;margin-bottom:14px">
+      <input id="pFind" type="search" placeholder="Find by name or slug…" autocomplete="off"></div>
     ${rows.length === 0 ? `<div class="empty">No people yet. Add a Rosh Kollel or shaliach to start.</div>` : `
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Name</th><th>Slug</th><th>Born</th><th>Tenures</th><th>Translations</th><th></th></tr></thead>
-      <tbody>${rows.map(r => `<tr data-id="${r.id}">
+      <tbody id="pBody"></tbody>
+    </table></div>
+    <p class="dim" id="pMore" style="font-size:12px"></p>`}`;
+
+  const body = $('#pBody'), more = $('#pMore');
+  const draw = () => {
+    const q = ($('#pFind').value || '').trim().toLowerCase();
+    const hit = q ? rows.filter(r => (r.slug || '').includes(q) ||
+      (r.tmz_person_tr || []).some(x => (x.display_name || '').toLowerCase().includes(q))) : rows;
+    const shown = hit.slice(0, 300);
+    body.innerHTML = shown.map(r => `<tr data-id="${r.id}">
         <td>${esc(pickName(r.tmz_person_tr) || '—')}</td>
         <td class="mono">${esc(r.slug || '—')}</td>
         <td>${r.birth_year || '—'}</td>
         <td>${(r.tmz_tenure || []).length}</td>
         <td>${coverage(r.tmz_person_tr)}</td>
         <td class="actions"><button class="edit">Edit</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`}`;
-
+      </tr>`).join('');
+    more.textContent = hit.length > shown.length ? `Showing ${shown.length} of ${hit.length} — narrow the search.` : '';
+    body.querySelectorAll('tr').forEach(tr => {
+      tr.querySelector('.edit').onclick = () => personDrawer(rows.find(r => r.id === tr.dataset.id));
+    });
+  };
+  if (body) { draw(); $('#pFind').oninput = draw; }
   $('#newP').onclick = () => personDrawer(null);
-  document.querySelectorAll('#page tbody tr').forEach(tr => {
-    tr.querySelector('.edit').onclick = () =>
-      personDrawer(rows.find(r => r.id === tr.dataset.id));
-  });
 }
 
 /* Cached lookups the tenure editor needs; both are small and change rarely. */

@@ -194,6 +194,29 @@ export const sb = {
     return pg(`/rpc/${fn}`, { method: 'POST', body: args });
   },
 
+  /* How many rows, without fetching them: PostgREST caps a page at 1,000 and
+     the register holds more people than that. */
+  async count(table, filter) {
+    const q = new URLSearchParams({ select: 'id', ...(filter || {}) });
+    const s = await ensureSession();
+    const res = await fetch(`${REST}/${table}?${q}`, {
+      headers: { ...authHeaders(s), Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' }
+    });
+    if (!res.ok && res.status !== 206) throw new Error(`count ${table} → ${res.status}`);
+    return +(res.headers.get('content-range') || '/0').split('/')[1] || 0;
+  },
+
+  /* Every row of a table, a page at a time. */
+  async all(table, cols, opts = {}) {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const q = new URLSearchParams({ select: cols, offset: from, limit: 1000, ...(opts.order ? { order: opts.order } : {}), ...(opts.filter || {}) });
+      const page = await pg(`/${table}?${q}`);
+      out.push(...page);
+      if (page.length < 1000) return out;
+    }
+  },
+
   /* Storage sits on a different path than PostgREST, so it does not go through
      pg(). Copy is server-side — the bytes never travel to the browser. */
   async storageCopy(bucketId, sourceKey, destinationBucket, destinationKey) {
