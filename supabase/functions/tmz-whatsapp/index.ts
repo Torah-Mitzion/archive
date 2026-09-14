@@ -662,6 +662,34 @@ async function handleSweep(req: Request, url: URL) {
     }
   } catch (e) { report.provider_error = String(e).slice(0, 120); }
 
+  // 5. captions with no renderings yet
+  /* Photographs recorded before names.ts existed have their sender's words
+     and an empty {} beside them; so does anything whose rendering hit the
+     quota. A few per sweep, and an empty answer is left for the next one. */
+  try {
+    let unrendered = 0;
+    if (GEMINI_KEY) {
+      const bare = await pg(`/tmz_photo?select=id,people_text,people_tr,occasion_text,occasion_tr` +
+        `&or=(and(people_text.not.is.null,people_tr.eq.{}),and(occasion_text.not.is.null,occasion_tr.eq.{}))` +
+        `&order=created_at.asc&limit=5`);
+      for (const p of bare ?? []) {
+        const patch: Record<string, unknown> = {};
+        if (p.people_text && !Object.keys(p.people_tr ?? {}).length) {
+          const tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, p.people_text, 'people');
+          if (Object.keys(tr).length) patch.people_tr = tr;
+        }
+        if (p.occasion_text && !Object.keys(p.occasion_tr ?? {}).length) {
+          const tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, p.occasion_text, 'occasion');
+          if (Object.keys(tr).length) patch.occasion_tr = tr;
+        }
+        if (!Object.keys(patch).length) continue;
+        await pg(`/tmz_photo?id=eq.${p.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+        unrendered++;
+      }
+    }
+    report.captions_rendered = unrendered;
+  } catch (e) { report.captions_error = String(e).slice(0, 120); }
+
   return json(report);
 }
 

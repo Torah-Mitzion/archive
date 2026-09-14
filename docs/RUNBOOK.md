@@ -120,11 +120,17 @@ is refused for good — so the dials want setting before the campaign, not durin
 ./node_modules/.bin/supabase functions deploy tmz-upload   --use-api --no-verify-jwt --project-ref <REF>
 ./node_modules/.bin/supabase functions deploy tmz-whatsapp --use-api --no-verify-jwt --project-ref <REF>
 ./node_modules/.bin/supabase functions deploy tmz-chat     --use-api --no-verify-jwt --project-ref <REF>
+./node_modules/.bin/supabase functions deploy tmz-share    --use-api --no-verify-jwt --project-ref <REF>
 ```
 
 `tmz-chat` is the site's floating guide. It reads the same `GEMINI_API_KEY`
 and knows only what the year pages print (`tmz_chat_facts()`), so there is
 nothing to configure beyond deploying it.
+
+`tmz-share` is the page a messenger reads when someone passes on a link to
+one photograph: `/functions/v1/tmz-share?p=<photo id>` carries Open Graph
+tags whose image is the photograph itself, then sends the person on to the
+site — so the preview shows the picture rather than the map.
 
 ## 7. Connect Heyy
 
