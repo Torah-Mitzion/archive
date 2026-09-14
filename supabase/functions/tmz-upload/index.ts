@@ -17,7 +17,7 @@
 
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen as screenImage, type Verdict } from '../_shared/screen.ts';
-import { renderNames } from '../_shared/names.ts';
+import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -185,6 +185,9 @@ Deno.serve(async req => {
     await putObject(derivedKey, clean.publicBytes);
 
     const guess = verdict.facts ?? {};
+    /* The form's free text goes on a public page; refused text is dropped. */
+    const peopleOk = people ? (await captionOk(GEMINI_MODEL, GEMINI_KEY, String(people))) !== false : false;
+    const occasionOk = event_note ? (await captionOk(GEMINI_MODEL, GEMINI_KEY, String(event_note))) !== false : false;
     const [photo] = await pg('/tmz_photo', {
       method: 'POST',
       prefer: 'return=representation',
@@ -207,10 +210,10 @@ Deno.serve(async req => {
         /* The names and the occasion the form asked for, kept as given and
            rendered in the site's scripts, so they show under the photograph
            and the guide can find them. */
-        people_text: people ? String(people).slice(0, 500) : null,
-        occasion_text: event_note ? String(event_note).slice(0, 500) : null,
-        people_tr: people ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(people), 'people') : {},
-        occasion_tr: event_note ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(event_note), 'occasion') : {}
+        people_text: peopleOk ? String(people).slice(0, 500) : null,
+        occasion_text: occasionOk ? String(event_note).slice(0, 500) : null,
+        people_tr: peopleOk ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(people), 'people') : {},
+        occasion_tr: occasionOk ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(event_note), 'occasion') : {}
       }])
     });
 

@@ -43,6 +43,8 @@ type Strings = {
   portraitLinked: string;   // "{name}" — their picture is now on their entries
   portraitWhich: string;    // "{list}" — several people by that name
   portraitNone: string;     // the name is not in the register
+  portraitTaken: string;    // "{name}" already has a picture
+  portraitLive: string;     // "{url}" — the portrait is up
   blocked: string;
 };
 
@@ -90,6 +92,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'Lovely — that will be your picture on the site, next to {name}. ',
     portraitWhich: 'I found more than one person by that name: {list}. Which community were you in, so I know which is you?',
     portraitNone: 'I could not find that name in the register. How is it written in Hebrew or in English?',
+    portraitTaken: '{name} already has a picture on the site, so I will leave that one as it is — if it should change, the Torah MiTzion office can swap it.',
+    portraitLive: 'Your picture is up, next to your name:\n{url}',
     blocked: ''
   },
   he: {
@@ -135,6 +139,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'יופי — זו תהיה התמונה שלכם באתר, ליד {name}. ',
     portraitWhich: 'מצאתי יותר מאדם אחד בשם הזה: {list}. באיזו קהילה הייתם, כדי שאדע מי מהם אתם?',
     portraitNone: 'לא מצאתי את השם הזה ברישומים. איך הוא נכתב בעברית או באנגלית?',
+    portraitTaken: 'ל{name} כבר יש תמונה באתר, אז אשאיר אותה כמו שהיא — אם צריך להחליף, המשרד של תורה מציון יכול.',
+    portraitLive: 'התמונה שלכם באתר, ליד השם שלכם:\n{url}',
     blocked: ''
   },
   ru: {
@@ -180,6 +186,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'Отлично — это будет ваше фото на сайте, рядом с именем {name}. ',
     portraitWhich: 'Нашёл несколько человек с таким именем: {list}. В какой общине вы были, чтобы я понял, кто из них вы?',
     portraitNone: 'Не нашёл такого имени в реестре. Как оно пишется на иврите или по-английски?',
+    portraitTaken: 'У {name} на сайте уже есть фотография, оставлю её как есть — если нужно заменить, это может сделать офис Тора ми-Цион.',
+    portraitLive: 'Ваша фотография на сайте, рядом с вашим именем:\n{url}',
     blocked: ''
   },
   fr: {
@@ -225,6 +233,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'Parfait — ce sera votre photo sur le site, à côté de {name}. ',
     portraitWhich: 'J’ai trouvé plusieurs personnes de ce nom : {list}. Dans quelle communauté étiez-vous, pour que je sache laquelle est vous ?',
     portraitNone: 'Je n’ai pas trouvé ce nom dans le registre. Comment s’écrit-il en hébreu ou en anglais ?',
+    portraitTaken: '{name} a déjà une photo sur le site, je la laisse telle quelle — s’il faut la changer, le bureau de Torah MiTzion peut le faire.',
+    portraitLive: 'Votre photo est en ligne, à côté de votre nom :\n{url}',
     blocked: ''
   },
   de: {
@@ -270,6 +280,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'Schön — das wird Ihr Bild auf der Seite, neben {name}. ',
     portraitWhich: 'Ich habe mehrere Personen mit diesem Namen gefunden: {list}. In welcher Gemeinde waren Sie, damit ich weiß, wer Sie sind?',
     portraitNone: 'Diesen Namen finde ich nicht im Register. Wie wird er auf Hebräisch oder Englisch geschrieben?',
+    portraitTaken: '{name} hat auf der Website schon ein Bild; das lasse ich so – wenn es getauscht werden soll, kann das Büro von Torah MiTzion das tun.',
+    portraitLive: 'Ihr Bild ist online, neben Ihrem Namen:\n{url}',
     blocked: ''
   },
   es: {
@@ -315,6 +327,8 @@ const S: Record<Lang, Strings> = {
     portraitLinked: 'Perfecto — esa será tu foto en el sitio, junto a {name}. ',
     portraitWhich: 'Encontré a más de una persona con ese nombre: {list}. ¿En qué comunidad estuviste, para saber cuál eres?',
     portraitNone: 'No encontré ese nombre en el registro. ¿Cómo se escribe en hebreo o en inglés?',
+    portraitTaken: '{name} ya tiene una foto en el sitio, así que la dejo como está — si hay que cambiarla, la oficina de Torah MiTzion puede hacerlo.',
+    portraitLive: 'Tu foto está en el sitio, junto a tu nombre:\n{url}',
     blocked: ''
   }
 };

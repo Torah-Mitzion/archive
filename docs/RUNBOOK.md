@@ -227,3 +227,21 @@ part that cannot be skipped.
 `.env.supabase` is gitignored and must stay that way. It holds the service-role
 key, which bypasses every RLS policy in the project. The `anon` key in
 `docs/api.js` is a different thing and is meant to be public.
+
+## 10. Security notes
+
+- **What the public can read:** `tmz_photo` is closed to the anonymous key;
+  the site reads six `security definer` functions that return only the
+  columns a page shows. Contact tables, messages, moderation and settings
+  are service-role only. A sender's WhatsApp number never leaves the database.
+- **Text people type** (names, occasion) is screened by the model before it
+  is shown on a page; links, phone numbers and abuse are dropped, and a text
+  the screener could not judge stays private until the watchdog can.
+- **Rate limits:** 40 photographs and 60 messages per sender per hour; 20
+  uploads and 40 guide questions per address per hour.
+- **Portraits:** a name that already has a picture is not overwritten from
+  WhatsApp; the back office swaps it (clear `tmz_person.portrait_path`).
+- **Known medium risks, accepted:** the Heyy webhook is authenticated by a
+  secret in its URL (Heyy signs nothing); the test console is a bearer token;
+  a sender can attach any names to a photograph they send. **Turn off
+  "Allow new users to sign up"** in Supabase Auth if not yet done.

@@ -27,7 +27,7 @@ import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
-import { renderNames } from '../_shared/names.ts';
+import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -349,10 +349,17 @@ async function photoQuotedBy(ref: string, providerMsgId: string | null) {
 
 /* Every photograph of theirs still missing something. More than one means a
    bare answer is ambiguous. */
+/* Every photograph of theirs still missing something — plus, when nothing
+   is, the recent ones that are complete: "actually it was 2005, not 2006"
+   arrives after the thank-you, and has to land on the photograph it means. */
 async function openPhotos(ref: string) {
   const rows = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path,ai_description,portrait_of,portrait_name,created_at` +
     `&submitter_ref=eq.${encodeURIComponent(ref)}&status=neq.rejected&order=created_at.desc&limit=10`);
-  return (rows ?? []).filter((p: any) => nextMissing(p));
+  const all = (rows ?? []);
+  const missing = all.filter((p: any) => nextMissing(p));
+  if (missing.length) return missing;
+  const week = Date.now() - 7 * 24 * 3600 * 1000;
+  return all.filter((p: any) => new Date(p.created_at).getTime() > week).slice(0, 5);
 }
 
 async function history(ref: string, n = 30): Promise<HistoryRow[]> {
@@ -625,7 +632,7 @@ async function handleSweep(req: Request, url: URL) {
   try {
     const day = 24 * 3600_000;
     const waiting = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year,people_text,occasion_text` +
-      `&status=eq.pending&agent_decision=eq.publish&or=(community_id.is.null,year.is.null)&submitter_ref=like.wa:%25` +
+      `&status=eq.pending&agent_decision=eq.publish&portrait_of=is.null&or=(community_id.is.null,year.is.null)&submitter_ref=like.wa:%25` +
       `&created_at=lt.${encodeURIComponent(new Date(Date.now() - day).toISOString())}` +
       `&created_at=gt.${encodeURIComponent(new Date(Date.now() - 8 * day).toISOString())}&order=created_at.asc&limit=20`);
     let reminded = 0;
@@ -970,6 +977,17 @@ async function handle(body: any, ch: Channel) {
 
     await log(waId, 'in', 'text', text, null, {}, msg.id ?? null);
 
+    /* Every message costs a model call; a sender who floods gets the same
+       answer a photograph flood gets. */
+    const okRate = await rpc('tmz_rate_take', { p_bucket: `wa-text:${from}`, p_limit: 60, p_window_seconds: 3600 }).catch(() => true);
+    if (okRate === false) {
+      ch.trace('rate limited (text)', {});
+      const said = await phrase(lang, x => x.slowdown);
+      await log(waId, 'out', 'text', said, null, { reason: 'rate limited' });
+      await ch.reply(from, said);
+      return;
+    }
+
     const comms = await communityList();
     const local = parseLocally(text, comms);
 
@@ -1095,13 +1113,27 @@ async function handle(body: any, ch: Channel) {
       if (det.event_note && det.event_note !== openLive.occasion_text) patch.occasion_text = det.event_note;
       else if (askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
 
-      if (patch.people_text) patch.people_tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch.people_text), 'people');
-      if (patch.occasion_text) patch.occasion_tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch.occasion_text), 'occasion');
+      /* Whatever is typed for names or occasion goes on a public page, so it
+         is screened first; text the screener refuses is not recorded, and
+         text it could not judge stays private (rendered later by the sweep). */
+      for (const k of ['people_text', 'occasion_text'] as const) {
+        if (!patch[k]) continue;
+        const ok = await captionOk(GEMINI_MODEL, GEMINI_KEY, String(patch[k]));
+        if (ok === false) { ch.trace('caption refused', { field: k }); delete patch[k]; continue; }
+        if (ok) patch[k === 'people_text' ? 'people_tr' : 'occasion_tr'] =
+          await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch[k]), k === 'people_text' ? 'people' : 'occasion');
+      }
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
         ch.trace('attached', { photo_id: openLive.id, patch });
         if (patch.community_id && openLive.portrait_name && !openLive.portrait_of) {
           await publishPortraitIfLinked(openLive.id, ch);
+        }
+        /* A correction to a photograph already on the site changes its page
+           and its share page; both are rebuilt. */
+        if (openLive.public_path) {
+          await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify({ share_page_at: null }) });
+          await writeSharePage(openLive.id);
         }
       }
       const merged = { ...openLive, ...patch };
@@ -1272,6 +1304,8 @@ async function handle(body: any, ch: Channel) {
     try {
       const d = await parseDetails(caption, await communityList());
       captionPeople = d.people || null; captionOccasion = d.event_note || null;
+      if (captionPeople && await captionOk(GEMINI_MODEL, GEMINI_KEY, captionPeople) === false) captionPeople = null;
+      if (captionOccasion && await captionOk(GEMINI_MODEL, GEMINI_KEY, captionOccasion) === false) captionOccasion = null;
       selfPortrait = Boolean(d.self_portrait);
       portraitName = d.person_name || (selfPortrait ? (d.people || displayName) : null);
     } catch { /* the questions will ask */ }
@@ -1414,6 +1448,12 @@ async function linkPortrait(photo: any, name: string | null, waId: string, from:
   if (!hits.length && slug) hits = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8 }).catch(() => []);
   ch.trace('portrait', { name: wanted, matches: hits.length, community: slug });
 
+  if (hits.length === 1 && hits[0].portrait && !photo.portrait_of) {
+    /* Someone already stands there. A second picture for the same name is
+       not taken on a stranger's word — the office can swap it. */
+    ch.trace('portrait exists', { person: hits[0].id });
+    return (await phrase(lang, x => x.portraitTaken)).replace('{name}', hits[0].name);
+  }
   if (hits.length === 1) {
     await pg(`/tmz_photo?id=eq.${photo.id}`, { method: 'PATCH',
       body: JSON.stringify({ portrait_of: hits[0].id, portrait_name: wanted, people_text: photo.people_text ?? wanted,
@@ -1459,7 +1499,18 @@ async function publishPortraitIfLinked(photoId: string, ch: Channel) {
   });
   if (!res.ok) { ch.trace('portrait publish failed', { status: res.status }); return false; }
   await pg(`/tmz_person?id=eq.${p.portrait_of}`, { method: 'PATCH', body: JSON.stringify({ portrait_path: dest }) });
+  await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) });
   ch.trace('portrait published', { photo_id: photoId, person: p.portrait_of });
+  /* Tell them where it is: the page of the community they served in. */
+  const ref: string | null = (await pg(`/tmz_photo?select=submitter_ref&id=eq.${photoId}`))?.[0]?.submitter_ref ?? null;
+  if (ref && ref.startsWith('wa:')) {
+    const t = (await pg(`/tmz_tenure?select=start_year,tmz_community(slug)&person_id=eq.${p.portrait_of}&order=start_year&limit=1`))?.[0];
+    const url = t?.tmz_community?.slug ? `${SITE_URL}/#/c/${t.tmz_community.slug}/${t.start_year}` : `${SITE_URL}/`;
+    const c = await contactOf(ref);
+    const said = (await phrase(c?.lang ?? 'en', x => x.portraitLive)).replace('{url}', url);
+    const id = await ch.reply(ref.replace(/^wa:/, ''), said, await providerIdOfPhoto(ref, photoId));
+    await log(ref, 'out', 'text', said, photoId, { reason: 'portrait live', url }, id);
+  }
   return true;
 }
 
@@ -1530,12 +1581,7 @@ async function continueConversation(
   waId: string, from: string, photo: any, lang: string, ch: Channel,
   answerWasEmpty: boolean, lead = '', quote: string | null = null
 ) {
-  const missing = ASK_ORDER.find(k => {
-    if (k === 'community') return !photo.community_id;
-    if (k === 'year') return !photo.year;
-    if (k === 'people') return !photo.people_text;
-    return !photo.occasion_text;
-  });
+  const missing = nextMissing(photo);
 
   if (missing) {
     await remember(waId, { asking: missing, asking_for: photo.id });
@@ -1569,6 +1615,7 @@ async function providerIdOfPhoto(ref: string, photoId: string): Promise<string |
 }
 
 function nextMissing(photo: any): 'community' | 'year' | 'people' | 'occasion' | null {
+  if (photo.portrait_of) return null;   // a portrait is complete the moment it is linked
   return ASK_ORDER.find(k =>
     k === 'community' ? !photo.community_id : k === 'year' ? !photo.year :
     k === 'people' ? !photo.people_text : !photo.occasion_text) ?? null;
@@ -1656,11 +1703,12 @@ function parseLocally(text: string, comms: { slug: string; names?: string[]; nam
    photograph has somewhere to appear, and it is not already up. */
 async function publishIfReady(photoId: string, ch: Channel): Promise<false | 'already' | 'fresh'> {
   const rows = await pg(
-    `/tmz_photo?select=id,community_id,year,derived_path,storage_path,public_path,agent_decision,status` +
+    `/tmz_photo?select=id,community_id,year,derived_path,storage_path,public_path,agent_decision,status,portrait_of` +
     `&id=eq.${photoId}`);
   const p = rows?.[0];
   if (!p) return false;
   if (p.public_path) return 'already';
+  if (p.portrait_of) return false;   // a portrait shows beside the name, never in the gallery
   if (p.agent_decision !== 'publish') return false;
   if (!p.community_id || !p.year) return false;
   if (!AUTO_PUBLISH) return false;
