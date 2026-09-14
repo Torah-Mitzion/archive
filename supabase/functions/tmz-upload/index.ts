@@ -17,6 +17,7 @@
 
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen as screenImage, type Verdict } from '../_shared/screen.ts';
+import { renderNames } from '../_shared/names.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -201,7 +202,14 @@ Deno.serve(async req => {
         needs_rescreen: verdict.decision === 'hold',
         source: 'web',
         submission_id: submission.id,
-        submitter_ref: [contributor_name, people, event_note].filter(Boolean).join(' · ') || null
+        submitter_ref: [contributor_name, people, event_note].filter(Boolean).join(' · ') || null,
+        /* The names and the occasion the form asked for, kept as given and
+           rendered in the site's scripts, so they show under the photograph
+           and the guide can find them. */
+        people_text: people ? String(people).slice(0, 500) : null,
+        occasion_text: event_note ? String(event_note).slice(0, 500) : null,
+        people_tr: people ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(people), 'people') : {},
+        occasion_tr: event_note ? await renderNames(GEMINI_MODEL, GEMINI_KEY, String(event_note), 'occasion') : {}
       }])
     });
 

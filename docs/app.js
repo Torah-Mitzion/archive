@@ -294,7 +294,7 @@ function drawSide(views) {
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
     <div class="flyto">${esc(t('fly.to'))}</div>${rows}
-    <p class="side-note">${credit()}</p>`;
+    `;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {
     b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
@@ -334,7 +334,8 @@ function drawBand() {
       <div class="bars">${bars}</div>
     </div>
     <a class="btn-ghost" href="#/c/${c.id}">${esc(t('cta.fly'))}
-      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11"/><path d="M11 6l4 4-4 4"/></svg></a>`;
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11"/><path d="M11 6l4 4-4 4"/></svg></a>
+    <div class="band-credit">${credit()}</div>`;
 }
 
 /* ---- community / year view ----------------------------------------------- */
@@ -354,7 +355,7 @@ function photoArt(p) {
    serif, says who without pretending to show them. */
 function initial(name, portrait) {
   if (portrait) return `<img class="ini ini-img" src="${esc(TMZApi.photoUrl(portrait))}" alt="${esc(name || '')}" loading="lazy">`;
-  const ch = String(name || '').trim().replace(/^(הרב|רב|Rabbi|Rav)\s+/i, '').charAt(0);
+  const ch = String(name || '').trim().replace(/^(הרב|רב|Rabbi|Rav|Рав)\s+/i, '').charAt(0);
   return `<span class="ini" aria-hidden="true">${esc(ch || '·')}</span>`;
 }
 
@@ -436,10 +437,11 @@ async function communityView(id, year) {
       <div class="photos">
         ${photos.map((p, i) => `
           <figure class="photo" data-photo="${i}" data-photo-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
-            <img src="${esc(p.url)}" alt="${esc(p.event_name || '')}" loading="lazy">
-            <figcaption><span class="ev">${esc(p.event_name || '')}</span>
+            <img src="${esc(p.url)}" alt="${esc(p.event_name || p.occasion_text || '')}" loading="lazy">
+            <figcaption><span class="ev">${esc(p.event_name || p.occasion_text || '')}</span>
+              ${p.people_text ? `<span class="names" dir="auto">${esc(p.people_text)}</span>` : ''}
               <span class="mt">${p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : ''}
-                ${p.people ? ' &middot; ' + num(p.people) + ' ' + esc(t('u.identified')) : ''}</span>
+                ${p.event_name && p.occasion_text ? ' &middot; ' + esc(p.occasion_text) : ''}</span>
             </figcaption></figure>`).join('')}
       </div>
     </section>`;
@@ -631,7 +633,8 @@ function wireLightbox(root) {
   const items = figs.map(f => ({
     url: f.querySelector('img').src,
     title: (f.querySelector('.ev') || {}).textContent || '',
-    sub: (f.querySelector('.mt') || {}).textContent.trim() || ''
+    sub: [(f.querySelector('.names') || {}).textContent, (f.querySelector('.mt') || {}).textContent]
+      .map(x => (x || '').trim()).filter(Boolean).join(' · ')
   }));
   figs.forEach((f, i) => {
     f.onclick = () => TMZLightbox.open(items, i);
@@ -691,8 +694,19 @@ function wireShlichim() {
     try { rows = await TMZApi.searchPeople(term, LANG, sel.value || null); }
     catch (e) { if (my === seq) out.innerHTML = `<p class="warn">${esc(t('err.load'))}</p>`; return; }
     if (my !== seq) return;
-    if (!rows.length) { out.innerHTML = `<p class="dim">${esc(t('sh.none'))}</p>`; return; }
-    out.innerHTML = `<p class="dim sh-count">${num(rows.length)} ${esc(t('sh.results'))}${rows.length >= 100 ? ' · ' + esc(t('sh.narrow')) : ''}</p>` + rows.map(p => `
+    let photos = [];
+    try { photos = await TMZApi.searchPhotoPeople(term, LANG); } catch { /* people alone, then */ }
+    if (my !== seq) return;
+    if (!rows.length && !photos.length) { out.innerHTML = `<p class="dim">${esc(t('sh.none'))}</p>`; return; }
+    const photoBlock = photos.length ? `
+      <h2 class="eyebrow gold sh-h2">${esc(t('sh.inPhotos'))} <span class="dim">${num(photos.length)}</span></h2>
+      <div class="sh-photos">${photos.map(p => `
+        <a class="sh-photo" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}">
+          <img src="${esc(TMZApi.photoUrl(p.path))}" alt="" loading="lazy">
+          <span class="sh-photo-txt"><b dir="auto">${esc(p.people || '')}</b>
+            <span>${esc(p.community_name)} · <span dir="ltr">${p.year}</span>${p.occasion ? ' · ' + esc(p.occasion) : ''}</span></span>
+        </a>`).join('')}</div>` : '';
+    out.innerHTML = (rows.length ? `<p class="dim sh-count">${num(rows.length)} ${esc(t('sh.results'))}${rows.length >= 100 ? ' · ' + esc(t('sh.narrow')) : ''}</p>` : '') + rows.map(p => `
       <div class="sh-person">
         ${initial(p.name, p.portrait)}
         <div class="sh-body">
@@ -703,7 +717,7 @@ function wireShlichim() {
               <span dir="ltr">${x.from}${x.to && x.to !== x.from ? '–' + x.to : ''}</span>
               <em>${esc(t('role.' + x.role))}</em></a>`).join('')}</div>
         </div>
-      </div>`).join('');
+      </div>`).join('') + photoBlock;
   };
   q.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 250); };
   sel.onchange = run;

@@ -394,14 +394,18 @@ body[data-route="map"]:has(.site-banner) .map-wrap {
 
 /* ---- credit --------------------------------------------------------------- */
 
-.credit { display: inline-flex; align-items: center; gap: 8px; line-height: 1.5; }
-.credit-logo { width: 26px; height: 26px; border-radius: 5px; background: #fff; object-fit: contain;
+.credit { display: inline-flex; align-items: center; gap: 10px; line-height: 1.5; font-size: 13.5px; color: var(--muted); }
+.credit-logo { width: 34px; height: 34px; border-radius: 6px; background: #fff; object-fit: contain;
                padding: 2px; flex: 0 0 auto; }
-.credit strong { font-weight: 500; color: var(--dim2); }
-.credit a { color: var(--dim2); }
+.credit strong { font-weight: 600; color: var(--ivory); }
+.credit a { color: var(--gold-lo); }
 .credit a:hover { color: var(--gold); }
-.side-note .credit { font-size: 12px; align-items: flex-start; }
-.side-note .credit-logo { width: 22px; height: 22px; }
+/* On the map the credit sits in the band, under the button, where it is
+   always on screen — the side panel is masked at the bottom on short screens
+   and swallowed it. */
+.band-credit { position: absolute; inset-inline-end: clamp(16px,3vw,40px); bottom: 10px; }
+.band-credit .credit { font-size: 12.5px; }
+.band-credit .credit-logo { width: 28px; height: 28px; }
 
 /* ---- teaser: a few photographs on the landing map ------------------------ */
 
@@ -571,4 +575,23 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
   .flyto { padding-bottom: 5px; }
   .side-note { margin-top: 10px; }
   .side-note .credit { font-size: 11px; }
+}
+
+/* names under a photograph, and photographs found by name */
+.photo .names { display: block; font-size: 13px; color: var(--gold-hi); margin-bottom: 4px; line-height: 1.35;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-h2 { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.sh-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.sh-photo { display: flex; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 3px;
+            color: var(--ivory); background: rgba(13,21,38,.5); }
+.sh-photo:hover { border-color: rgba(232,200,125,.5); color: var(--gold-hi); }
+.sh-photo img { width: 72px; height: 54px; object-fit: cover; border-radius: 2px; flex: 0 0 auto; }
+.sh-photo-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 13.5px; }
+.sh-photo-txt b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-photo-txt span { color: var(--dim2); font-size: 12px; }
+
+/* Below 900px the band stacks and the credit becomes its last row. Declared
+   last so it wins over the absolute placement above. */
+@media (max-width: 900px) {
+  .band-credit { position: static; flex-basis: 100%; margin-top: 8px; }
 }

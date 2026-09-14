@@ -27,6 +27,7 @@ import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
+import { renderNames } from '../_shared/names.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -1035,6 +1036,8 @@ async function handle(body: any, ch: Channel) {
       if (det.event_note && det.event_note !== openLive.occasion_text) patch.occasion_text = det.event_note;
       else if (askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
 
+      if (patch.people_text) patch.people_tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch.people_text), 'people');
+      if (patch.occasion_text) patch.occasion_tr = await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch.occasion_text), 'occasion');
       if (Object.keys(patch).length) {
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
         ch.trace('attached', { photo_id: openLive.id, patch });
@@ -1222,6 +1225,8 @@ async function handle(body: any, ch: Channel) {
       width: clean.width, height: clean.height, bytes: clean.archiveBytes.length, phash: clean.phash,
       community_id: placed.community_id, year: placed.year,
       people_text: captionPeople, occasion_text: captionOccasion,
+      people_tr: captionPeople ? await renderNames(GEMINI_MODEL, GEMINI_KEY, captionPeople, 'people') : {},
+      occasion_tr: captionOccasion ? await renderNames(GEMINI_MODEL, GEMINI_KEY, captionOccasion, 'occasion') : {},
       /* agent_decision stays null until the screener has spoken; the sweep
          picks up anything left that way. */
       status: 'pending', agent_decision: null, needs_rescreen: false,
@@ -1352,7 +1357,8 @@ async function linkPortrait(photo: any, name: string | null, waId: string, from:
 
   if (hits.length === 1) {
     await pg(`/tmz_photo?id=eq.${photo.id}`, { method: 'PATCH',
-      body: JSON.stringify({ portrait_of: hits[0].id, portrait_name: wanted, people_text: photo.people_text ?? wanted }) });
+      body: JSON.stringify({ portrait_of: hits[0].id, portrait_name: wanted, people_text: photo.people_text ?? wanted,
+                             ...(photo.people_text ? {} : { people_tr: await renderNames(GEMINI_MODEL, GEMINI_KEY, wanted, 'people') }) }) });
     photo.portrait_of = hits[0].id; photo.people_text = photo.people_text ?? wanted;
     if (photo.agent_decision === 'publish') await publishPortraitIfLinked(photo.id, ch);
     return (await phrase(lang, x => x.portraitLinked)).replace('{name}', hits[0].name);

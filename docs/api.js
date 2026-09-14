@@ -144,4 +144,8 @@ async function searchPeople(q, lang, communitySlug = null) {
   return await rpc('tmz_person_search', { q, want: lang, lim: 100, community_slug: communitySlug }) || [];
 }
 
-window.TMZApi = { loadMap, loadYear, loadTeaser, searchPeople, historyFrom, photoUrl, DEMO };
+async function searchPhotoPeople(q, lang) {
+  return await rpc('tmz_photo_people_search', { q, want: lang, lim: 40 }) || [];
+}
+
+window.TMZApi = { loadMap, loadYear, loadTeaser, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };

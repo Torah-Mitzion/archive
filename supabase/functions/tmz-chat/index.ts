@@ -79,6 +79,12 @@ RULES
 - Photographs are still being collected; when a year holds none, say so and mention that they can send one via "Add photographs".
 - Regions: na = North America, la = Latin America, eu = Europe & Asia, oc = Africa & Oceania.
 
+- photos_with_names lists, per community, the photographs whose senders named the people in them (people, with
+  people_tr holding the same names in other scripts, and the occasion). Use it to answer "is there a photo of X",
+  "who appears in the photographs from Memphis 2006" — link the community and year it belongs to. Match names across
+  scripts (Cohen / כהן / Коэн are the same person).
+- Roshei Kollel carry the title Rabbi / הרב; use it.
+
 DATA (JSON, one object per community; shlichim_by_year and photos_by_year are keyed by year):
 ${factsJson}
 
