@@ -595,3 +595,52 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
 @media (max-width: 900px) {
   .band-credit { position: static; flex-basis: 100%; margin-top: 8px; }
 }
+
+/* ---- AI guide pill, WhatsApp button, sharing a photograph ------------------ */
+
+/* The guide reads as an AI: sparkles, a plain label, and a glow that breathes. */
+.chat-fab { padding: 13px 18px; font-size: 15px; font-weight: 600; gap: 10px;
+            box-shadow: 0 0 0 4px rgba(232,200,125,.18), 0 10px 30px rgba(0,0,0,.5);
+            animation: fab-glow 3s ease-in-out infinite; }
+.chat-fab svg { flex: 0 0 auto; }
+.chat-fab:hover, .chat.is-open .chat-fab { animation: none; }
+@keyframes fab-glow {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(232,200,125,.18), 0 10px 30px rgba(0,0,0,.5); }
+  50%      { box-shadow: 0 0 0 9px rgba(232,200,125,.07), 0 0 26px rgba(232,200,125,.4), 0 10px 30px rgba(0,0,0,.5); }
+}
+@media (prefers-reduced-motion: reduce) { .chat-fab { animation: none; } }
+
+/* WhatsApp sits first in the stack, above the guide; it steps aside while the
+   guide is open so the panel keeps the whole corner. */
+.wa-fab { order: 0; display: flex; align-items: center; gap: 8px; padding: 11px 16px 11px 13px; border-radius: 999px;
+          background: #25D366; color: #fff; font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap;
+          box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.1); transition: transform .2s, filter .2s; }
+.wa-fab:hover { color: #fff; filter: brightness(1.08); transform: translateY(-1px); }
+.wa-fab svg { flex: 0 0 auto; }
+.chat.is-open .wa-fab { display: none; }
+/* The viewer owns the screen; the corner stack stays out of it. */
+body.lb-open .chat { display: none; }
+@media (max-width: 620px) {
+  .wa-fab { width: 50px; height: 50px; padding: 0; justify-content: center; }
+  .wa-fab-txt { display: none; }
+}
+
+/* Share, in the viewer's footer beside the counter. The popover is the
+   fallback where the system share sheet is not there. */
+.lb-row { display: flex; align-items: center; gap: 14px; }
+.lb-sharewrap { position: relative; }
+.lb-share { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px;
+            border: 1px solid rgba(232,200,125,.4); background: rgba(232,200,125,.06); color: var(--gold);
+            font-size: 13.5px; line-height: 1; white-space: nowrap; transition: background .15s, color .15s; }
+.lb-share svg { flex: 0 0 auto; }
+.lb-share:hover, .lb-share[aria-expanded="true"] { background: rgba(232,200,125,.2); color: var(--gold-hi); border-color: var(--gold); }
+.lb-pop[hidden] { display: none; }
+.lb-pop { position: absolute; bottom: calc(100% + 10px); inset-inline-end: 0; z-index: 3; min-width: 200px; padding: 6px;
+          display: flex; flex-direction: column; border-radius: 8px;
+          background: rgba(13,21,38,.98); border: 1px solid rgba(232,200,125,.3);
+          box-shadow: 0 18px 50px rgba(0,0,0,.6); backdrop-filter: blur(12px); }
+.lb-pop a, .lb-pop button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 5px;
+                            color: var(--ivory); font-size: 14.5px; text-align: start; white-space: nowrap; }
+.lb-pop a:hover, .lb-pop button:hover { background: rgba(232,200,125,.14); color: var(--gold-hi); }
+.lb-pop svg { flex: 0 0 auto; color: var(--gold); }
+.lb-pop .lb-copy.done { color: var(--gold); }
