@@ -77,9 +77,11 @@ const SITE_REPO = Deno.env.get('SITE_REPO') ?? 'Torah-Mitzion/archive';
 async function writeSharePage(photoId: string) {
   if (!GITHUB_TOKEN) return false;
   try {
-    const p = (await pg(`/tmz_photo?select=id,public_path,year,people_text,people_tr,occasion_text,occasion_tr,` +
-      `tmz_community(slug,tmz_community_tr(lang,name))&id=eq.${photoId}&limit=1`))?.[0];
+    const p = (await pg(`/tmz_photo?select=id,public_path,year,people_text,people_tr,occasion_text,occasion_tr,portrait_of,` +
+      `tmz_submission(is_test),tmz_community(slug,tmz_community_tr(lang,name))&id=eq.${photoId}&limit=1`))?.[0];
     if (!p?.public_path || !p.tmz_community?.slug || p.year == null) return false;
+    /* No page for a test-console photograph or a portrait: neither is on a year page. */
+    if (p.tmz_submission?.is_test || p.portrait_of) return false;
     const ok = await pushSharePage(p, { siteUrl: SITE_URL, token: GITHUB_TOKEN, repo: SITE_REPO,
       publicBucket: `${SUPABASE_URL}/storage/v1/object/public/tmz-photo-public` });
     if (ok) await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ share_page_at: new Date().toISOString() }) });
