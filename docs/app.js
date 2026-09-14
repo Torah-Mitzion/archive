@@ -630,11 +630,18 @@ function wireContribute() {
 function wireLightbox(root) {
   const figs = [...root.querySelectorAll('[data-photo]')];
   if (!figs.length || !window.TMZLightbox) return;
+  // The share link is the server's unfurl page for the photograph, not the
+  // site's hash URL — that page carries the picture as its preview image.
   const items = figs.map(f => ({
+    id: f.dataset.photoId || '',
     url: f.querySelector('img').src,
     title: (f.querySelector('.ev') || {}).textContent || '',
+    names: ((f.querySelector('.names') || {}).textContent || '').trim(),
     sub: [(f.querySelector('.names') || {}).textContent, (f.querySelector('.mt') || {}).textContent]
-      .map(x => (x || '').trim()).filter(Boolean).join(' · ')
+      .map(x => (x || '').trim()).filter(Boolean).join(' · '),
+    shareUrl: f.dataset.photoId
+      ? `${TMZ_SUPABASE_URL}/functions/v1/tmz-share?p=${encodeURIComponent(f.dataset.photoId)}`
+      : location.href
   }));
   figs.forEach((f, i) => {
     f.onclick = () => TMZLightbox.open(items, i);
