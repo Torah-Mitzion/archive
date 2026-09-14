@@ -26,6 +26,7 @@
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, refusalFor } from '../_shared/say.ts';
+import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -281,6 +282,26 @@ async function remember(ref: string, patch: Record<string, unknown>) {
       body: JSON.stringify([{ ref, last_seen: new Date().toISOString(), ...patch }])
     });
   } catch (e) { console.error('remember', e); }
+}
+
+/* The conversation, both directions. Everything the agent reads before it
+   answers comes from here, and everything it says goes here — otherwise the
+   next message is answered by an agent that has forgotten this one. */
+async function log(ref: string, direction: 'in' | 'out', kind: string,
+                   text: string | null, photoId: string | null = null,
+                   meta: Record<string, unknown> = {}) {
+  try {
+    await pg('/tmz_wa_message', { method: 'POST',
+      body: JSON.stringify([{ ref, direction, kind, text, photo_id: photoId, meta }]) });
+  } catch (e) { console.error('log', e); }
+}
+
+async function history(ref: string, n = 30): Promise<HistoryRow[]> {
+  try {
+    const rows = await pg(`/tmz_wa_message?select=direction,kind,text,meta,created_at` +
+      `&ref=eq.${encodeURIComponent(ref)}&order=created_at.desc&limit=${n}`);
+    return (rows ?? []).reverse();
+  } catch { return []; }
 }
 
 async function recallLang(ref: string) {
@@ -608,26 +629,59 @@ async function handle(body: any, ch: Channel) {
     if (!contact) {
       await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
       ch.trace('welcome', { lang });
+      await log(waId, 'in', 'text', text);
+      await log(waId, 'out', 'welcome', say(lang).welcome);
       await ch.reply(from, say(lang).welcome);
       return;
     }
 
+    await log(waId, 'in', 'text', text);
+
     const comms = await communityList();
     const local = parseLocally(text, comms);
-    let det: any = { language: lang, ...local };
+
+    /* What is this message about? If a photograph is waiting on an answer,
+       that photograph; and whatever was last refused, so "why?" has a referent. */
+    const open = contact.asking_for
+      ? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path` +
+                  `&id=eq.${contact.asking_for}`))?.[0] ?? null
+      : null;
+    const openLive = open && open.status !== 'rejected' ? open : null;
+    const past = await history(waId);
+    const lastRefusal = [...past].reverse().find(h => h.kind === 'refusal');
+
+    /* One model call: it reads the conversation, extracts the data, writes the
+       reply. If it cannot be reached the fixed sentences take over, so a quota
+       error costs the conversation its charm and not its function. */
+    let out: Awaited<ReturnType<typeof converse>> | null = null;
     if (GEMINI_KEY) {
       try {
-        const m = await parseDetails(text, comms);
-        det = { ...m, ...Object.fromEntries(Object.entries(local).filter(([, v]) => v != null)) };
-      } catch (e) { ch.trace('parse failed', { error: String(e).slice(0, 120) }); }
+        const nameOf = (id: string | null) => id ? (comms.find(c => c.id === id)?.name ?? null) : null;
+        out = await converse(GEMINI_MODEL, GEMINI_KEY, buildPrompt({
+          lang, history: past,
+          open: openLive ? { id: openLive.id, community: nameOf(openLive.community_id), year: openLive.year,
+                             people_text: openLive.people_text, occasion_text: openLive.occasion_text,
+                             status: openLive.status } : null,
+          communities: comms,
+          lastRefusal: lastRefusal ? { reason: String(lastRefusal.meta?.reason ?? ''), at: lastRefusal.created_at } : null,
+          photosSent: contact.photos_sent ?? 0,
+          message: text
+        }));
+        ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
+                                people: out.people, occasion: out.occasion });
+      } catch (e) { ch.trace('converse failed', { error: String(e).slice(0, 160) }); }
     }
-    /* The model's language guess only counts when there were words to guess
-       from. "2004" has no language, and letting the model call it English
-       flipped a Hebrew conversation mid-stream — the sender answered a year
-       and got the next question in a language they had not been using. */
+
+    /* Plain matching wins where it found something: it read the actual words
+       and cannot hallucinate a community that was never named. */
+    const det = {
+      community_slug: local.community_slug ?? out?.community_slug ?? null,
+      year: local.year ?? out?.year ?? null,
+      people: out?.people ?? null,
+      event_note: out?.occasion ?? null
+    };
     const hasLatinWords = /[a-z]{2,}/i.test(text);
-    const spoken = hasLatinWords && det.language && scriptOf(text) === 'en' ? det.language : lang;
-    ch.trace('parsed', det);
+    const spoken = hasLatinWords && out?.language && scriptOf(text) === 'en' ? out.language : lang;
 
     let communityId: string | null = null;
     if (det.community_slug) {
@@ -640,45 +694,54 @@ async function handle(body: any, ch: Channel) {
       ...(det.year ? { year: det.year } : {})
     });
 
-    /* Is a photograph waiting on this answer? */
-    const open = contact.asking_for
-      ? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path` +
-                  `&id=eq.${contact.asking_for}`))?.[0]
-      : null;
-
-    if (open && open.status !== 'rejected') {
+    if (openLive) {
       const patch: Record<string, unknown> = {};
-      if (communityId && !open.community_id) patch.community_id = communityId;
-      if (det.year && !open.year) patch.year = det.year;
-
-      /* When the open question was "who?" or "what?", the answer IS the text —
-         a bare list of first names is not something the model reliably files
-         under "people", and "just a regular Tuesday" is not an event_note. */
-      if (contact.asking === 'people' && !open.people_text) {
-        patch.people_text = det.people || text;
-      } else if (det.people && !open.people_text) {
-        patch.people_text = det.people;
-      }
-      if (contact.asking === 'occasion' && !open.occasion_text) {
-        patch.occasion_text = det.event_note || text;
-      } else if (det.event_note && !open.occasion_text) {
-        patch.occasion_text = det.event_note;
-      }
+      if (communityId && !openLive.community_id) patch.community_id = communityId;
+      if (det.year && !openLive.year) patch.year = det.year;
+      if (contact.asking === 'people' && !openLive.people_text) patch.people_text = det.people || text;
+      else if (det.people && !openLive.people_text) patch.people_text = det.people;
+      if (contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = det.event_note || text;
+      else if (det.event_note && !openLive.occasion_text) patch.occasion_text = det.event_note;
 
       if (Object.keys(patch).length) {
-        await pg(`/tmz_photo?id=eq.${open.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
-        ch.trace('attached', { photo_id: open.id, patch });
+        await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+        ch.trace('attached', { photo_id: openLive.id, patch });
       }
-      const merged = { ...open, ...patch };
-      await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0);
+      const merged = { ...openLive, ...patch };
+
+      /* The state machine still decides what is missing and whether the
+         photograph publishes; the model only chose the words. */
+      const missing = nextMissing(merged);
+      if (missing) {
+        await remember(waId, { asking: missing, asking_for: merged.id });
+      } else {
+        await remember(waId, { asking: null, asking_for: null });
+        const live = await publishIfReady(merged.id, ch);
+        ch.trace(live ? 'published' : 'complete, held', { photo_id: merged.id });
+      }
+
+      if (out) {
+        await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {});
+        await ch.reply(from, out.reply);
+      } else {
+        await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0);
+      }
       return;
     }
 
-    /* Nothing waiting. A greeting gets a greeting; anything else, a nudge. */
+    /* Nothing waiting. The model answers in context — a "why?" after a refusal
+       gets the reason; a hello gets a hello. Without the model, a nudge. */
+    if (out) {
+      await log(waId, 'out', 'text', out.reply);
+      await ch.reply(from, out.reply);
+      return;
+    }
     const greeting = /^(hi|hello|hey|shalom|שלום|היי|הי|привет|здравствуйте|bonjour|salut|hallo|hola)\b/i.test(text)
       || text.length < 4;
     ch.trace('nothing waiting', { greeting });
-    await ch.reply(from, greeting ? say(spoken).hello : say(spoken).nophoto);
+    const fallback = greeting ? say(spoken).hello : say(spoken).nophoto;
+    await log(waId, 'out', 'text', fallback);
+    await ch.reply(from, fallback);
     return;
   }
 
@@ -707,7 +770,15 @@ async function handle(body: any, ch: Channel) {
     ({ bytes, mime } = await ch.fetchMedia(msg.image.id));
     ch.trace('fetched', { bytes: bytes.length, declared_mime: mime });
   } catch (e) {
-    ch.trace('fetch failed', { error: String(e).slice(0, 200) });
+    const error = String(e).slice(0, 500);
+    ch.trace('fetch failed', { error });
+    await log(waId, 'in', 'photo', caption || null);
+    await log(waId, 'out', 'refusal', say(lang).fetchfail, null, { reason: 'could not download it (our fault)' });
+    /* Written where it can be read, because the log line this used to be was
+       not readable with the deploy token, and a failure nobody can see becomes
+       a theory. */
+    await remember(waId, { last_error: `fetch: ${error} | ref=${String(msg.image.id).slice(0, 200)}`,
+                           last_error_at: new Date().toISOString() });
     await ch.reply(from, say(lang).fetchfail);
     return;
   }
@@ -723,14 +794,21 @@ async function handle(body: any, ch: Channel) {
     const why = e instanceof UnsafeFile ? e.message : String(e);
     const tooBig = e instanceof UnsafeFile && e.tooBig;
     ch.trace('refused at the door', { why, tooBig });
+    await remember(waId, { last_error: `sanitize: ${why} | mime=${mime} bytes=${bytes.length}`,
+                           last_error_at: new Date().toISOString() });
     /* A large or unreadable file is a mishap, not an attempt. No strike. */
-    await ch.reply(from, refusalFor(lang, [why]));
+    const said = refusalFor(lang, [why]);
+    await log(waId, 'in', 'photo', caption || null);
+    await log(waId, 'out', 'refusal', said, null, { reason: why });
+    await ch.reply(from, said);
     return;
   }
 
   const dupe = await rpc('tmz_find_duplicate', { p_hash: clean.phash, p_max_distance: 4 }).catch(() => null);
   if (Array.isArray(dupe) ? dupe.length > 0 : Boolean(dupe)) {
     ch.trace('duplicate', { of: dupe });
+    await log(waId, 'in', 'photo', caption || null);
+    await log(waId, 'out', 'text', say(lang).dupe, null, { reason: 'duplicate' });
     await ch.reply(from, say(lang).dupe);
     return;
   }
@@ -826,11 +904,17 @@ async function handle(body: any, ch: Channel) {
     const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
       || verdict.reasons.some(r => /scored \d+/.test(r));
     if (harm) await strike(waId, ch.isTest);
-    await ch.reply(from, refusalFor(lang, verdict.reasons, verdict.scores as Record<string, number>));
+    const said = refusalFor(lang, verdict.reasons, verdict.scores as Record<string, number>);
+    await log(waId, 'in', 'photo', caption || null, photo.id);
+    /* The reason is stored in plain words alongside, so "why?" in five minutes
+       can be answered with it. */
+    await log(waId, 'out', 'refusal', said, photo.id, { reason: verdict.reasons.join('; ').slice(0, 300) });
+    await ch.reply(from, said);
     return;
   }
 
-  await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1 });
+  await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null });
+  await log(waId, 'in', 'photo', caption || null, photo.id);
   const prefix = firstEver ? say(lang).welcome + '\n\n' : '';
   await continueConversation(waId, from, photo, lang, ch, false, prefix + say(lang).got + ' ');
 }
@@ -859,6 +943,7 @@ async function continueConversation(
     const s = say(lang);
     const head = answerWasEmpty ? s.unclear : (lead || (photo.people_text || photo.year ? s.noted : ''));
     ch.trace('asking', { photo_id: photo.id, for: missing });
+    await log(waId, 'out', 'question', head + s.ask[missing], photo.id, { field: missing });
     await ch.reply(from, head + s.ask[missing]);
     return;
   }
@@ -867,7 +952,15 @@ async function continueConversation(
   const live = await publishIfReady(photo.id, ch);
   ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
   const s = say(lang);
-  await ch.reply(from, lead + (live ? s.complete : s.completeHeld) + s.more);
+  const said = lead + (live ? s.complete : s.completeHeld) + s.more;
+  await log(waId, 'out', 'text', said, photo.id);
+  await ch.reply(from, said);
+}
+
+function nextMissing(photo: any): 'community' | 'year' | 'people' | 'occasion' | null {
+  return ASK_ORDER.find(k =>
+    k === 'community' ? !photo.community_id : k === 'year' ? !photo.year :
+    k === 'people' ? !photo.people_text : !photo.occasion_text) ?? null;
 }
 
 /* ---- placement ----------------------------------------------------------- */
@@ -904,8 +997,9 @@ async function placeFrom(caption: string, contact: any, ch: Channel) {
 }
 
 async function communityList() {
-  const comms = await pg('/tmz_community?select=slug,tmz_community_tr(lang,name)&limit=200');
+  const comms = await pg('/tmz_community?select=id,slug,tmz_community_tr(lang,name)&limit=200');
   return (comms ?? []).map((c: any) => ({
+    id: c.id,
     slug: c.slug,
     name: (c.tmz_community_tr?.find((t: any) => t.lang === 'en') ?? c.tmz_community_tr?.[0])?.name ?? c.slug,
     /* Every rendering we hold. A caption reading "ממפיס 2003" places itself

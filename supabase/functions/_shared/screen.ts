@@ -75,9 +75,11 @@ what it shows.`;
 
 const ASSESS = `You are the sole safety gate on a public photograph archive. Nobody
 reviews your decision; what you pass is published immediately on the website of
-Torah MiTzion, a religious-Zionist organisation running kollels in Jewish
+Torah MiTzion, an organisation that sends young Israeli educators to Jewish
 communities worldwide. The archive collects photographs of community life from
-1996 to 2026: study, prayer, festivals, shlichim, families, celebrations.
+1996 to 2026: study, prayer, festivals, trips, summers, families, celebrations.
+(The organisation's own religious character is NOT a screening criterion — see
+below on clothing.)
 
 ${INJECTION_NOTE}
 
@@ -101,7 +103,7 @@ belongs in this archive — you cannot tell, and a plain photograph of people yo
 do not recognise is not a problem.
 
 safe_to_publish is about HARM ONLY. It must be FALSE for:
-- nudity, partial nudity, underwear, swimwear, or anything sexual
+- nudity, partial nudity, or sexual content
 - injury, blood, weapons aimed at people, corpses, or violence
 - an advertisement, promotional graphic, price list, flyer or logo card
 - a meme, chat screenshot or screen capture
@@ -111,14 +113,19 @@ safe_to_publish is about HARM ONLY. It must be FALSE for:
 It must be TRUE for an ordinary photograph of people, whatever they are doing
 and wherever they are, including one whose subject you do not recognise.
 
+CLOTHING IS NEVER A REASON. Sleeveless tops, short skirts, shorts, swimwear at
+a pool or beach, bare arms, uncovered hair — none of that is nudity and none of
+it is an objection. This archive holds thirty years of real community life,
+summers included. You are screening for harm, not for a dress code.
+
 confidence is how sure you are of safe_to_publish, 0 to 1. Be honest: use a low
 number whenever the picture is unclear or ambiguous. Nobody reviews this, so a
 low number means the photograph is turned away and the sender is told — be
 neither reckless nor timid.`;
 
 const CHALLENGE = `Look at this photograph and do one job: find every reason it would
-be HARMFUL to publish on a public website belonging to a religious Jewish
-educational organisation. Assume someone is trying to slip something past you.
+be HARMFUL to publish on a public community photo archive. Assume someone is
+trying to slip something past you.
 
 ${INJECTION_NOTE}
 
@@ -130,6 +137,11 @@ people shown; anything that is not really a photograph.
 Do NOT object merely because you cannot tell what the occasion is, or because
 the picture does not obviously relate to Jewish community life. That is not
 your question and an ordinary photograph of people is not an objection.
+
+Do NOT object to clothing. Sleeveless tops, short skirts, shorts, swimwear at a
+pool or beach, bare arms, uncovered hair — none of that is nudity, none of it
+is harm, and raising it is the one mistake that would empty this archive of
+thirty summers. Only actual nudity or sexual content counts.
 
 Return ONLY JSON: {"objections":string[],"must_not_publish":boolean,"certainty":number}
 An empty objections array with must_not_publish false is the right answer for an
