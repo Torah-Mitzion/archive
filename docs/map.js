@@ -134,7 +134,10 @@ function placeLabels(markers, blocked, W, H, rtl) {
   for (const m of markers) {
     if (m.count > 1) { m.label = null; continue; }
     const sel = m.sel;
-    const per = sel ? 9.4 : 6.9, h = sel ? 15 : 12;
+    /* Per-character widths for 11.5px / 14.5px tracked capitals; the phone
+       sheet sets the labels a size smaller. */
+    const small = W < 700;
+    const per = sel ? (small ? 9.8 : 11.4) : (small ? 7.3 : 8.4), h = sel ? 18 : 14;
     const w = m.name.length * per;
     let placed = null;
     for (const sl of slots) {

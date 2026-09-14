@@ -304,9 +304,19 @@ async function deleteCommunity(c) {
 /* ---- people -------------------------------------------------------------- */
 
 export async function people() {
-  const rows = await sb.all('tmz_person',
-    'id,slug,birth_year,tmz_person_tr(lang,display_name),tmz_tenure(id)',
-    { order: 'slug.asc.nullslast' });
+  const [rows, { communities }] = await Promise.all([
+    sb.all('tmz_person',
+      'id,slug,birth_year,tmz_person_tr(lang,display_name),tmz_tenure(id,role,community_id,start_year,end_year)',
+      { order: 'slug.asc.nullslast' }),
+    lookups()
+  ]);
+  const commName = new Map(communities.map(c => [c.id, pickName(c.tmz_community_tr) || c.slug]));
+  /* One line per tenure: role, community, span — sorted by year so a career
+     reads in order. */
+  const service = r => (r.tmz_tenure || []).slice().sort((a, b) => a.start_year - b.start_year).map(t =>
+    `<span class="svc"><b>${esc(ROLES[t.role] || t.role)}</b> · ${esc(commName.get(t.community_id) || '?')}
+     <span class="mono dim">${t.start_year}${t.end_year && t.end_year !== t.start_year ? '–' + t.end_year : ''}</span></span>`).join('');
+
   $('#page').innerHTML = `
     <div class="page-head">
       <div><h1>People</h1>
@@ -314,25 +324,25 @@ export async function people() {
       <button class="btn solid" id="newP">+ New person</button>
     </div>
     <div class="field" style="max-width:360px;margin-bottom:14px">
-      <input id="pFind" type="search" placeholder="Find by name or slug…" autocomplete="off"></div>
+      <input id="pFind" type="search" placeholder="Find by name (any language), slug or community…" autocomplete="off"></div>
     ${rows.length === 0 ? `<div class="empty">No people yet. Add a Rosh Kollel or shaliach to start.</div>` : `
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Name</th><th>Slug</th><th>Born</th><th>Tenures</th><th>Translations</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>שם בעברית</th><th>Role · community · years</th><th>Translations</th><th></th></tr></thead>
       <tbody id="pBody"></tbody>
     </table></div>
-    <p class="dim" id="pMore" style="font-size:12px"></p>`}`;
+    <p class="dim" id="pMore" style="font-size:13px"></p>`}`;
 
   const body = $('#pBody'), more = $('#pMore');
   const draw = () => {
     const q = ($('#pFind').value || '').trim().toLowerCase();
     const hit = q ? rows.filter(r => (r.slug || '').includes(q) ||
-      (r.tmz_person_tr || []).some(x => (x.display_name || '').toLowerCase().includes(q))) : rows;
+      (r.tmz_person_tr || []).some(x => (x.display_name || '').toLowerCase().includes(q)) ||
+      (r.tmz_tenure || []).some(t => (commName.get(t.community_id) || '').toLowerCase().includes(q))) : rows;
     const shown = hit.slice(0, 300);
     body.innerHTML = shown.map(r => `<tr data-id="${r.id}">
-        <td>${esc(pickName(r.tmz_person_tr) || '—')}</td>
-        <td class="mono">${esc(r.slug || '—')}</td>
-        <td>${r.birth_year || '—'}</td>
-        <td>${(r.tmz_tenure || []).length}</td>
+        <td>${esc(pickName(r.tmz_person_tr) || '—')}<br><span class="mono dim" style="font-size:12px">${esc(r.slug || '')}</span></td>
+        <td dir="rtl" style="text-align:right">${esc(pickName(r.tmz_person_tr, 'he') || '—')}</td>
+        <td class="svc-cell">${service(r) || '<span class="dim">—</span>'}</td>
         <td>${coverage(r.tmz_person_tr)}</td>
         <td class="actions"><button class="edit">Edit</button></td>
       </tr>`).join('');

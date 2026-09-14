@@ -214,6 +214,8 @@ function drawMap(attempt = 0) {
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
   }).filter(Boolean);
 
+  /* Jerusalem's own label is drawn by hand below the star; nothing may sit on it. */
+  blocked.push([jx * s + tx - 60, jy * s + ty + 22, jx * s + tx + 60, jy * s + ty + 44]);
   const groups = clusterPoints(pts, view.sel);
   const markers = groups.map(g => ({
     x: g[0].x, y: g[0].y, count: g.length, members: g,
@@ -292,7 +294,6 @@ function drawSide(views) {
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
     <div class="flyto">${esc(t('fly.to'))}</div>${rows}
-    <p class="side-note">${esc(provenance())}</p>
     <p class="side-note">${credit()}</p>`;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {

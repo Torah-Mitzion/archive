@@ -33,7 +33,7 @@ function renderGate(error) {
     <div class="gate"><div class="gate-card">
       <img src="../tmz-mark.png" alt="Torah MiTzion">
       <h1>Back office</h1>
-      <p>Sign in to manage communities, people and photographs for the Torah MiTzion 30 archive.</p>
+      <p>Sign in to manage communities, people and photographs for the Torah MiTzion 30 album.</p>
       <form class="gate-form" id="gateForm" autocomplete="on">
         <label>Username<input id="gateUser" name="username" autocomplete="username" required autofocus></label>
         <label>Password<input id="gatePass" name="password" type="password" autocomplete="current-password" required></label>
