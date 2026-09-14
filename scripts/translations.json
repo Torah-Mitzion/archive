@@ -1,74 +1,1665 @@
 {
-  "_note": "Translations written by hand, not taken from torahmitzion.org — the organisation's site names everyone in English only, so everything here is a rendering rather than a source. Hebrew person names are the largest group and the least like a translation: for Israeli shlichim the Hebrew IS the original and the site's English is the transliteration, so these restore a spelling rather than invent one. Names whose Hebrew could not be recovered with confidence are listed under 'uncertain' and want a human who knows the family.",
-
-  "_latin_rule": "fr/de/es rows are written only where the value actually differs from English. A yeshiva called Har Etzion is called Har Etzion in French too; copying it into three more rows creates three copies that go stale the day the English is corrected, and the fallback chain (requested -> en -> any) already returns the right string. Community names and countries ARE filled in every language, because they are headline elements and a half-empty row there reads as broken rather than as deliberate.",
-
-  "communities": {
-    "capetown":    { "he": { "country": "דרום אפריקה" },  "ru": { "country": "ЮАР" },        "fr": { "name": "Le Cap",            "country": "Afrique du Sud" }, "de": { "name": "Kapstadt",            "country": "Südafrika" },          "es": { "name": "Ciudad del Cabo",  "country": "Sudáfrica" } },
-    "memphis":     { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Memphis",           "country": "États-Unis" },     "de": { "name": "Memphis",             "country": "Vereinigte Staaten" }, "es": { "name": "Memphis",          "country": "Estados Unidos" } },
-    "chicago":     { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Chicago",           "country": "États-Unis" },     "de": { "name": "Chicago",             "country": "Vereinigte Staaten" }, "es": { "name": "Chicago",          "country": "Estados Unidos" } },
-    "montevideo":  { "he": { "country": "אורוגוואי" },    "ru": { "country": "Уругвай" },    "fr": { "name": "Montevideo",        "country": "Uruguay" },        "de": { "name": "Montevideo",          "country": "Uruguay" },            "es": { "name": "Montevideo",       "country": "Uruguay" } },
-    "melbourne":   { "he": { "country": "אוסטרליה" },     "ru": { "country": "Австралия" },  "fr": { "name": "Melbourne",         "country": "Australie" },      "de": { "name": "Melbourne",           "country": "Australien" },         "es": { "name": "Melbourne",        "country": "Australia" } },
-    "montreal":    { "he": { "country": "קנדה" },         "ru": { "country": "Канада" },     "fr": { "name": "Montréal",          "country": "Canada" },         "de": { "name": "Montreal",            "country": "Kanada" },             "es": { "name": "Montreal",         "country": "Canadá" } },
-    "moscow":      { "he": { "country": "רוסיה" },        "ru": { "country": "Россия" },     "fr": { "name": "Moscou",            "country": "Russie" },         "de": { "name": "Moskau",              "country": "Russland" },           "es": { "name": "Moscú",            "country": "Rusia" } },
-    "manhattan":   { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Manhattan",         "country": "États-Unis" },     "de": { "name": "Manhattan",           "country": "Vereinigte Staaten" }, "es": { "name": "Manhattan",        "country": "Estados Unidos" } },
-    "washington":  { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Grand Washington",  "country": "États-Unis" },     "de": { "name": "Großraum Washington", "country": "Vereinigte Staaten" }, "es": { "name": "Gran Washington",  "country": "Estados Unidos" } },
-    "mexico":      { "he": { "country": "מקסיקו" },       "ru": { "country": "Мексика" },    "fr": { "name": "Mexico",            "country": "Mexique" },        "de": { "name": "Mexiko-Stadt",        "country": "Mexiko" },             "es": { "name": "Ciudad de México", "country": "México" } },
-    "dharamsala":  { "he": { "country": "הודו" },         "ru": { "country": "Индия" },      "fr": { "name": "Dharamsala",        "country": "Inde" },           "de": { "name": "Dharamsala",          "country": "Indien" },             "es": { "name": "Dharamsala",       "country": "India" } },
-    "perth":       { "he": { "country": "אוסטרליה" },     "ru": { "country": "Австралия" },  "fr": { "name": "Perth",             "country": "Australie" },      "de": { "name": "Perth",               "country": "Australien" },         "es": { "name": "Perth",            "country": "Australia" } },
-    "warsaw":      { "he": { "country": "פולין" },        "ru": { "country": "Польша" },     "fr": { "name": "Varsovie",          "country": "Pologne" },        "de": { "name": "Warschau",            "country": "Polen" },              "es": { "name": "Varsovia",         "country": "Polonia" } },
-    "toronto":     { "he": { "country": "קנדה" },         "ru": { "country": "Канада" },     "fr": { "name": "Toronto",           "country": "Canada" },         "de": { "name": "Toronto",             "country": "Kanada" },             "es": { "name": "Toronto",          "country": "Canadá" } },
-    "sydney":      { "he": { "country": "אוסטרליה" },     "ru": { "country": "Австралия" },  "fr": { "name": "Sydney",            "country": "Australie" },      "de": { "name": "Sydney",              "country": "Australien" },         "es": { "name": "Sídney",           "country": "Australia" } },
-    "hampi":       { "he": { "country": "הודו" },         "ru": { "country": "Индия" },      "fr": { "name": "Hampi",             "country": "Inde" },           "de": { "name": "Hampi",               "country": "Indien" },             "es": { "name": "Hampi",            "country": "India" } },
-    "buenosaires": { "he": { "country": "ארגנטינה" },     "ru": { "country": "Аргентина" },  "fr": { "name": "Buenos Aires",      "country": "Argentine" },      "de": { "name": "Buenos Aires",        "country": "Argentinien" },        "es": { "name": "Buenos Aires",     "country": "Argentina" } },
-    "nashville":   { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Nashville",         "country": "États-Unis" },     "de": { "name": "Nashville",           "country": "Vereinigte Staaten" }, "es": { "name": "Nashville",        "country": "Estados Unidos" } },
-    "ottawa":      { "he": { "country": "קנדה" },         "ru": { "country": "Канада" },     "fr": { "name": "Ottawa",            "country": "Canada" },         "de": { "name": "Ottawa",              "country": "Kanada" },             "es": { "name": "Ottawa",           "country": "Canadá" } },
-    "kansas":      { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Kansas City",       "country": "États-Unis" },     "de": { "name": "Kansas City",         "country": "Vereinigte Staaten" }, "es": { "name": "Kansas City",      "country": "Estados Unidos" } },
-    "cleveland":   { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Cleveland",         "country": "États-Unis" },     "de": { "name": "Cleveland",           "country": "Vereinigte Staaten" }, "es": { "name": "Cleveland",        "country": "Estados Unidos" } },
-    "stlouis":     { "he": { "country": "ארצות הברית" }, "ru": { "country": "США" },        "fr": { "name": "Saint-Louis",       "country": "États-Unis" },     "de": { "name": "St. Louis",           "country": "Vereinigte Staaten" }, "es": { "name": "St. Louis",        "country": "Estados Unidos" } },
-    "munich":      { "he": { "country": "גרמניה" },       "ru": { "country": "Германия" },   "fr": { "name": "Munich",            "country": "Allemagne" },      "de": { "name": "München",             "country": "Deutschland" },        "es": { "name": "Múnich",           "country": "Alemania" } }
+ "_note": "Generated by scripts/export-translations.mjs. Keyed by slug; applied by import-real.mjs. Edit in the back office, then re-export — do not hand-edit.",
+ "_exported": "2026-09-14",
+ "communities": {
+  "buenosaires": {
+   "de": {
+    "name": "Buenos Aires",
+    "country": "Argentinien"
+   },
+   "en": {
+    "name": "Buenos Aires",
+    "country": "Argentina",
+    "blurb": "Re-established in 2018 in the Belgrano neighbourhood. The word 're-established' implies an earlier period the site does not date."
+   },
+   "es": {
+    "name": "Buenos Aires",
+    "country": "Argentina"
+   },
+   "fr": {
+    "name": "Buenos Aires",
+    "country": "Argentine"
+   },
+   "he": {
+    "name": "בואנוס איירס",
+    "country": "ארגנטינה"
+   },
+   "ru": {
+    "name": "Буэнос-Айрес"
+   }
   },
-
-  "event_types": {
-    "simchat_torah": { "ru": "Акафот в Симхат Тора",       "fr": "Hakafot de Sim'hat Torah",     "de": "Hakafot an Simchat Tora", "es": "Hakafot de Simjat Torá" },
-    "shabbaton":     { "ru": "Общинный шаббатон",          "fr": "Chabbaton communautaire",      "de": "Gemeinde-Schabbaton",     "es": "Shabatón comunitario" },
-    "morning_seder": { "ru": "Утренний седер",             "fr": "Séder du matin",               "de": "Morgen-Seder",            "es": "Séder de la mañana" },
-    "yom_haatzmaut": { "ru": "День независимости Израиля", "fr": "Yom HaAtsmaout",               "de": "Jom haAtzmaut",           "es": "Yom HaAtzmaut" },
-    "chanukah":      { "ru": "Ханукальный вечер",          "fr": "Soirée de 'Hanouka",           "de": "Chanukka-Abend",          "es": "Noche de Janucá" },
-    "purim":         { "ru": "Пуримская сеуда",            "fr": "Séoudat Pourim",               "de": "Purim-Seuda",             "es": "Seudá de Purim" },
-    "opening_night": { "ru": "Вечер открытия",             "fr": "Soirée d'ouverture",           "de": "Eröffnungsabend",         "es": "Noche de apertura" },
-    "melave_malka":  { "ru": "Мелаве Малка",               "fr": "Melavé Malka",                 "de": "Melave Malka",            "es": "Melavé Malká" },
-    "shavuot":       { "ru": "Ночное учение в Шавуот",     "fr": "Étude de la nuit de Chavouot", "de": "Lernnacht zu Schawuot",   "es": "Estudio de la noche de Shavuot" },
-    "farewell":      { "ru": "Прощальный ужин",            "fr": "Dîner d'adieu",                "de": "Abschiedsessen",          "es": "Cena de despedida" },
-    "chavruta":      { "ru": "Учёба в хавруте",            "fr": "Étude en 'havrouta",           "de": "Lernen in Chavruta",      "es": "Estudio en javruta" },
-    "youth":         { "ru": "Молодёжный шаббатон",        "fr": "Chabbaton des jeunes",         "de": "Jugend-Schabbaton",       "es": "Shabatón juvenil" }
+  "capetown": {
+   "de": {
+    "name": "Kapstadt",
+    "country": "Südafrika"
+   },
+   "en": {
+    "name": "Cape Town",
+    "country": "South Africa",
+    "blurb": "The first Torah MiTzion programme anywhere. Founded with the Cape Town Yeshiva under Rabbi Jonathan Glass, supported by the L.A. Pincus Foundation."
+   },
+   "es": {
+    "name": "Ciudad del Cabo",
+    "country": "Sudáfrica"
+   },
+   "fr": {
+    "name": "Le Cap",
+    "country": "Afrique du Sud"
+   },
+   "he": {
+    "name": "קייפטאון",
+    "country": "דרום אפריקה"
+   },
+   "ru": {
+    "name": "Кейптаун"
+   }
   },
-
-  "institutions": {
-    "har-etzion":     { "ru": "Хар Эцион" },
-    "hakotel":        { "ru": "ХаКотель" },
-    "maalot":         { "ru": "Маалот" },
-    "otniel":         { "ru": "Отниэль" },
-    "har-bracha":     { "ru": "Хар Браха" },
-    "mercaz-harav":   { "ru": "Мерказ ХаРав" },
-    "or-etzion":      { "ru": "Ор Эцион" },
-    "bnei-david":     { "ru": "Бней Давид" },
-    "yeruham":        { "ru": "Йерухам" },
-    "migdal-oz":      { "ru": "Мигдаль Оз" },
-    "nishmat":        { "ru": "Нишмат" },
-    "harova":         { "ru": "ХаРова" },
-    "maale-adumim":   { "ru": "Маале Адумим" },
-    "mechina-olamit": { "ru": "Мехина Оламит" },
-    "kiryat-shmona":  { "ru": "Кирьят-Шмона" },
-    "hispin":         { "ru": "Хиспин" },
-    "chevron":        { "ru": "Хеврон" },
-    "nof-hagalil":    { "ru": "Ноф ХаГалиль" },
-    "efrat":          { "ru": "Эфрат" },
-    "ein-hanatziv":   { "ru": "Эйн ХаНацив" },
-    "shaalvim":       { "ru": "Шаалвим" },
-    "maale-gilboa":   { "ru": "Маале Гильбоа" },
-    "ein-tzurim":     { "ru": "Эйн Цурим" },
-    "kerem-byavneh":  { "ru": "Керем БеЯвне" },
-    "midreshet-zion": { "ru": "Мидрешет Цион" }
+  "chicago": {
+   "de": {
+    "name": "Chicago",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Chicago",
+    "country": "United States",
+    "blurb": "Yeshiva University Torah MiTzion Kollel of Chicago. Eight avreichim families."
+   },
+   "es": {
+    "name": "Chicago",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Chicago",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "שיקגו",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Чикаго"
+   }
+  },
+  "cleveland": {
+   "de": {
+    "name": "Cleveland",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Cleveland",
+    "country": "United States",
+    "blurb": "THE FIRST TORAH MITZION KOLLEL IN THE UNITED STATES and the first Religious Zionist kollel in North America, established by Rabbi Binyamin Tabory z\"l during a sabbatical in 1994. Not on the current site; found through the Cleveland Jewish News and Yeshivat Har Etzion. THE CLOSING YEAR IS A PLACEHOLDER — a sabbatical is usually one year, but no source states when Cleveland ended. Needs confirming."
+   },
+   "es": {
+    "name": "Cleveland",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Cleveland",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "קליבלנד",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Кливленд"
+   }
+  },
+  "dharamsala": {
+   "de": {
+    "name": "Dharamsala",
+    "country": "Indien"
+   },
+   "en": {
+    "name": "Dharamsala",
+    "country": "India",
+    "blurb": "Lev Yehudi house in Bagsu, for Israeli travellers. Founding year approximate: the site says 'about twenty years ago'."
+   },
+   "es": {
+    "name": "Dharamsala",
+    "country": "India"
+   },
+   "fr": {
+    "name": "Dharamsala",
+    "country": "Inde"
+   },
+   "he": {
+    "name": "דרמסלה",
+    "country": "הודו"
+   },
+   "ru": {
+    "name": "Дхарамсала"
+   }
+  },
+  "hampi": {
+   "de": {
+    "name": "Hampi",
+    "country": "Indien"
+   },
+   "en": {
+    "name": "Hampi",
+    "country": "India",
+    "blurb": "Lev Yehudi house for Israeli travellers. NO FOUNDING YEAR IS GIVEN on the site; 2010 is a placeholder and must be corrected."
+   },
+   "es": {
+    "name": "Hampi",
+    "country": "India"
+   },
+   "fr": {
+    "name": "Hampi",
+    "country": "Inde"
+   },
+   "he": {
+    "name": "האמפי",
+    "country": "הודו"
+   },
+   "ru": {
+    "name": "Хампи"
+   }
+  },
+  "kansas": {
+   "de": {
+    "name": "Kansas City",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Kansas City",
+    "country": "United States",
+    "blurb": "Community Beit Midrash of KC, opened September 2024."
+   },
+   "es": {
+    "name": "Kansas City",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Kansas City",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "קנזס סיטי",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Канзас-Сити"
+   }
+  },
+  "manhattan": {
+   "de": {
+    "name": "Manhattan",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Manhattan",
+    "country": "United States",
+    "blurb": "At Lincoln Square Synagogue; the first full-time Religious Zionist kollel in the New York area. Dedicated in memory of Lloyd Epstein z\"l. Founding year inferred from the first Rosh Kollel's term (1998)."
+   },
+   "es": {
+    "name": "Manhattan",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Manhattan",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "מנהטן",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Манхэттен"
+   }
+  },
+  "melbourne": {
+   "de": {
+    "name": "Melbourne",
+    "country": "Australien"
+   },
+   "en": {
+    "name": "Melbourne",
+    "country": "Australia",
+    "blurb": "With Mizrachi Melbourne and Leibler Yavneh College."
+   },
+   "es": {
+    "name": "Melbourne",
+    "country": "Australia"
+   },
+   "fr": {
+    "name": "Melbourne",
+    "country": "Australie"
+   },
+   "he": {
+    "name": "מלבורן",
+    "country": "אוסטרליה"
+   },
+   "ru": {
+    "name": "Мельбурн"
+   }
+  },
+  "memphis": {
+   "de": {
+    "name": "Memphis",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Memphis",
+    "country": "United States",
+    "blurb": "Opened by four bachurim led by Rabbi Jay Salid. Has hosted 79 bachurim, seven avreichim and nine Roshei Kollel."
+   },
+   "es": {
+    "name": "Memphis",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Memphis",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "ממפיס",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Мемфис"
+   }
+  },
+  "mexico": {
+   "de": {
+    "name": "Mexiko-Stadt",
+    "country": "Mexiko"
+   },
+   "en": {
+    "name": "Mexico City",
+    "country": "Mexico",
+    "blurb": "Ran 2001-2003, then closed, and returned in 2014. The schema holds one founding year per community, so the 2004-2013 gap shows as years with nothing rather than as a closure."
+   },
+   "es": {
+    "name": "Ciudad de México",
+    "country": "México"
+   },
+   "fr": {
+    "name": "Mexico",
+    "country": "Mexique"
+   },
+   "he": {
+    "name": "מקסיקו סיטי",
+    "country": "מקסיקו"
+   },
+   "ru": {
+    "name": "Мехико"
+   }
+  },
+  "montevideo": {
+   "de": {
+    "name": "Montevideo",
+    "country": "Uruguay"
+   },
+   "en": {
+    "name": "Montevideo",
+    "country": "Uruguay",
+    "blurb": "Part of the Yavne Institute. One of the most veteran kollelim."
+   },
+   "es": {
+    "name": "Montevideo",
+    "country": "Uruguay"
+   },
+   "fr": {
+    "name": "Montevideo",
+    "country": "Uruguay"
+   },
+   "he": {
+    "name": "מונטבידאו",
+    "country": "אורוגוואי"
+   },
+   "ru": {
+    "name": "Монтевидео"
+   }
+  },
+  "montreal": {
+   "de": {
+    "name": "Montreal",
+    "country": "Kanada"
+   },
+   "en": {
+    "name": "Montreal",
+    "country": "Canada",
+    "blurb": "Housed in the Lieberman Beit Midrash of the Hebrew Academy of Montreal."
+   },
+   "es": {
+    "name": "Montreal",
+    "country": "Canadá"
+   },
+   "fr": {
+    "name": "Montréal",
+    "country": "Canada"
+   },
+   "he": {
+    "name": "מונטריאול",
+    "country": "קנדה"
+   },
+   "ru": {
+    "name": "Монреаль"
+   }
+  },
+  "moscow": {
+   "de": {
+    "name": "Moskau",
+    "country": "Russland"
+   },
+   "en": {
+    "name": "Moscow",
+    "country": "Russia",
+    "blurb": "Founded on the initiative of Rabbi Pinchas Goldschmidt, Chief Rabbi of Moscow."
+   },
+   "es": {
+    "name": "Moscú",
+    "country": "Rusia"
+   },
+   "fr": {
+    "name": "Moscou",
+    "country": "Russie"
+   },
+   "he": {
+    "name": "מוסקבה",
+    "country": "רוסיה"
+   },
+   "ru": {
+    "name": "Москва"
+   }
+  },
+  "munich": {
+   "de": {
+    "name": "München",
+    "country": "Deutschland"
+   },
+   "en": {
+    "name": "Munich",
+    "country": "Germany",
+    "blurb": "Founded by Mr. Jechiel Bieber with the L.A. Pincus Fund. Works with the Bavarian Association of Jewish Communities, Morasha and the Janusz Korczak Academy. Page online but not linked from the community list."
+   },
+   "es": {
+    "name": "Múnich",
+    "country": "Alemania"
+   },
+   "fr": {
+    "name": "Munich",
+    "country": "Allemagne"
+   },
+   "he": {
+    "name": "מינכן",
+    "country": "גרמניה"
+   },
+   "ru": {
+    "name": "Мюнхен"
+   }
+  },
+  "nashville": {
+   "de": {
+    "name": "Nashville",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Nashville",
+    "country": "United States",
+    "blurb": "Community Beit Midrash begun by the Bar-Or family."
+   },
+   "es": {
+    "name": "Nashville",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Nashville",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "נאשוויל",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Нашвилл"
+   }
+  },
+  "ottawa": {
+   "de": {
+    "name": "Ottawa",
+    "country": "Kanada"
+   },
+   "en": {
+    "name": "Ottawa",
+    "country": "Canada",
+    "blurb": "Community Beit Midrash begun by the Guberman family."
+   },
+   "es": {
+    "name": "Ottawa",
+    "country": "Canadá"
+   },
+   "fr": {
+    "name": "Ottawa",
+    "country": "Canada"
+   },
+   "he": {
+    "name": "אוטווה",
+    "country": "קנדה"
+   },
+   "ru": {
+    "name": "Оттава"
+   }
+  },
+  "perth": {
+   "de": {
+    "name": "Perth",
+    "country": "Australien"
+   },
+   "en": {
+    "name": "Perth",
+    "country": "Australia",
+    "blurb": "The page says founded 2007, but the first Rosh Kollel's term begins 2006. Taken the earlier evidenced year; worth confirming."
+   },
+   "es": {
+    "name": "Perth",
+    "country": "Australia"
+   },
+   "fr": {
+    "name": "Perth",
+    "country": "Australie"
+   },
+   "he": {
+    "name": "פרת׳",
+    "country": "אוסטרליה"
+   },
+   "ru": {
+    "name": "Перт"
+   }
+  },
+  "stlouis": {
+   "de": {
+    "name": "St. Louis",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "St. Louis",
+    "country": "United States",
+    "blurb": "Hosted seven families. Its page is still online but is not linked from the site's community list, and the last avreichim term ends 2018 — taken as the closing year."
+   },
+   "es": {
+    "name": "St. Louis",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Saint-Louis",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "סנט לואיס",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Сент-Луис"
+   }
+  },
+  "sydney": {
+   "de": {
+    "name": "Sydney",
+    "country": "Australien"
+   },
+   "en": {
+    "name": "Sydney",
+    "country": "Australia",
+    "blurb": "Based at Moriah College and Bondi Mizrachi Synagogue."
+   },
+   "es": {
+    "name": "Sídney",
+    "country": "Australia"
+   },
+   "fr": {
+    "name": "Sydney",
+    "country": "Australie"
+   },
+   "he": {
+    "name": "סידני",
+    "country": "אוסטרליה"
+   },
+   "ru": {
+    "name": "Сидней"
+   }
+  },
+  "toronto": {
+   "de": {
+    "name": "Toronto",
+    "country": "Kanada"
+   },
+   "en": {
+    "name": "Toronto",
+    "country": "Canada",
+    "blurb": "Beit Midrash Zichron Dov, housed in Yeshivat Or Chaim."
+   },
+   "es": {
+    "name": "Toronto",
+    "country": "Canadá"
+   },
+   "fr": {
+    "name": "Toronto",
+    "country": "Canada"
+   },
+   "he": {
+    "name": "טורונטו",
+    "country": "קנדה"
+   },
+   "ru": {
+    "name": "Торонто"
+   }
+  },
+  "warsaw": {
+   "de": {
+    "name": "Warschau",
+    "country": "Polen"
+   },
+   "en": {
+    "name": "Warsaw",
+    "country": "Poland",
+    "blurb": "Housed in the Nozyk Synagogue, the only Warsaw synagogue to survive the Holocaust."
+   },
+   "es": {
+    "name": "Varsovia",
+    "country": "Polonia"
+   },
+   "fr": {
+    "name": "Varsovie",
+    "country": "Pologne"
+   },
+   "he": {
+    "name": "ורשה",
+    "country": "פולין"
+   },
+   "ru": {
+    "name": "Варшава"
+   }
+  },
+  "washington": {
+   "de": {
+    "name": "Großraum Washington",
+    "country": "Vereinigte Staaten"
+   },
+   "en": {
+    "name": "Greater Washington",
+    "country": "United States",
+    "blurb": "Kemp Mill, Aspen Hill and Potomac; based at the Melvin J. Berman Hebrew Academy."
+   },
+   "es": {
+    "name": "Gran Washington",
+    "country": "Estados Unidos"
+   },
+   "fr": {
+    "name": "Grand Washington",
+    "country": "États-Unis"
+   },
+   "he": {
+    "name": "וושינגטון רבתי",
+    "country": "ארצות הברית"
+   },
+   "ru": {
+    "name": "Большой Вашингтон"
+   }
   }
+ },
+ "institutions": {
+  "bnei-david": {
+   "en": "Bnei David",
+   "he": "בני דוד",
+   "ru": "Бней Давид"
+  },
+  "chevron": {
+   "en": "Chevron",
+   "he": "חברון",
+   "ru": "Хеврон"
+  },
+  "efrat": {
+   "en": "Efrat",
+   "he": "אפרת",
+   "ru": "Эфрат"
+  },
+  "ein-hanatziv": {
+   "en": "Ein HaNatziv",
+   "he": "עין הנצי״ב",
+   "ru": "Эйн ХаНацив"
+  },
+  "ein-tzurim": {
+   "en": "Ein Tzurim",
+   "he": "עין צורים",
+   "ru": "Эйн Цурим"
+  },
+  "hakotel": {
+   "en": "HaKotel",
+   "he": "הכותל",
+   "ru": "ХаКотель"
+  },
+  "har-bracha": {
+   "en": "Har Bracha",
+   "he": "הר ברכה",
+   "ru": "Хар Браха"
+  },
+  "har-etzion": {
+   "en": "Har Etzion",
+   "he": "הר עציון",
+   "ru": "Хар Эцион"
+  },
+  "harova": {
+   "en": "HaRova",
+   "he": "הרובע",
+   "ru": "ХаРова"
+  },
+  "hispin": {
+   "en": "Hispin",
+   "he": "חיספין",
+   "ru": "Хиспин"
+  },
+  "kerem-byavneh": {
+   "en": "Kerem B'Yavneh",
+   "he": "כרם ביבנה",
+   "ru": "Керем БеЯвне"
+  },
+  "kiryat-shmona": {
+   "en": "Kiryat Shmona",
+   "he": "קרית שמונה",
+   "ru": "Кирьят-Шмона"
+  },
+  "maale-adumim": {
+   "en": "Ma'ale Adumim",
+   "he": "מעלה אדומים",
+   "ru": "Маале Адумим"
+  },
+  "maale-gilboa": {
+   "en": "Ma'ale Gilboa",
+   "he": "מעלה גלבוע",
+   "ru": "Маале Гильбоа"
+  },
+  "maalot": {
+   "en": "Ma'alot",
+   "he": "מעלות",
+   "ru": "Маалот"
+  },
+  "mechina-olamit": {
+   "en": "Mechina Olamit",
+   "he": "מכינה עולמית",
+   "ru": "Мехина Оламит"
+  },
+  "mercaz-harav": {
+   "en": "Mercaz HaRav",
+   "he": "מרכז הרב",
+   "ru": "Мерказ ХаРав"
+  },
+  "midreshet-zion": {
+   "en": "Midreshet Zion",
+   "he": "מדרשת ציון",
+   "ru": "Мидрешет Цион"
+  },
+  "migdal-oz": {
+   "en": "Migdal Oz",
+   "he": "מגדל עוז",
+   "ru": "Мигдаль Оз"
+  },
+  "nishmat": {
+   "en": "Nishmat",
+   "he": "נשמת",
+   "ru": "Нишмат"
+  },
+  "nof-hagalil": {
+   "en": "Nof HaGalil",
+   "he": "נוף הגליל",
+   "ru": "Ноф ХаГалиль"
+  },
+  "or-etzion": {
+   "en": "Or Etzion",
+   "he": "אור עציון",
+   "ru": "Ор Эцион"
+  },
+  "otniel": {
+   "en": "Otniel",
+   "he": "עתניאל",
+   "ru": "Отниэль"
+  },
+  "shaalvim": {
+   "en": "Sha'alvim",
+   "he": "שעלבים",
+   "ru": "Шаалвим"
+  },
+  "yeruham": {
+   "en": "Yeruham",
+   "he": "ירוחם",
+   "ru": "Йерухам"
+  }
+ },
+ "people": {
+  "adi-illuz": {
+   "en": "Adi Illuz",
+   "he": "עדי אילוז"
+  },
+  "adi-solomon": {
+   "en": "Adi Solomon",
+   "he": "עדי סולומון"
+  },
+  "ahuva-neriyah": {
+   "en": "Ahuva Neriyah",
+   "he": "אהובה נריה"
+  },
+  "alexander-inataev": {
+   "en": "Alexander Inataev",
+   "he": "אלכסנדר אינטייב",
+   "ru": "Александр Инатаев"
+  },
+  "althea-mirvis": {
+   "en": "Althea Mirvis",
+   "he": "אלתיאה מירוויס"
+  },
+  "amichai-frei": {
+   "en": "Amichai Frei",
+   "he": "עמיחי פריי"
+  },
+  "amichai-stern": {
+   "en": "Rabbi Amichai Stern",
+   "he": "הרב עמיחי שטרן"
+  },
+  "amnon-herman": {
+   "en": "Rav Amnon Herman",
+   "he": "הרב אמנון הרמן"
+  },
+  "ariel-faust": {
+   "en": "Rabbi Ariel Faust",
+   "he": "הרב אריאל פאוסט"
+  },
+  "asael-greenfeld": {
+   "en": "Asael Greenfeld",
+   "he": "עשהאל גרינפלד"
+  },
+  "asaf-gastfraind": {
+   "en": "Asaf Gastfraind",
+   "he": "אסף גסטפרוינד"
+  },
+  "avi-goldberg": {
+   "en": "Rabbi Avi Goldberg",
+   "he": "הרב אבי גולדברג"
+  },
+  "avi-kannai": {
+   "en": "Rabbi Avi Kannai",
+   "he": "הרב אבי כנאי"
+  },
+  "avichai-berkowitz": {
+   "en": "Avichai Berkowitz",
+   "he": "אביחי ברקוביץ"
+  },
+  "avital-kadush": {
+   "en": "Avital Kadush",
+   "he": "אביטל קדוש"
+  },
+  "avital-oron": {
+   "en": "Avital Oron",
+   "he": "אביטל אורון"
+  },
+  "aviya-rosen": {
+   "en": "Rabbi Aviya Rosen",
+   "he": "הרב אביה רוזן"
+  },
+  "avraham-grunwald": {
+   "en": "Avraham Grunwald",
+   "he": "אברהם גרינוולד"
+  },
+  "avraham-lifschitz": {
+   "en": "Avraham Lifschitz",
+   "he": "אברהם ליפשיץ"
+  },
+  "aya-stern": {
+   "en": "Aya Stern",
+   "he": "איה שטרן"
+  },
+  "ayala-gotlib": {
+   "en": "Ayala Gotlib",
+   "he": "איילה גוטליב"
+  },
+  "ayelet-gordin": {
+   "en": "Ayelet Gordin",
+   "he": "איילת גורדין"
+  },
+  "ayelet-ushuvayev": {
+   "en": "Ayelet Ushuvayev",
+   "he": "איילת אושבייב",
+   "ru": "Аелет Ушуваева"
+  },
+  "bar-or-family": {
+   "en": "The Bar-Or family",
+   "he": "משפחת בר-אור"
+  },
+  "baruch-plaskow": {
+   "en": "Rabbi Baruch Plaskow",
+   "he": "הרב ברוך פלסקוב"
+  },
+  "bat-zion-agalyahu": {
+   "en": "Bat Zion Agalyahu",
+   "he": "בת ציון אגלייהו"
+  },
+  "batya-zaretzky": {
+   "en": "Batya Zaretzky",
+   "he": "בתיה זרצקי"
+  },
+  "ben-zion-paritzky": {
+   "en": "Ben Zion Paritzky",
+   "he": "בן ציון פריצקי",
+   "ru": "Бен Цион Парицкий"
+  },
+  "benyamin-feldman": {
+   "en": "Rabbi Benyamin Feldman",
+   "he": "הרב בנימין פלדמן"
+  },
+  "bilha-finkelstein": {
+   "en": "Bilha Finkelstein",
+   "he": "בלהה פינקלשטיין"
+  },
+  "binyamin-krausz": {
+   "en": "Rav Binyamin Krausz",
+   "he": "הרב בנימין קראוס"
+  },
+  "binyamin-tabory": {
+   "en": "Rabbi Binyamin Tabory z\"l",
+   "he": "הרב בנימין טברי זצ\"ל"
+  },
+  "boaz-genut": {
+   "en": "Rav Boaz Genut",
+   "he": "הרב בעז גנוט"
+  },
+  "boaz-shachak": {
+   "en": "Rav Boaz Shachak",
+   "he": "הרב בעז שחק"
+  },
+  "chaim-possick": {
+   "en": "Rav Chaim Possick",
+   "he": "הרב חיים פוסיק"
+  },
+  "chana-winkler": {
+   "en": "Chana Winkler",
+   "he": "חנה וינקלר"
+  },
+  "chava-bloom": {
+   "en": "Chava Bloom",
+   "he": "חוה בלום"
+  },
+  "chaviva-speter": {
+   "en": "Chaviva Speter",
+   "he": "חביבה שפטר"
+  },
+  "chaya-faust": {
+   "en": "Chaya Faust",
+   "he": "חיה פאוסט"
+  },
+  "chaya-rapoport": {
+   "en": "Chaya Rapoport",
+   "he": "חיה רפופורט"
+  },
+  "chaya-wende": {
+   "en": "Chaya Wende",
+   "he": "חיה וונדה"
+  },
+  "chedva-kerngel": {
+   "en": "Chedva Kerngel",
+   "he": "חדוה קרנגל"
+  },
+  "cheftziba-genut": {
+   "en": "Cheftziba Genut",
+   "he": "חפציבה גנוט"
+  },
+  "chen-elon": {
+   "en": "Chen Elon",
+   "he": "חן אלון"
+  },
+  "daniel-fishman": {
+   "en": "Daniel Fishman",
+   "he": "דניאל פישמן"
+  },
+  "daniel-illuz": {
+   "en": "Rabbi Daniel Illuz",
+   "he": "הרב דניאל אילוז"
+  },
+  "daniel-mann": {
+   "en": "Rabbi Daniel Mann",
+   "he": "הרב דניאל מן"
+  },
+  "danielle-weinberg": {
+   "en": "Danielle Weinberg",
+   "he": "דניאל וינברג"
+  },
+  "danny-eisenberg": {
+   "en": "Rav Danny Eisenberg",
+   "he": "הרב דני אייזנברג"
+  },
+  "danny-mirvis": {
+   "en": "Rabbi Danny Mirvis",
+   "he": "הרב דני מירוויס"
+  },
+  "daphna-kannai": {
+   "en": "Daphna Kannai",
+   "he": "דפנה כנאי"
+  },
+  "daphna-maimon": {
+   "en": "Daphna Maimon",
+   "he": "דפנה מימון"
+  },
+  "david-ansbacher": {
+   "en": "Rabbi David Ansbacher",
+   "he": "הרב דוד אנסבכר"
+  },
+  "david-kupinsky": {
+   "en": "Rabbi David Kupinsky",
+   "he": "הרב דוד קופינסקי"
+  },
+  "david-saied": {
+   "en": "David Saied",
+   "he": "דוד סעיד"
+  },
+  "david-ushuvayev": {
+   "en": "Rav David Ushuvayev",
+   "he": "הרב דוד אושבייב",
+   "ru": "Рав Давид Ушуваев"
+  },
+  "david-waxman": {
+   "en": "David Waxman",
+   "he": "דוד וקסמן"
+  },
+  "david-weinberg": {
+   "en": "David Weinberg",
+   "he": "דוד וינברג"
+  },
+  "dorit-levie": {
+   "en": "Dorit Levie",
+   "he": "דורית לוי"
+  },
+  "dudi-winkler": {
+   "en": "Rabbi Dudi Winkler",
+   "he": "הרב דודי וינקלר"
+  },
+  "efraim-meisels": {
+   "en": "Rav Efraim Meisels",
+   "he": "הרב אפרים מייזלס"
+  },
+  "efrat-meisels": {
+   "en": "Efrat Meisels",
+   "he": "אפרת מייזלס"
+  },
+  "ehud-zand": {
+   "en": "Rabbi Ehud Zand",
+   "he": "הרב אהוד זנד"
+  },
+  "eitan-abboudi": {
+   "en": "Eitan Abboudi",
+   "he": "איתן עבודי"
+  },
+  "eitan-ben-david": {
+   "en": "Rabbi Eitan Ben David",
+   "he": "הרב איתן בן דוד"
+  },
+  "eitan-cahn": {
+   "en": "Rav Eitan Cahn",
+   "he": "הרב איתן קאהן"
+  },
+  "eitan-frein": {
+   "en": "Eitan Frein",
+   "he": "איתן פריין"
+  },
+  "eitan-maazari": {
+   "en": "Rabbi Eitan Maazari",
+   "he": "הרב איתן מעזרי"
+  },
+  "eitan-solomon": {
+   "en": "Eitan Solomon",
+   "he": "איתן סולומון"
+  },
+  "elad-dahan": {
+   "en": "Rabbi Elad Dahan",
+   "he": "הרב אלעד דהן"
+  },
+  "elazar-cohen": {
+   "en": "Elazar Cohen",
+   "he": "אלעזר כהן"
+  },
+  "eli-lewis": {
+   "en": "Rav Eli Lewis",
+   "he": "הרב אלי לואיס"
+  },
+  "eliezer-noy": {
+   "en": "Eliezer Noy",
+   "he": "אליעזר נוי"
+  },
+  "eliyahu-agalyahu": {
+   "en": "Eliyahu Agalyahu",
+   "he": "אליהו אגלייהו"
+  },
+  "eliyahu-galil": {
+   "en": "Rabbi Eliyahu Galil",
+   "he": "הרב אליהו גליל"
+  },
+  "eliyahu-gateno": {
+   "en": "Rav Eliyahu Gateno",
+   "he": "הרב אליהו גטניו"
+  },
+  "elleana-silberman": {
+   "en": "Elleana Silberman",
+   "he": "אליאנה זילברמן"
+  },
+  "elyashiv-himelstein": {
+   "en": "Elyashiv Himelstein",
+   "he": "אלישיב הימלשטיין"
+  },
+  "esther-slotnick": {
+   "en": "Esther Slotnick",
+   "he": "אסתר סלוטניק"
+  },
+  "fentaye-tal": {
+   "en": "Fentaye Tal",
+   "he": "פנטהיי טל"
+  },
+  "gila-rotenberg": {
+   "en": "Gila Rotenberg",
+   "he": "גילה רוטנברג"
+  },
+  "gilad-gastfraind": {
+   "en": "Gilad Gastfraind",
+   "he": "גלעד גסטפרוינד"
+  },
+  "ginat-midler": {
+   "en": "Ginat Midler",
+   "he": "גינת מידלר"
+  },
+  "gitit-herman": {
+   "en": "Gitit Herman",
+   "he": "גיתית הרמן"
+  },
+  "guberman-family": {
+   "en": "The Guberman family",
+   "he": "משפחת גוברמן"
+  },
+  "guy-tal": {
+   "en": "Rabbi Guy Tal",
+   "he": "הרב גיא טל"
+  },
+  "hadas-hovav": {
+   "en": "Hadas Hovav",
+   "he": "הדס חובב"
+  },
+  "hallel-cohen": {
+   "en": "Hallel Cohen",
+   "he": "הלל כהן"
+  },
+  "harel-gordin": {
+   "en": "Rabbi Harel Gordin",
+   "he": "הרב הראל גורדין"
+  },
+  "harel-iluz": {
+   "en": "Harel Iluz",
+   "he": "הראל אילוז"
+  },
+  "hasida-pinchuk": {
+   "en": "Hasida Pinchuk",
+   "he": "חסידה פינצ'וק"
+  },
+  "hillel-heifetz": {
+   "en": "Hillel Heifetz",
+   "he": "הלל הייפץ"
+  },
+  "hillel-novetsky": {
+   "en": "Rabbi Hillel Novetsky",
+   "he": "הרב הלל נובצקי"
+  },
+  "hodaya-ben-ari": {
+   "en": "Hodaya Ben Ari",
+   "he": "הודיה בן ארי"
+  },
+  "ikrat-tannenbaum": {
+   "en": "Ikrat Tannenbaum",
+   "he": "יקרת טננבאום"
+  },
+  "ilai-grunwald": {
+   "en": "Rabbi Ilai Grunwald",
+   "he": "הרב אילעי גרינוולד"
+  },
+  "ilan-lieberman": {
+   "en": "Ilan Lieberman",
+   "he": "אילן ליברמן"
+  },
+  "ilana-rosensweig": {
+   "en": "Ilana Rosensweig",
+   "he": "אילנה רוזנצוויג"
+  },
+  "itai-jacobs": {
+   "en": "Itai Jacobs",
+   "he": "איתי ג'ייקובס"
+  },
+  "itamar-freirman": {
+   "en": "Itamar Freirman",
+   "he": "איתמר פריירמן"
+  },
+  "itiel-oron": {
+   "en": "Rabbi Itiel Oron",
+   "he": "הרב איתיאל אורון"
+  },
+  "jay-salid": {
+   "en": "Rabbi Jay Salid",
+   "he": "הרב ג'יי סאליד"
+  },
+  "jonah-budow": {
+   "en": "Rabbi Jonah Budow",
+   "he": "הרב יונה בודו"
+  },
+  "jonathan-daniel-simons": {
+   "en": "Rav Jonathan Daniel Simons",
+   "he": "הרב יונתן דניאל סיימונס"
+  },
+  "jonathan-glass": {
+   "en": "Rabbi Jonathan Glass",
+   "he": "הרב יונתן גלס"
+  },
+  "jonny-brull": {
+   "en": "Rabbi Jonny Brull",
+   "he": "הרב ג'וני ברול"
+  },
+  "leah-greenfeld": {
+   "en": "Leah Greenfeld",
+   "he": "לאה גרינפלד"
+  },
+  "leah-zand": {
+   "en": "Leah Zand",
+   "he": "לאה זנד"
+  },
+  "malka-paritzky": {
+   "en": "Malka Paritzky",
+   "he": "מלכה פריצקי",
+   "ru": "Малка Парицкая"
+  },
+  "malki-asulin": {
+   "en": "Malki Asulin",
+   "he": "מלכי אסולין"
+  },
+  "max-schuster": {
+   "en": "Max Schuster",
+   "he": "מקס שוסטר"
+  },
+  "meir-maimon": {
+   "en": "Rabbi Meir Maimon",
+   "he": "הרב מאיר מימון"
+  },
+  "menachem-porat": {
+   "en": "Menachem Porat",
+   "he": "מנחם פורת"
+  },
+  "merav-ben-david": {
+   "en": "Merav Ben David",
+   "he": "מירב בן דוד"
+  },
+  "merav-possick": {
+   "en": "Merav Possick",
+   "he": "מירב פוסיק"
+  },
+  "michal-budow": {
+   "en": "Michal Budow",
+   "he": "מיכל בודו"
+  },
+  "michal-freundlich": {
+   "en": "Michal Freundlich",
+   "he": "מיכל פרוינדליך"
+  },
+  "michal-kupinsky": {
+   "en": "Michal Kupinsky",
+   "he": "מיכל קופינסקי"
+  },
+  "michal-solomon": {
+   "en": "Michal Solomon",
+   "he": "מיכל סולומון"
+  },
+  "michelle-eisenberg": {
+   "en": "Michelle Eisenberg",
+   "he": "מישל אייזנברג"
+  },
+  "miryam-shifrovich": {
+   "en": "Miryam Shifrovich",
+   "he": "מרים שיפרוביץ"
+  },
+  "mor-lacob": {
+   "en": "Mor Lacob",
+   "he": "מור לקוב"
+  },
+  "mordechai-torczyner": {
+   "en": "Rabbi Mordechai Torczyner",
+   "he": "הרב מרדכי טורצ'ינר"
+  },
+  "moriyah-ordman": {
+   "en": "Moriyah Ordman",
+   "he": "מוריה אורדמן"
+  },
+  "moshe-bloom": {
+   "en": "Rav Moshe Bloom",
+   "he": "הרב משה בלום"
+  },
+  "moshe-hovav": {
+   "en": "Moshe Hovav",
+   "he": "משה חובב"
+  },
+  "moshe-ordman": {
+   "en": "Rabbi Moshe Ordman",
+   "he": "הרב משה אורדמן"
+  },
+  "moshe-pinchuk": {
+   "en": "Rabbi Moshe Pinchuk",
+   "he": "הרב משה פינצ'וק"
+  },
+  "moshe-speter": {
+   "en": "Rabbi Moshe Speter",
+   "he": "הרב משה שפטר"
+  },
+  "moti-fogelman": {
+   "en": "Rabbi Moti Fogelman",
+   "he": "הרב מוטי פוגלמן"
+  },
+  "nachum-neriya": {
+   "en": "Rabbi Nachum Neriya",
+   "he": "הרב נחום נריה"
+  },
+  "nachum-rom": {
+   "en": "Rabbi Nachum Rom z\"l",
+   "he": "הרב נחום רום זצ\"ל"
+  },
+  "nachum-zicherman": {
+   "en": "Nachum Zicherman",
+   "he": "נחום זיכרמן",
+   "ru": "Нахум Цихерман"
+  },
+  "nadav-cohen": {
+   "en": "Nadav Cohen",
+   "he": "נדב כהן"
+  },
+  "nadav-levie": {
+   "en": "Rabbi Nadav Levie",
+   "he": "הרב נדב לוי"
+  },
+  "nadav-trabelsi": {
+   "en": "Nadav Trabelsi",
+   "he": "נדב טרבלסי"
+  },
+  "naomi-ansbacher": {
+   "en": "Naomi Ansbacher",
+   "he": "נעמי אנסבכר"
+  },
+  "naomi-tabory": {
+   "en": "Naomi Tabory"
+  },
+  "natali-galil": {
+   "en": "Natali Galil",
+   "he": "נטלי גליל"
+  },
+  "nechama-brand": {
+   "en": "Nechama Brand",
+   "he": "נחמה ברנד"
+  },
+  "nechama-porat": {
+   "en": "Nechama Porat",
+   "he": "נחמה פורת"
+  },
+  "neima-novetsky": {
+   "en": "Neima Novetsky",
+   "he": "נעימה נובצקי"
+  },
+  "neria-cohen": {
+   "en": "Neria Cohen",
+   "he": "נריה כהן"
+  },
+  "neshamel-tick": {
+   "en": "Neshamel Tick",
+   "he": "נשמאל טיק"
+  },
+  "neta-noiman": {
+   "en": "Neta Noiman",
+   "he": "נטע נוימן"
+  },
+  "netanya-mann": {
+   "en": "Netanya Mann",
+   "he": "נתניה מן"
+  },
+  "nisan-assouline": {
+   "en": "Nisan Assouline",
+   "he": "ניסן אסולין"
+  },
+  "noa-lewis": {
+   "en": "Noa Lewis",
+   "he": "נעה לואיס"
+  },
+  "noa-rosen": {
+   "en": "Noa Rosen",
+   "he": "נעה רוזן"
+  },
+  "noam-himmelstein": {
+   "en": "Rabbi Noam Himmelstein",
+   "he": "הרב נועם הימלשטיין"
+  },
+  "odelia-dahan": {
+   "en": "Odelia Dahan",
+   "he": "אודליה דהן"
+  },
+  "orah-krausz": {
+   "en": "Orah Krausz",
+   "he": "אורה קראוס"
+  },
+  "ori-einhorn": {
+   "en": "Rabbi Ori Einhorn",
+   "he": "הרב אורי איינהורן"
+  },
+  "oriel-zaretzky": {
+   "en": "Rav Oriel Zaretzky",
+   "he": "הרב אוריאל זרצקי"
+  },
+  "orit-azogi": {
+   "en": "Orit Azogi",
+   "he": "אורית אזוגי"
+  },
+  "orit-fogelman": {
+   "en": "Orit Fogelman",
+   "he": "אורית פוגלמן"
+  },
+  "orli-americus": {
+   "en": "Orli Americus",
+   "he": "אורלי אמריקוס"
+  },
+  "otniel-fendel": {
+   "en": "Rabbi Otniel Fendel",
+   "he": "הרב עתניאל פנדל"
+  },
+  "rachel-goldberg": {
+   "en": "Rachel Goldberg",
+   "he": "רחל גולדברג"
+  },
+  "rachel-himmelstein": {
+   "en": "Rachel Himmelstein",
+   "he": "רחל הימלשטיין"
+  },
+  "rachel-meir": {
+   "en": "Rachel Meir",
+   "he": "רחל מאיר"
+  },
+  "rachel-zicherman": {
+   "en": "Rachel Zicherman",
+   "he": "רחל זיכרמן",
+   "ru": "Рахель Цихерман"
+  },
+  "rafi-kadush": {
+   "en": "Rabbi Rafi Kadush",
+   "he": "הרב רפי קדוש"
+  },
+  "rafi-wolf": {
+   "en": "Rabbi Rafi Wolf",
+   "he": "הרב רפי וולף"
+  },
+  "raphael-azogi": {
+   "en": "Rabbi Raphael Azogi",
+   "he": "הרב רפאל אזוגי"
+  },
+  "renana-assouline": {
+   "en": "Renana Assouline",
+   "he": "רננה אסולין"
+  },
+  "reuven-brand": {
+   "en": "Rabbi Reuven Brand",
+   "he": "הרב ראובן ברנד"
+  },
+  "rivka-neriya": {
+   "en": "Rivka Neriya",
+   "he": "רבקה נריה"
+  },
+  "rotem-noy": {
+   "en": "Rotem Noy",
+   "he": "רותם נוי"
+  },
+  "sam-thurgood": {
+   "en": "Rabbi Sam Thurgood",
+   "he": "הרב סם ת'רגוד"
+  },
+  "sara-lifschitz": {
+   "en": "Sara Lifschitz",
+   "he": "שרה ליפשיץ"
+  },
+  "sarah-brukner": {
+   "en": "Sarah Brukner",
+   "he": "שרה ברוקנר"
+  },
+  "sarah-gateno": {
+   "en": "Sarah Gateno",
+   "he": "שרה גטניו"
+  },
+  "sarah-rom": {
+   "en": "Sarah Rom",
+   "he": "שרה רום"
+  },
+  "sarah-saied": {
+   "en": "Sarah Saied",
+   "he": "שרה סעיד"
+  },
+  "sari-wolf": {
+   "en": "Sari Wolf",
+   "he": "שרי וולף"
+  },
+  "sarit-grunwald": {
+   "en": "Sarit Grunwald",
+   "he": "שרית גרינוולד"
+  },
+  "sarit-lisner": {
+   "en": "Sarit Lisner",
+   "he": "שרית ליזנר"
+  },
+  "saul-strosberg": {
+   "en": "Rabbi Saul Strosberg",
+   "he": "הרב שאול שטרוסברג"
+  },
+  "shai-finkelstein": {
+   "en": "Rabbi Shai Finkelstein",
+   "he": "הרב שי פינקלשטיין"
+  },
+  "shai-freundlich": {
+   "en": "Rabbi Shai Freundlich",
+   "he": "הרב שי פרוינדליך"
+  },
+  "shalom-perl": {
+   "en": "Shalom Perl",
+   "he": "שלום פרל"
+  },
+  "shaul-robinson": {
+   "en": "Rabbi Shaul Robinson",
+   "he": "הרב שאול רובינסון"
+  },
+  "shifra-maazari": {
+   "en": "Shifra Maazari",
+   "he": "שפרה מעזרי"
+  },
+  "shira-brull": {
+   "en": "Shira Brull",
+   "he": "שירה ברול"
+  },
+  "shira-himelstein": {
+   "en": "Shira Himelstein",
+   "he": "שירה הימלשטיין"
+  },
+  "shira-leah-jacobs": {
+   "en": "Shira Leah Jacobs",
+   "he": "שירה לאה ג'ייקובס"
+  },
+  "shoshana-simons": {
+   "en": "Shoshana Simons",
+   "he": "שושנה סיימונס"
+  },
+  "shoshi-lapian": {
+   "en": "Shoshi Lapian",
+   "he": "שושי לפיאן"
+  },
+  "shua-solomon": {
+   "en": "Rabbi Shua Solomon",
+   "he": "הרב שוע סולומון"
+  },
+  "shulamit-mann": {
+   "en": "Shulamit Mann",
+   "he": "שולמית מן"
+  },
+  "tal-midler": {
+   "en": "Tal Midler",
+   "he": "טל מידלר"
+  },
+  "tamar-grunwald": {
+   "en": "Tamar Grunwald",
+   "he": "תמר גרינוולד"
+  },
+  "tamara-inataev": {
+   "en": "Tamara Inataev",
+   "he": "תמרה אינטייב",
+   "ru": "Тамара Инатаева"
+  },
+  "tatzi-cahn": {
+   "en": "Tatzi Cahn",
+   "he": "טצי קאהן"
+  },
+  "tehilla-feldman": {
+   "en": "Tehilla Feldman",
+   "he": "תהילה פלדמן"
+  },
+  "tiferet-berkowitz": {
+   "en": "Tiferet Berkowitz",
+   "he": "תפארת ברקוביץ"
+  },
+  "tova-einhorn": {
+   "en": "Tova Einhorn",
+   "he": "טובה איינהורן"
+  },
+  "tzivia-fendel": {
+   "en": "Tzivia Fendel",
+   "he": "צביה פנדל"
+  },
+  "tzvi-tannenbaum": {
+   "en": "Rabbi Tzvi Tannenbaum",
+   "he": "הרב צבי טננבאום"
+  },
+  "uria-teperberg": {
+   "en": "Rav Uria Teperberg",
+   "he": "הרב אוריה טפרברג"
+  },
+  "vardit-kruger": {
+   "en": "Vardit Kruger",
+   "he": "ורדית קרוגר"
+  },
+  "vradit-teperberg": {
+   "en": "Vradit Teperberg",
+   "he": "ורדית טפרברג"
+  },
+  "yaakov-meir": {
+   "en": "Rabbi Yaakov Meir",
+   "he": "הרב יעקב מאיר"
+  },
+  "yacov-kruger": {
+   "en": "Rabbi Yacov Kruger",
+   "he": "הרב יעקב קרוגר"
+  },
+  "yael-plaskow": {
+   "en": "Yael Plaskow",
+   "he": "יעל פלסקוב"
+  },
+  "yael-shachak": {
+   "en": "Yael Shachak",
+   "he": "יעל שחק"
+  },
+  "yair-yushuvayev": {
+   "en": "Yair Yushuvayev",
+   "he": "יאיר יושובייב",
+   "ru": "Яир Юшуваев"
+  },
+  "yechiel-brukner": {
+   "en": "Rabbi Yechiel Brukner",
+   "he": "הרב יחיאל ברוקנר"
+  },
+  "yedidia-haim-saied": {
+   "en": "Yedidia Haim Saied",
+   "he": "ידידיה חיים סעיד"
+  },
+  "yedidya-gahelet": {
+   "en": "Yedidya Gahelet",
+   "he": "ידידיה גחלת"
+  },
+  "yedidya-noiman": {
+   "en": "Rabbi Yedidya Noiman",
+   "he": "הרב ידידיה נוימן"
+  },
+  "yedidya-shifrovich": {
+   "en": "Yedidya Shifrovich",
+   "he": "ידידיה שיפרוביץ"
+  },
+  "yehoshua-asulin": {
+   "en": "Rabbi Yehoshua Asulin",
+   "he": "הרב יהושע אסולין"
+  },
+  "yehuda-lange": {
+   "en": "Yehuda Lange",
+   "he": "יהודה לנגה"
+  },
+  "yehuda-lapian": {
+   "en": "Rabbi Yehuda Lapian",
+   "he": "הרב יהודה לפיאן"
+  },
+  "yehuda-mann": {
+   "en": "Rabbi Yehuda Mann",
+   "he": "הרב יהודה מן"
+  },
+  "yishai-lacob": {
+   "en": "Yishai Lacob",
+   "he": "ישי לקוב"
+  },
+  "yishai-lisner": {
+   "en": "Rabbi Yishai Lisner",
+   "he": "הרב ישי ליזנר"
+  },
+  "yiska-saied": {
+   "en": "Yiska Saied",
+   "he": "יסכה סעיד"
+  },
+  "yisrael-wende": {
+   "en": "Rabbi Yisrael Wende",
+   "he": "הרב ישראל וונדה"
+  },
+  "yitzchak-neriyah": {
+   "en": "Rabbi Yitzchak Neriyah",
+   "he": "הרב יצחק נריה"
+  },
+  "yitzchak-preshel": {
+   "en": "Rabbi Yitzchak Preshel",
+   "he": "הרב יצחק פרשל"
+  },
+  "yitzhak-rapoport": {
+   "en": "Rav Yitzhak Rapoport",
+   "he": "הרב יצחק רפופורט"
+  },
+  "yochai-yehuda-applbaum": {
+   "en": "Yochai Yehuda Applbaum",
+   "he": "יוחאי יהודה אפלבאום"
+  },
+  "yonatan-rosensweig": {
+   "en": "Rabbi Yonatan Rosensweig",
+   "he": "הרב יונתן רוזנצוויג"
+  },
+  "yonatan-rotenberg": {
+   "en": "Yonatan Rotenberg",
+   "he": "יונתן רוטנברג"
+  },
+  "yoni-gotlib": {
+   "en": "Rabbi Yoni Gotlib",
+   "he": "הרב יוני גוטליב"
+  },
+  "yosef-shlomo-kfir": {
+   "en": "Yosef Shlomo Kfir",
+   "he": "יוסף שלמה כפיר"
+  },
+  "yossi-slotnick": {
+   "en": "Rabbi Yossi Slotnick",
+   "he": "הרב יוסי סלוטניק"
+  },
+  "zvi-elon": {
+   "en": "Rabbi Zvi Elon",
+   "he": "הרב צבי אלון"
+  }
+ }
 }

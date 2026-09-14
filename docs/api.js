@@ -9,8 +9,8 @@
  * on screen and is never the default. Nothing about a community, a person or a
  * year is invented any more. */
 
-const TMZ_SUPABASE_URL = 'https://xuoxkmwtdascazutoaxs.supabase.co';
-const TMZ_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1b3hrbXd0ZGFzY2F6dXRvYXhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3MjI5MDcsImV4cCI6MjA3NTI5ODkwN30.Cy1W0lXNuP-lXbRyGOPjz2fL6ano-Nzxf7HBoRv9EJM';
+const TMZ_SUPABASE_URL = 'https://difiipnhpujbwhpyownr.supabase.co';
+const TMZ_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpZmlpcG5ocHVqYndocHlvd25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3OTkxOTAsImV4cCI6MjEwNDM3NTE5MH0.N40pUirH7MLqJGwPmIRQghS-nWeXnKa5XEJgSQFsJFQ';
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 

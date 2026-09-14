@@ -135,6 +135,37 @@ async function main() {
   }
   console.log(`\ntenures: ${n} (+${spouses} spouses)  people: ${personCache.size}`);
 
+  // ---- translations ----
+  /* Everything the back office ever translated, keyed by slug. Kept in the repo
+     because the first migration to a fresh project reproduced the roster
+     perfectly and silently lost all of it — it had only ever existed as rows
+     in one database. Applied last, so it wins over the en/he/ru in this file. */
+  const trPath = join(ROOT, 'scripts/translations.json');
+  if (existsSync(trPath)) {
+    const tr = JSON.parse(readFileSync(trPath, 'utf8'));
+    let rows = 0;
+    const apply = async (table, fk, byIdMap, entries, shape) => {
+      for (const [slug, langs] of Object.entries(entries)) {
+        const id = byIdMap[slug];
+        if (!id) continue;
+        const body = Object.entries(langs).map(([lang, v]) => ({ [fk]: id, lang, ...shape(v) }));
+        if (!body.length) continue;
+        await pg(`/${table}`, { method: 'POST', prefer: 'resolution=merge-duplicates', body });
+        rows += body.length;
+      }
+    };
+    // every row in one insert must carry the same keys, nulls included
+    await apply('tmz_community_tr', 'community_id', commId, tr.communities ?? {},
+      v => ({ name: v.name ?? null, country: v.country ?? null, blurb: v.blurb ?? null }));
+    await apply('tmz_institution_tr', 'institution_id', instId, tr.institutions ?? {},
+      v => ({ name: typeof v === 'string' ? v : v.name }));
+    const personIds = Object.fromEntries(
+      (await pg('/tmz_person?select=id,slug&limit=2000')).map(p => [p.slug, p.id]));
+    await apply('tmz_person_tr', 'person_id', personIds, tr.people ?? {},
+      v => ({ display_name: typeof v === 'string' ? v : v.display_name }));
+    console.log(`translations: ${rows} rows from translations.json`);
+  }
+
   if (PRUNE) {
     const keep = data.communities.map(c => `"${c.slug}"`).join(',');
     const gone = await pg(`/tmz_community?slug=not.in.(${keep})&select=slug`);

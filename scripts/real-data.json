@@ -220,7 +220,7 @@
     { "c": "moscow", "role": "staff", "from": 2026, "to": null, "en": "Alexander Inataev" },
 
     { "c": "manhattan", "role": "rosh_kollel", "from": 1998, "to": 2000, "en": "Rabbi Hillel Novetsky", "spouse": "Neima Novetsky" },
-    { "c": "manhattan", "role": "rosh_kollel", "from": 2004, "to": 2005, "en": "Rabbi Binyamin Tabori z\"l", "spouse": "Naomi Tabori" },
+    { "c": "manhattan", "role": "rosh_kollel", "from": 2004, "to": 2005, "en": "Rabbi Binyamin Tabory z\"l", "he": "הרב בנימין טברי זצ\"ל", "spouse": "Naomi Tabory", "note": "Same person as the Cleveland 1994 founder; the site spells him Tabori on this page and Tabory elsewhere. One spelling, so the importer resolves both tenures to one person." },
     { "c": "manhattan", "role": "rosh_kollel", "from": 2005, "to": 2007, "en": "Rabbi Itiel Oron", "spouse": "Avital Oron" },
     { "c": "manhattan", "role": "rosh_kollel", "from": 2007, "to": 2010, "en": "Rabbi Harel Gordin", "spouse": "Ayelet Gordin" },
     { "c": "manhattan", "role": "staff", "from": 2026, "to": null, "en": "Rabbi Shaul Robinson", "note": "Currently leads the kollel." },
