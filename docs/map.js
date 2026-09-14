@@ -147,7 +147,10 @@ function placeLabels(markers, blocked, W, H, rtl) {
     /* Per-character widths for 11.5px / 14.5px tracked capitals; the phone
        sheet sets the labels a size smaller. */
     const small = W < 700;
-    const per = sel ? (small ? 9.8 : 11.4) : (small ? 7.3 : 8.4), h = sel ? 18 : 14;
+    /* Hebrew labels are not tracked capitals: narrower per letter, taller
+       per line, and the sheet sets them a size up. */
+    const per = rtl ? (sel ? 11 : 8.6) : sel ? (small ? 9.8 : 11.4) : (small ? 7.3 : 8.4);
+    const h = rtl ? (sel ? 26 : 21) : sel ? 18 : 14;
     const w = m.name.length * per;
     let placed = null;
     for (const sl of slots) {
