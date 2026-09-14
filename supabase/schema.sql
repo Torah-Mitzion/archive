@@ -10,7 +10,7 @@
 -- will try to re-run everything from the beginning and fail on the first
 -- `create table`. If you do paste it, tell whoever runs the next migration.
 --
--- 24 migrations.
+-- 26 migrations.
 
 -- ═══════════════════════════════════════════════════════════════════
 -- 20260903120001_enums.sql
@@ -1469,3 +1469,167 @@ comment on view tmz_agent_backlog is
 
 revoke all on tmz_agent_backlog from anon;
 grant select on tmz_agent_backlog to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 20260914000001_reference_data.sql
+-- ═══════════════════════════════════════════════════════════════════
+/* Reference data the schema cannot function without.
+ *
+ * Found the hard way: on a fresh project, importing the communities failed on
+ * a foreign key to tmz_region, because the four regions and the twelve event
+ * types had only ever been inserted by hand on the first project and were in
+ * no migration. Reference data belongs with the schema that references it, so
+ * here it is — every row, every language, idempotent. */
+
+insert into tmz_region (id, sort) values
+  ('na', 1),
+  ('la', 2),
+  ('eu', 3),
+  ('oc', 4)
+on conflict (id) do update set sort = excluded.sort;
+
+insert into tmz_region_tr (region_id, lang, name) values
+  ('eu', 'en', 'Europe & Asia'),
+  ('eu', 'he', 'אירופה ואסיה'),
+  ('eu', 'ru', 'Европа и Азия'),
+  ('eu', 'fr', 'Europe et Asie'),
+  ('eu', 'de', 'Europa & Asien'),
+  ('eu', 'es', 'Europa y Asia'),
+  ('la', 'en', 'Latin America'),
+  ('la', 'he', 'אמריקה הלטינית'),
+  ('la', 'ru', 'Латинская Америка'),
+  ('la', 'fr', 'Amérique latine'),
+  ('la', 'de', 'Lateinamerika'),
+  ('la', 'es', 'América Latina'),
+  ('na', 'en', 'North America'),
+  ('na', 'he', 'צפון אמריקה'),
+  ('na', 'ru', 'Северная Америка'),
+  ('na', 'fr', 'Amérique du Nord'),
+  ('na', 'de', 'Nordamerika'),
+  ('na', 'es', 'América del Norte'),
+  ('oc', 'en', 'Africa & Oceania'),
+  ('oc', 'he', 'אפריקה ואוקיאניה'),
+  ('oc', 'ru', 'Африка и Океания'),
+  ('oc', 'fr', 'Afrique et Océanie'),
+  ('oc', 'de', 'Afrika & Ozeanien'),
+  ('oc', 'es', 'África y Oceanía')
+on conflict (region_id, lang) do update set name = excluded.name;
+
+insert into tmz_event_type (id, sort) values
+  ('simchat_torah', 1),
+  ('shabbaton', 2),
+  ('morning_seder', 3),
+  ('yom_haatzmaut', 4),
+  ('chanukah', 5),
+  ('purim', 6),
+  ('opening_night', 7),
+  ('melave_malka', 8),
+  ('shavuot', 9),
+  ('farewell', 10),
+  ('chavruta', 11),
+  ('youth', 12)
+on conflict (id) do update set sort = excluded.sort;
+
+insert into tmz_event_type_tr (event_type_id, lang, name) values
+  ('chanukah', 'en', 'Chanukah night'),
+  ('chanukah', 'he', 'ליל חנוכה'),
+  ('chanukah', 'ru', 'Ханукальный вечер'),
+  ('chanukah', 'fr', 'Soirée de ''Hanouka'),
+  ('chanukah', 'de', 'Chanukka-Abend'),
+  ('chanukah', 'es', 'Noche de Janucá'),
+  ('chavruta', 'en', 'Chavruta learning'),
+  ('chavruta', 'he', 'לימוד בחברותא'),
+  ('chavruta', 'ru', 'Учёба в хавруте'),
+  ('chavruta', 'fr', 'Étude en ''havrouta'),
+  ('chavruta', 'de', 'Lernen in Chavruta'),
+  ('chavruta', 'es', 'Estudio en javruta'),
+  ('farewell', 'en', 'Farewell dinner'),
+  ('farewell', 'he', 'ארוחת פרידה'),
+  ('farewell', 'ru', 'Прощальный ужин'),
+  ('farewell', 'fr', 'Dîner d''adieu'),
+  ('farewell', 'de', 'Abschiedsessen'),
+  ('farewell', 'es', 'Cena de despedida'),
+  ('melave_malka', 'en', 'Melave Malka'),
+  ('melave_malka', 'he', 'מלווה מלכה'),
+  ('melave_malka', 'ru', 'Мелаве Малка'),
+  ('melave_malka', 'fr', 'Melavé Malka'),
+  ('melave_malka', 'de', 'Melave Malka'),
+  ('melave_malka', 'es', 'Melavé Malká'),
+  ('morning_seder', 'en', 'Morning seder'),
+  ('morning_seder', 'he', 'סדר בוקר'),
+  ('morning_seder', 'ru', 'Утренний седер'),
+  ('morning_seder', 'fr', 'Séder du matin'),
+  ('morning_seder', 'de', 'Morgen-Seder'),
+  ('morning_seder', 'es', 'Séder de la mañana'),
+  ('opening_night', 'en', 'Opening night'),
+  ('opening_night', 'he', 'ערב פתיחה'),
+  ('opening_night', 'ru', 'Вечер открытия'),
+  ('opening_night', 'fr', 'Soirée d''ouverture'),
+  ('opening_night', 'de', 'Eröffnungsabend'),
+  ('opening_night', 'es', 'Noche de apertura'),
+  ('purim', 'en', 'Purim seudah'),
+  ('purim', 'he', 'סעודת פורים'),
+  ('purim', 'ru', 'Пуримская сеуда'),
+  ('purim', 'fr', 'Séoudat Pourim'),
+  ('purim', 'de', 'Purim-Seuda'),
+  ('purim', 'es', 'Seudá de Purim'),
+  ('shabbaton', 'en', 'Community shabbaton'),
+  ('shabbaton', 'he', 'שבתון קהילתי'),
+  ('shabbaton', 'ru', 'Общинный шаббатон'),
+  ('shabbaton', 'fr', 'Chabbaton communautaire'),
+  ('shabbaton', 'de', 'Gemeinde-Schabbaton'),
+  ('shabbaton', 'es', 'Shabatón comunitario'),
+  ('shavuot', 'en', 'Shavuot night learning'),
+  ('shavuot', 'he', 'ליל שבועות'),
+  ('shavuot', 'ru', 'Ночное учение в Шавуот'),
+  ('shavuot', 'fr', 'Étude de la nuit de Chavouot'),
+  ('shavuot', 'de', 'Lernnacht zu Schawuot'),
+  ('shavuot', 'es', 'Estudio de la noche de Shavuot'),
+  ('simchat_torah', 'en', 'Simchat Torah hakafot'),
+  ('simchat_torah', 'he', 'הקפות שמחת תורה'),
+  ('simchat_torah', 'ru', 'Акафот в Симхат Тора'),
+  ('simchat_torah', 'fr', 'Hakafot de Sim''hat Torah'),
+  ('simchat_torah', 'de', 'Hakafot an Simchat Tora'),
+  ('simchat_torah', 'es', 'Hakafot de Simjat Torá'),
+  ('yom_haatzmaut', 'en', 'Yom Ha''atzmaut'),
+  ('yom_haatzmaut', 'he', 'יום העצמאות'),
+  ('yom_haatzmaut', 'ru', 'День независимости Израиля'),
+  ('yom_haatzmaut', 'fr', 'Yom HaAtsmaout'),
+  ('yom_haatzmaut', 'de', 'Jom haAtzmaut'),
+  ('yom_haatzmaut', 'es', 'Yom HaAtzmaut'),
+  ('youth', 'en', 'Youth shabbaton'),
+  ('youth', 'he', 'שבתון נוער'),
+  ('youth', 'ru', 'Молодёжный шаббатон'),
+  ('youth', 'fr', 'Chabbaton des jeunes'),
+  ('youth', 'de', 'Jugend-Schabbaton'),
+  ('youth', 'es', 'Shabatón juvenil')
+on conflict (event_type_id, lang) do update set name = excluded.name;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 20260914010001_conversation.sql
+-- ═══════════════════════════════════════════════════════════════════
+/* The conversation was thin on purpose — accept the photograph, ask which
+ * community and year, done. Real use showed that was too thin: the archive
+ * wants to know WHO is in a photograph and WHAT was happening, and a sender who
+ * has just found a shoebox is exactly the person to ask. Those two answers
+ * need somewhere to live. */
+
+alter table tmz_photo
+  add column people_text   text,
+  add column occasion_text text;
+
+comment on column tmz_photo.people_text is
+  'Who the sender says is in the photograph, in their own words. Free text; tagging against tmz_person is a back-office job.';
+comment on column tmz_photo.occasion_text is
+  'What the sender says was happening, in their own words.';
+
+/* The agent asks one question at a time and needs to remember which. It is
+   about the sender, not the photograph: a shoebox is many photographs and one
+   conversation. */
+alter table tmz_wa_contact
+  add column asking      text check (asking in ('community', 'year', 'people', 'occasion')),
+  add column asking_for  uuid references tmz_photo(id) on delete set null,
+  add column photos_sent integer not null default 0;
+
+comment on column tmz_wa_contact.asking is
+  'The question the agent last put to this sender, so their next message is read as the answer to it.';

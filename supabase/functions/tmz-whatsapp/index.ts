@@ -25,6 +25,7 @@
 
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
+import { say, refusalFor } from '../_shared/say.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -295,75 +296,8 @@ function scriptOf(text: string) {
   return 'en';
 }
 
-const SAY: Record<string, Record<string, string>> = {
-  en: {
-    got: 'Thank you — that is now with our team. Which community is it from, and roughly which year?',
-    published: 'Thank you — it is on the site now. Send another whenever you like.',
-    saved: 'Noted, thank you. Send another whenever you like.',
-    rejected: 'Sorry — that image did not pass our automatic check, so it was not added.',
-    toobig: 'That photograph is a little too large for us to handle. Please send it as a normal photo rather than a file or document, and it will go straight in.',
-    nopeople: 'Thank you for sending it. This archive collects photographs of people — the communities, the shlichim, the families. A picture with nobody in it is not one we can add, but anything with faces in it is very welcome.',
-    dupe: 'We already hold that photograph. Thank you all the same.',
-    hello: 'Hello, and thank you for helping build the Torah MiTzion 30 archive. Send a photograph and I will take it from there.',
-    nophoto: 'Send a photograph whenever you are ready — I can take several in a row.'
-  },
-  he: {
-    got: 'תודה — התמונה הועברה לצוות. מאיזו קהילה היא, ובאיזו שנה בערך?',
-    published: 'תודה — התמונה כבר באתר. אפשר לשלוח עוד מתי שתרצו.',
-    saved: 'נרשם, תודה. אפשר לשלוח עוד מתי שתרצו.',
-    rejected: 'מצטערים — התמונה לא עברה את הבדיקה האוטומטית ולכן לא נוספה.',
-    toobig: 'התמונה גדולה מדי עבורנו. שלחו אותה כתמונה רגילה ולא כקובץ או מסמך, והיא תיכנס מיד.',
-    nopeople: 'תודה ששלחתם. הארכיון אוסף תמונות של אנשים — הקהילות, השליחים, המשפחות. תמונה שאין בה אף אחד לא נכנסת, אבל כל תמונה עם פנים תתקבל בשמחה.',
-    dupe: 'התמונה הזו כבר אצלנו. תודה בכל זאת.',
-    hello: 'שלום, ותודה שאתם עוזרים לבנות את ארכיון תורה מציון 30. שלחו תמונה ואמשיך מכאן.',
-    nophoto: 'שלחו תמונה מתי שנוח לכם — אפשר כמה ברצף.'
-  },
-  ru: {
-    got: 'Спасибо — фотография передана нашей команде. Из какой она общины и примерно какого года?',
-    published: 'Спасибо — фотография уже на сайте. Присылайте ещё в любое время.',
-    saved: 'Записано, спасибо. Присылайте ещё в любое время.',
-    rejected: 'Извините — изображение не прошло автоматическую проверку и не было добавлено.',
-    toobig: 'Фотография слишком большая. Отправьте её как обычное фото, а не как файл или документ, и она сразу попадёт в архив.',
-    nopeople: 'Спасибо, что прислали. Этот архив собирает фотографии людей — общин, шлихим, семей. Снимок без людей мы добавить не можем, но любой снимок с лицами очень ждём.',
-    dupe: 'Эта фотография у нас уже есть. Спасибо в любом случае.',
-    hello: 'Здравствуйте, и спасибо, что помогаете собрать архив «Тора МиЦион 30». Пришлите фотографию, дальше я всё сделаю.',
-    nophoto: 'Присылайте фотографию, когда будет удобно — можно несколько подряд.'
-  },
-  fr: {
-    got: 'Merci — la photographie est transmise à notre équipe. De quelle communauté vient-elle, et de quelle année environ ?',
-    published: 'Merci — elle est en ligne. Envoyez-en d’autres quand vous voulez.',
-    saved: 'Noté, merci. Envoyez-en d’autres quand vous voulez.',
-    rejected: 'Désolé — cette image n’a pas passé notre vérification automatique et n’a pas été ajoutée.',
-    toobig: 'Cette photographie est un peu trop lourde pour nous. Envoyez-la comme photo normale plutôt que comme fichier, et elle sera ajoutée aussitôt.',
-    nopeople: 'Merci de nous l’avoir envoyée. Ces archives rassemblent des photographies de personnes — les communautés, les shlichim, les familles. Une image sans personne ne peut pas être ajoutée, mais tout cliché avec des visages est le bienvenu.',
-    dupe: 'Nous avons déjà cette photographie. Merci quand même.',
-    hello: 'Bonjour, et merci de nous aider à constituer les archives Torah MiTzion 30. Envoyez une photographie et je m’occupe du reste.',
-    nophoto: 'Envoyez une photographie quand vous voulez — je peux en recevoir plusieurs à la suite.'
-  },
-  de: {
-    got: 'Danke — das Foto liegt jetzt bei unserem Team. Aus welcher Gemeinde stammt es, und ungefähr aus welchem Jahr?',
-    published: 'Danke — es ist jetzt auf der Website. Schicken Sie gerne weitere.',
-    saved: 'Notiert, danke. Schicken Sie gerne weitere.',
-    rejected: 'Leider hat dieses Bild unsere automatische Prüfung nicht bestanden und wurde nicht aufgenommen.',
-    toobig: 'Dieses Foto ist etwas zu groß für uns. Schicken Sie es als normales Bild und nicht als Datei, dann wird es sofort aufgenommen.',
-    nopeople: 'Danke fürs Schicken. Dieses Archiv sammelt Fotos von Menschen — den Gemeinden, den Schlichim, den Familien. Ein Bild ohne Personen können wir nicht aufnehmen, aber jedes mit Gesichtern ist sehr willkommen.',
-    dupe: 'Dieses Foto haben wir bereits. Trotzdem vielen Dank.',
-    hello: 'Hallo, und danke, dass Sie beim Aufbau des Torah-MiTzion-30-Archivs helfen. Schicken Sie ein Foto, den Rest übernehme ich.',
-    nophoto: 'Schicken Sie ein Foto, wann immer Sie mögen — auch mehrere hintereinander.'
-  },
-  es: {
-    got: 'Gracias — la fotografía ya está con nuestro equipo. ¿De qué comunidad es, y de qué año aproximadamente?',
-    published: 'Gracias — ya está en el sitio. Envíe más cuando quiera.',
-    saved: 'Anotado, gracias. Envíe más cuando quiera.',
-    rejected: 'Lo sentimos — esa imagen no pasó nuestra verificación automática y no fue añadida.',
-    toobig: 'Esa fotografía es demasiado grande para nosotros. Envíela como foto normal y no como archivo, y entrará enseguida.',
-    nopeople: 'Gracias por enviarla. Este archivo reúne fotografías de personas — las comunidades, los shlijim, las familias. Una imagen sin nadie no podemos añadirla, pero cualquiera con rostros es muy bienvenida.',
-    dupe: 'Ya tenemos esa fotografía. Gracias de todos modos.',
-    hello: 'Hola, y gracias por ayudarnos a construir el archivo Torah MiTzion 30. Envíe una fotografía y yo me encargo del resto.',
-    nophoto: 'Envíe una fotografía cuando le venga bien — puedo recibir varias seguidas.'
-  }
-};
-const say = (lang: string, key: string) => (SAY[lang] ?? SAY.en)[key] ?? SAY.en[key];
+/* Everything the agent says lives in _shared/say.ts, six languages, one
+   place. */
 
 // ---- handler ---------------------------------------------------------------
 
@@ -382,15 +316,27 @@ const liveChannel: Channel = {
 const heyyChannel: Channel = {
   async fetchMedia(ref: string) {
     /* metaEnvelopeFromHeyy puts the attachment's download URL where Meta would
-       put a media id, so "fetching media" here is just following it. */
-    const res = await fetch(ref, HEYY_API_TOKEN
-      ? { headers: { Authorization: `Bearer ${HEYY_API_TOKEN}` } }
-      : {});
-    if (!res.ok) throw new Error(`heyy media ${res.status}`);
-    return {
-      bytes: new Uint8Array(await res.arrayBuffer()),
-      mime: res.headers.get('content-type') ?? 'image/jpeg'
-    };
+       put a media id, so "fetching media" here is just following it.
+
+       Tried two ways, because the first deployment turned away every real
+       photograph the client sent and counted each against them: a pre-signed
+       download URL can refuse a request that carries an Authorization header it
+       did not ask for, and a URL on Heyy's own API can refuse one that does
+       not. Whichever answers with an image wins; anything else is reported as
+       what it was, not as a bad photograph. */
+    const attempts: RequestInit[] = HEYY_API_TOKEN
+      ? [{ headers: { Authorization: `Bearer ${HEYY_API_TOKEN}` } }, {}]
+      : [{}];
+    let last = '';
+    for (const init of attempts) {
+      const res = await fetch(ref, init);
+      const type = res.headers.get('content-type') ?? '';
+      if (res.ok && !type.startsWith('text/') && !type.includes('json') && !type.includes('html')) {
+        return { bytes: new Uint8Array(await res.arrayBuffer()), mime: type || 'image/jpeg' };
+      }
+      last = `${res.status} ${type}`.trim();
+    }
+    throw new Error(`heyy media: ${last}`);
   },
   async reply(to: string, text: string) {
     if (!HEYY_API_TOKEN || !HEYY_CHANNEL_ID) {
@@ -430,7 +376,7 @@ function metaEnvelopeFromHeyy(body: any) {
      which is what the archive wants anyway — one row each. */
   const file = (d?.content?.attachments ?? [])
     .map((a: any) => a?.file)
-    .find((f: any) => f?.url && String(f?.contentType ?? f?.type ?? '').includes('image'));
+    .find((f: any) => f?.url && /image/i.test(String(f?.contentType ?? '') + ' ' + String(f?.type ?? '')));
 
   const msg: any = { from, id: d?.id ?? crypto.randomUUID() };
   if (file) {
@@ -643,146 +589,155 @@ async function handle(body: any, ch: Channel) {
   const waId = `wa:${from}`;
   ch.trace('received', { type: msg.type, from });
 
-  if (msg.type === 'text') {
-    const text = msg.text?.body ?? '';
+  const contact = await contactOf(waId);
+  if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
+    ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
+    return;
+  }
+  const displayName = value?.contacts?.[0]?.profile?.name ?? null;
 
-    /* Two ways this can fall back to a default, and both used to default to
-       English: the model returning something unparseable, and the call failing
-       outright. The script the sender typed in survives either. */
+  // ======================================================================
+  // TEXT — an answer to the open question, a greeting, or small talk
+  // ======================================================================
+  if (msg.type === 'text') {
+    const text = (msg.text?.body ?? '').trim();
+    const lang = scriptOf(text) !== 'en' ? scriptOf(text) : (contact?.lang ?? 'en');
+
+    /* The first thing anyone ever hears is the welcome: what this is, why it
+       matters, what to do. Everything after that assumes they know. */
+    if (!contact) {
+      await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
+      ch.trace('welcome', { lang });
+      await ch.reply(from, say(lang).welcome);
+      return;
+    }
+
     const comms = await communityList();
     const local = parseLocally(text, comms);
-    let det: any = { language: scriptOf(text), ...local };
+    let det: any = { language: lang, ...local };
     if (GEMINI_KEY) {
       try {
         const m = await parseDetails(text, comms);
-        /* Plain matching wins where it found something: it read the actual
-           words, and it cannot hallucinate a community that was never named. */
         det = { ...m, ...Object.fromEntries(Object.entries(local).filter(([, v]) => v != null)) };
-      } catch (e) { console.error(e); ch.trace('parse failed', { error: String(e) }); }
+      } catch (e) { ch.trace('parse failed', { error: String(e).slice(0, 120) }); }
     }
-    const lang = det.language ?? scriptOf(text);
+    /* The model's language guess only counts when there were words to guess
+       from. "2004" has no language, and letting the model call it English
+       flipped a Hebrew conversation mid-stream — the sender answered a year
+       and got the next question in a language they had not been using. */
+    const hasLatinWords = /[a-z]{2,}/i.test(text);
+    const spoken = hasLatinWords && det.language && scriptOf(text) === 'en' ? det.language : lang;
     ch.trace('parsed', det);
 
-    /* Whatever they name here travels with them, so the next eleven pictures
-       out of the same shoebox place themselves. */
     let communityId: string | null = null;
     if (det.community_slug) {
       const c = await pg(`/tmz_community?select=id&slug=eq.${encodeURIComponent(det.community_slug)}`);
       communityId = c?.[0]?.id ?? null;
     }
     await remember(waId, {
-      lang, is_test: ch.isTest,
+      lang: spoken, is_test: ch.isTest,
       ...(communityId ? { community_id: communityId } : {}),
       ...(det.year ? { year: det.year } : {})
     });
 
-    // Attach the answer to whatever they last sent, if anything is waiting.
-    const recent = await pg(
-      `/tmz_photo?select=id,community_id,year,submitter_ref&submitter_ref=like.${encodeURIComponent(waId + '%')}` +
-      `&status=eq.pending&order=created_at.desc&limit=1`
-    );
+    /* Is a photograph waiting on this answer? */
+    const open = contact.asking_for
+      ? (await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,public_path` +
+                  `&id=eq.${contact.asking_for}`))?.[0]
+      : null;
 
-    if (recent?.length && det.is_answer !== false) {
+    if (open && open.status !== 'rejected') {
       const patch: Record<string, unknown> = {};
-      if (det.year && !recent[0].year) patch.year = det.year;
-      if (communityId && !recent[0].community_id) patch.community_id = communityId;
-      const note = [det.people, det.event_note].filter(Boolean).join(' · ');
-      if (note) patch.submitter_ref = `${recent[0].submitter_ref ?? waId} · ${note}`;
-      if (Object.keys(patch).length) {
-        await pg(`/tmz_photo?id=eq.${recent[0].id}`, { method: 'PATCH', body: JSON.stringify(patch) });
-      }
-      ch.trace('attached', { photo_id: recent[0].id, patch });
+      if (communityId && !open.community_id) patch.community_id = communityId;
+      if (det.year && !open.year) patch.year = det.year;
 
-      /* The answer is what a held photograph was waiting for. Screening has
-         already decided; publishIfReady will refuse anything it did not clear,
-         so an answer can place a photograph but never approve one. */
-      const live = await publishIfReady(recent[0].id, ch);
-      ch.trace(live ? 'published' : 'still held', { photo_id: recent[0].id });
-      await ch.reply(from, say(lang, live ? 'published' : 'saved'));
-    } else {
-      ch.trace('nothing waiting', { pending: recent?.length ?? 0 });
-      await ch.reply(from, say(lang, text.length < 4 ? 'hello' : 'nophoto'));
+      /* When the open question was "who?" or "what?", the answer IS the text —
+         a bare list of first names is not something the model reliably files
+         under "people", and "just a regular Tuesday" is not an event_note. */
+      if (contact.asking === 'people' && !open.people_text) {
+        patch.people_text = det.people || text;
+      } else if (det.people && !open.people_text) {
+        patch.people_text = det.people;
+      }
+      if (contact.asking === 'occasion' && !open.occasion_text) {
+        patch.occasion_text = det.event_note || text;
+      } else if (det.event_note && !open.occasion_text) {
+        patch.occasion_text = det.event_note;
+      }
+
+      if (Object.keys(patch).length) {
+        await pg(`/tmz_photo?id=eq.${open.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+        ch.trace('attached', { photo_id: open.id, patch });
+      }
+      const merged = { ...open, ...patch };
+      await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0);
+      return;
     }
+
+    /* Nothing waiting. A greeting gets a greeting; anything else, a nudge. */
+    const greeting = /^(hi|hello|hey|shalom|שלום|היי|הי|привет|здравствуйте|bonjour|salut|hallo|hola)\b/i.test(text)
+      || text.length < 4;
+    ch.trace('nothing waiting', { greeting });
+    await ch.reply(from, greeting ? say(spoken).hello : say(spoken).nophoto);
     return;
   }
 
   if (msg.type !== 'image') {
-    await ch.reply(from, say('en', 'nophoto'));
+    await ch.reply(from, say(contact?.lang ?? 'en').nophoto);
     return;
   }
 
-  // ---- an actual photograph ----
-  /* The whole automatic path lives below. It publishes without anyone looking
-     first, so every branch is written to fail towards NOT publishing: an
-     unreadable file, a screener that will not answer, a confidence below the
-     line, a picture with nobody in it — each of those holds the photograph
-     rather than letting it through. The only route to the public bucket is a
-     picture two independent passes agreed on, that we re-encoded ourselves,
-     and whose community and year we know. */
-
-  const contact = await contactOf(waId);
-  if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
-    ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
-    return;
-  }
-
+  // ======================================================================
+  // PHOTOGRAPH
+  // ======================================================================
   const allowed = await rpc('tmz_rate_take', {
     p_bucket: `wa:${from}`, p_limit: 40, p_window_seconds: 3600
   });
   if (allowed === false) { ch.trace('rate limited', { bucket: `wa:${from}` }); return; }
 
-  const caption = msg.image?.caption ?? '';
-  const lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : await recallLang(waId);
-  await remember(waId, {
-    lang, is_test: ch.isTest,
-    display_name: value?.contacts?.[0]?.profile?.name ?? null
-  });
+  const caption = (msg.image?.caption ?? '').trim();
+  const lang = caption && scriptOf(caption) !== 'en' ? scriptOf(caption) : (contact?.lang ?? 'en');
+  const firstEver = !contact;
+  await remember(waId, { lang, is_test: ch.isTest, display_name: displayName });
+
+  /* Fetching is OUR step, not theirs. If it fails, the sender did nothing
+     wrong, hears that plainly, and is not marked for it. */
+  let bytes: Uint8Array, mime: string;
+  try {
+    ({ bytes, mime } = await ch.fetchMedia(msg.image.id));
+    ch.trace('fetched', { bytes: bytes.length, declared_mime: mime });
+  } catch (e) {
+    ch.trace('fetch failed', { error: String(e).slice(0, 200) });
+    await ch.reply(from, say(lang).fetchfail);
+    return;
+  }
 
   let clean;
   try {
-    const { bytes, mime } = await ch.fetchMedia(msg.image.id);
-    ch.trace('fetched', { bytes: bytes.length, declared_mime: mime });
     clean = await sanitize(bytes);
     ch.trace('sanitised', {
       kind: clean.kind, out: `${clean.width}x${clean.height}`, resized: clean.resized,
-      phash: clean.phash, archive_bytes: clean.archiveBytes.length,
-      public_bytes: clean.publicBytes.length
+      phash: clean.phash, archive_bytes: clean.archiveBytes.length, public_bytes: clean.publicBytes.length
     });
   } catch (e) {
-    /* A file that will not survive being redrawn never reaches the model, the
-       storage bucket or the database. It is the cheapest refusal there is, and
-       the one that stops the whole class of "image" that is really something
-       else. */
-    const tooBig = e instanceof UnsafeFile && e.tooBig;
     const why = e instanceof UnsafeFile ? e.message : String(e);
+    const tooBig = e instanceof UnsafeFile && e.tooBig;
     ch.trace('refused at the door', { why, tooBig });
-    /* Only a content refusal is a strike. Sending a large photograph is not
-       an attempt to get something past the screener, and three of them should
-       not silence someone for a day. */
-    if (!tooBig) await strike(waId, ch.isTest);
-    await ch.reply(from, say(lang, tooBig ? 'toobig' : 'rejected'));
+    /* A large or unreadable file is a mishap, not an attempt. No strike. */
+    await ch.reply(from, refusalFor(lang, [why]));
     return;
   }
 
-  /* The same photograph arriving twice — forwarded round a family, or sent
-     again because the first reply was missed — is common enough that it has to
-     be cheap. The hash is of the decoded pixels, so a re-compressed copy still
-     collides. */
-  const dupe = await rpc('tmz_find_duplicate', { p_hash: clean.phash, p_max_distance: 4 })
-    .catch(() => null);
+  const dupe = await rpc('tmz_find_duplicate', { p_hash: clean.phash, p_max_distance: 4 }).catch(() => null);
   if (Array.isArray(dupe) ? dupe.length > 0 : Boolean(dupe)) {
     ch.trace('duplicate', { of: dupe });
-    await ch.reply(from, say(lang, 'dupe'));
+    await ch.reply(from, say(lang).dupe);
     return;
   }
 
-  // ---- screening, which is the gate ----
+  // ---- screening ----
   let verdict: Verdict;
   if (ch.forceVerdict) {
-    /* Two synthetic passes, so a forced run writes the same THREE moderation
-       rows a real one does. Without them the console exercised a one-row
-       insert and missed PGRST102 entirely — which is exactly how that bug
-       survived until a real screening ran. */
     verdict = {
       decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {},
       passes: [{ pass: 'assess', raw: null }, { pass: 'challenge', raw: null }],
@@ -794,84 +749,70 @@ async function handle(body: any, ch: Channel) {
   } else {
     try {
       verdict = await screen(toBase64(clean.archiveBytes), 'image/jpeg', {
-        model: GEMINI_MODEL, key: GEMINI_KEY,
-        minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+        model: GEMINI_MODEL, key: GEMINI_KEY, minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
       });
     } catch (e) {
-      /* Fail closed. The old behaviour — accept it, let a person decide — was
-         right when a person was going to decide. With nobody downstream,
-         "the screener is unavailable" has to mean "not published", or an
-         outage becomes an open door. */
       ch.trace('screening unavailable', { error: String(e).slice(0, 300) });
       verdict = holdBecause(`screening unavailable: ${String(e).slice(0, 200)}`);
     }
   }
   if (!AUTO_PUBLISH && verdict.decision === 'publish') {
-    verdict = { ...verdict, decision: 'hold',
-                reasons: ['auto-publish is switched off', ...verdict.reasons] };
+    verdict = { ...verdict, decision: 'hold', reasons: ['auto-publish is switched off', ...verdict.reasons] };
   }
   ch.trace('screened', {
     decision: verdict.decision, confidence: verdict.confidence,
     reasons: verdict.reasons, scores: verdict.scores, facts: verdict.facts
   });
 
-  // ---- record it ----
+  // ---- record ----
   const [submission] = await pg('/tmz_submission', {
     method: 'POST', prefer: 'return=representation',
     body: JSON.stringify([{
-      contributor_name: value?.contacts?.[0]?.profile?.name ?? null,
-      contributor_note: caption || null,
+      contributor_name: displayName, contributor_note: caption || null,
       source: 'whatsapp', ip_hash: waId, consented: true, is_test: ch.isTest, lang
     }])
   });
-
   const key = `${new Date().getFullYear()}/wa-${submission.id}.jpg`;
   const derivedKey = `derived/${key}`;
   await putObject('tmz-photo-originals', key, clean.archiveBytes);
   await putObject('tmz-photo-originals', derivedKey, clean.publicBytes);
 
-  /* Community and year come from the caption first, then from what this sender
-     already told us. Someone emptying a shoebox says "Memphis, 2003" once. */
   const placed = await placeFrom(caption, contact, ch);
+
+  /* A caption that names people or an occasion is already an answer. */
+  let captionPeople: string | null = null, captionOccasion: string | null = null;
+  if (caption && GEMINI_KEY) {
+    try {
+      const d = await parseDetails(caption, await communityList());
+      captionPeople = d.people || null; captionOccasion = d.event_note || null;
+    } catch { /* the questions will ask */ }
+  }
 
   const [photo] = await pg('/tmz_photo', {
     method: 'POST', prefer: 'return=representation',
     body: JSON.stringify([{
       storage_path: key, derived_path: derivedKey,
-      width: clean.width, height: clean.height, bytes: clean.archiveBytes.length,
-      phash: clean.phash,
+      width: clean.width, height: clean.height, bytes: clean.archiveBytes.length, phash: clean.phash,
       community_id: placed.community_id, year: placed.year,
-      event_type_id: verdict.facts.event_type || null,
-      venue: verdict.facts.setting || null,
+      people_text: captionPeople, occasion_text: captionOccasion,
+      event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null,
       status: verdict.decision === 'reject' ? 'rejected' : 'pending',
-      agent_decision: verdict.decision,
-      /* A hold can only mean the screener was unreachable, so it is the one
-         thing worth coming back to. */
-      needs_rescreen: verdict.decision === 'hold',
+      agent_decision: verdict.decision, needs_rescreen: verdict.decision === 'hold',
       source: 'whatsapp', submission_id: submission.id, submitter_ref: waId
     }])
   });
 
   await pg('/tmz_moderation', {
     method: 'POST',
-    /* Every object in a PostgREST bulk insert must carry the SAME KEYS — it
-       builds one INSERT from the first row's shape and rejects the rest with
-       "All object keys must match". The per-pass rows had no `decision` and
-       the final row did, so the whole insert failed the moment real screening
-       produced passes to record. It stayed hidden while the model was over
-       quota, because then there are no passes and the array has one row. */
     body: JSON.stringify([
       ...verdict.passes.map(p => ({
         photo_id: photo.id, model: GEMINI_MODEL, pass: p.pass,
-        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending',
-        decision: null,
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: null,
         scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
       })),
       {
-        photo_id: photo.id, model: ch.forceVerdict ? 'forced (test console)' : GEMINI_MODEL,
-        pass: 'final',
-        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending',
-        decision: verdict.decision,
+        photo_id: photo.id, model: ch.forceVerdict ? 'forced (test console)' : GEMINI_MODEL, pass: 'final',
+        verdict: verdict.decision === 'reject' ? 'rejected' : 'pending', decision: verdict.decision,
         scores: verdict.scores ?? {}, reasons: verdict.reasons ?? []
       }
     ])
@@ -879,100 +820,54 @@ async function handle(body: any, ch: Channel) {
 
   if (verdict.decision === 'reject') {
     ch.trace('rejected', { photo_id: photo.id, reasons: verdict.reasons });
-    /* "Nobody in the picture" is a refusal about SCOPE, not about content, and
-       must not be dressed as one. A photograph of a beit midrash, a sefer, a
-       building — the sender has done nothing wrong and there is no human to
-       appeal to, so the reply says what the archive collects instead. It is
-       also not a strike. */
-    const scope = verdict.reasons.some(r => r.startsWith('nobody in the picture'));
-    if (!scope) await strike(waId, ch.isTest);
-    await ch.reply(from, say(lang, scope ? 'nopeople' : 'rejected'));
+    /* Harm is a strike. Scope ("nobody in it") and uncertainty are not — the
+       sender did nothing wrong and should not be silenced for it. */
+    const text = verdict.reasons.join(' ').toLowerCase();
+    const harm = /sexual|violence|injur|advert|promot|screenshot|meme|document|private/.test(text)
+      || verdict.reasons.some(r => /scored \d+/.test(r));
+    if (harm) await strike(waId, ch.isTest);
+    await ch.reply(from, refusalFor(lang, verdict.reasons, verdict.scores as Record<string, number>));
     return;
   }
 
+  await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1 });
+  const prefix = firstEver ? say(lang).welcome + '\n\n' : '';
+  await continueConversation(waId, from, photo, lang, ch, false, prefix + say(lang).got + ' ');
+}
+
+/* ---- the conversation ----------------------------------------------------- */
+
+const ASK_ORDER: Array<'community' | 'year' | 'people' | 'occasion'> =
+  ['community', 'year', 'people', 'occasion'];
+
+/* Asks for the next thing the photograph is missing, or — when nothing is —
+   publishes it and says so. One question per message: a person who has just
+   found a shoebox will answer one thing gladly and four things not at all. */
+async function continueConversation(
+  waId: string, from: string, photo: any, lang: string, ch: Channel,
+  answerWasEmpty: boolean, lead = ''
+) {
+  const missing = ASK_ORDER.find(k => {
+    if (k === 'community') return !photo.community_id;
+    if (k === 'year') return !photo.year;
+    if (k === 'people') return !photo.people_text;
+    return !photo.occasion_text;
+  });
+
+  if (missing) {
+    await remember(waId, { asking: missing, asking_for: photo.id });
+    const s = say(lang);
+    const head = answerWasEmpty ? s.unclear : (lead || (photo.people_text || photo.year ? s.noted : ''));
+    ch.trace('asking', { photo_id: photo.id, for: missing });
+    await ch.reply(from, head + s.ask[missing]);
+    return;
+  }
+
+  await remember(waId, { asking: null, asking_for: null });
   const live = await publishIfReady(photo.id, ch);
-  ch.trace(live ? 'published' : 'held', {
-    photo_id: photo.id, community_id: placed.community_id, year: placed.year,
-    decision: verdict.decision
-  });
-  await ch.reply(from, say(lang, live ? 'published' : 'got'));
-}
-
-/* ---- the backlog ---------------------------------------------------------- */
-
-const RESCREEN_PER_MESSAGE = 3;
-const RESCREEN_MAX_ATTEMPTS = 5;
-
-async function drainBacklog(ch: Channel) {
-  if (!GEMINI_KEY) return;
-  let waiting;
-  try {
-    waiting = await pg(
-      `/tmz_photo?select=id,storage_path,community_id,year,rescreen_attempts` +
-      `&needs_rescreen=is.true&rescreen_attempts=lt.${RESCREEN_MAX_ATTEMPTS}` +
-      `&order=created_at.asc&limit=${RESCREEN_PER_MESSAGE}`);
-  } catch (e) { console.error('backlog', e); return; }
-  if (!waiting?.length) return;
-
-  ch.trace('backlog', { waiting: waiting.length });
-  for (const p of waiting) {
-    try { await rescreen(p, ch); }
-    catch (e) { console.error('rescreen', p.id, e); }
-  }
-}
-
-/* The same judgement the photograph would have had on arrival, made now that
-   the screener is answering. The bytes come back from the private bucket — the
-   sanitised master, so nothing unsafe is being re-read. */
-async function rescreen(p: any, ch: Channel) {
-  const res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${p.storage_path}`,
-    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
-  if (!res.ok) throw new Error(`fetch master ${res.status}`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-
-  let verdict: Verdict;
-  try {
-    verdict = await screen(toBase64(bytes), 'image/jpeg', {
-      model: GEMINI_MODEL, key: GEMINI_KEY,
-      minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
-    });
-  } catch (e) {
-    /* Still unreachable. Count the attempt and leave it for next time; after
-       RESCREEN_MAX_ATTEMPTS it stops being retried and shows in the backlog
-       view as one the screener never answered for. */
-    await pg(`/tmz_photo?id=eq.${p.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ rescreen_attempts: (p.rescreen_attempts ?? 0) + 1 })
-    });
-    ch.trace('rescreen deferred', { photo_id: p.id, attempts: (p.rescreen_attempts ?? 0) + 1 });
-    return;
-  }
-
-  const decided = verdict.decision === 'hold' ? 'reject' : verdict.decision;
-  await pg(`/tmz_photo?id=eq.${p.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      agent_decision: decided,
-      needs_rescreen: false,
-      rescreen_attempts: (p.rescreen_attempts ?? 0) + 1,
-      status: decided === 'reject' ? 'rejected' : 'pending',
-      event_type_id: verdict.facts.event_type || null,
-      venue: verdict.facts.setting || null
-    })
-  });
-  await pg('/tmz_moderation', {
-    method: 'POST',
-    body: JSON.stringify([{
-      photo_id: p.id, model: GEMINI_MODEL, pass: 'final', decision: decided,
-      verdict: decided === 'reject' ? 'rejected' : 'pending',
-      scores: verdict.scores ?? {},
-      reasons: ['screened on a later attempt', ...(verdict.reasons ?? [])]
-    }])
-  });
-
-  const live = decided === 'publish' ? await publishIfReady(p.id, ch) : false;
-  ch.trace('rescreened', { photo_id: p.id, decision: decided, published: live });
+  ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
+  const s = say(lang);
+  await ch.reply(from, lead + (live ? s.complete : s.completeHeld) + s.more);
 }
 
 /* ---- placement ----------------------------------------------------------- */
