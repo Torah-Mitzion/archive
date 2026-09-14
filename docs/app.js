@@ -310,13 +310,21 @@ function drawBand() {
      a query per selection, and the year screen already fetches them — so the
      band carries the community's own span instead, which is always true. */
   const h = TMZApi.historyFrom(c);
-  const holes = h.holes === 0 ? t('band.covered')
-    : num(h.holes) + ' ' + esc(h.holes === 1 ? t('band.emptyOne') : t('band.empty'));
+  /* "30 years still empty" over a 31-year span read as a bug; both numbers
+     have to be on the screen for the count to make sense. */
+  const holes = h.holes === 0 ? esc(t('band.covered'))
+    : esc(t('band.emptyOf')).replace('{n}', num(h.holes)).replace('{total}', num(h.rows.length));
 
-  const bars = h.rows.map(o =>
-    `<div class="yb"><div class="bar${o.n === 0 ? ' hole' : ''}" style="height:${
+  /* A year that holds photographs is a door to its page; an empty one is
+     only a mark on the axis. */
+  const bars = h.rows.map(o => {
+    const inner = `<div class="bar${o.n === 0 ? ' hole' : ''}" style="height:${
       o.n === 0 ? 13 : Math.max(4, Math.round(o.n / h.peak * 46))}px"></div>
-     <span class="yl">${o.year % 5 === 0 ? String(o.year).slice(2) : ''}</span></div>`).join('');
+     <span class="yl">${o.year % 5 === 0 ? String(o.year).slice(2) : ''}</span>`;
+    return o.n > 0
+      ? `<a class="yb has" href="#/c/${esc(c.id)}/${o.year}" title="${o.year} · ${o.n}">${inner}</a>`
+      : `<div class="yb">${inner}</div>`;
+  }).join('');
 
   $('#band').innerHTML = `
     <div class="band-id">
@@ -324,7 +332,7 @@ function drawBand() {
         <span class="rg">${esc(t('region.' + c.rg))}</span><span class="sep"></span>
         <span class="st">${c.c ? esc(t('st.closed')) + ' ' + num(c.c) : esc(t('st.open'))}</span>
       </div>
-      <h2>${esc(tf(c.name))}</h2>
+      <h2><a href="#/c/${esc(c.id)}">${esc(tf(c.name))}</a></h2>
       <p class="band-span dim"><span dir="ltr">${c.f}&ndash;${c.c || ' '}</span>
         &middot; <span dir="ltr">${(c.c || 2026) - c.f + 1}</span> ${esc(t('u.years')).toLowerCase()}</p>
     </div>
@@ -446,8 +454,12 @@ async function communityView(id, year) {
       </div>
     </section>`;
 
+  /* On a maximized desktop the page is two columns under the rail — the
+     people on one side, the photographs on the other, each scrolling on its
+     own — so nothing is ever below the fold. Everywhere else the wrappers
+     are plain blocks and the page reads top to bottom as before. */
   return `
-  <div class="cv">
+  <div class="cv year">
     <div class="crumb">
       <a href="#/">&larr; ${esc(t('cta.back'))}</a><span class="sep"></span>
       <span>${esc(tf(c.name))}</span>
@@ -457,6 +469,8 @@ async function communityView(id, year) {
     <div class="rail" id="rail">${rail}</div>
     <div class="rail-mark"></div>
 
+    <div class="yr-cols">
+    <div class="yr-left">
     <div class="yhead">
       <div>
         <span class="eyebrow">${esc(tf(c.name))} &middot; ${esc(t('region.' + c.rg))} &middot; ${esc(t('yr.yearN'))} <span dir="ltr">${yr - c.f + 1}</span></span>
@@ -474,7 +488,11 @@ async function communityView(id, year) {
 
     ${roshBlock}
     ${cohortBlock}
+    </div>
+    <div class="yr-right">
     ${photoBlock}
+    </div>
+    </div>
   </div>`;
 }
 
@@ -492,12 +510,15 @@ function contributeView() {
     .map(c => `<option value="${esc(c.id)}">${esc(tf(c.name))}</option>`).join('');
   return `
   <div class="cn">
-    <span class="eyebrow gold">${esc(t('cta.add'))}</span>
-    <h1>${esc(t('con.title'))}</h1>
-    <p class="lede">${esc(t('con.lede'))}</p>
+    <div class="cn-head">
+      <span class="eyebrow gold">${esc(t('cta.add'))}</span>
+      <h1>${esc(t('con.title'))}</h1>
+      <p class="lede">${esc(t('con.lede'))}</p>
+    </div>
 
     <div id="upResult"></div>
 
+    <div class="cn-cols">
     <label class="drop" id="drop">
       <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/heic" hidden>
       <div id="dropIdle">
@@ -509,6 +530,7 @@ function contributeView() {
       <div id="dropPreview" hidden></div>
     </label>
 
+    <div class="cn-form">
     <div class="fields">
       <label><span>${esc(t('con.f1'))}</span>
         <select id="u_comm"><option value="">—</option>${opts}</select></label>
@@ -536,6 +558,8 @@ function contributeView() {
     <button class="btn-gold big" id="u_send" disabled>${esc(t('cta.send'))}</button>
     ${WHATSAPP_NUMBER ? `<p class="wa">${esc(t('con.wa'))} &mdash;
       <a dir="ltr" href="https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}">${esc(WHATSAPP_NUMBER)}</a></p>` : ''}
+    </div>
+    </div>
   </div>`;
 }
 
@@ -667,16 +691,16 @@ function communitiesView() {
         </a>`).join('')}</div>
     </section>`;
   };
-  return `<div class="cv idx">
+  return `<div class="cv idx communities">
     <span class="eyebrow gold">${esc(t('nav.communities'))}</span>
     <h1>${esc(t('idx.title'))}</h1>
     <p class="lede">${esc(t('idx.sub'))}</p>
-    ${regions.map(block).join('')}
+    <div class="idx-grid">${regions.map(block).join('')}</div>
   </div>`;
 }
 
 function shlichimView() {
-  return `<div class="cv idx">
+  return `<div class="cv idx shlichim">
     <span class="eyebrow gold">${esc(t('nav.shlichim'))}</span>
     <h1>${esc(t('sh.title'))}</h1>
     <p class="lede">${esc(t('sh.sub'))}</p>
