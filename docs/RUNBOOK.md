@@ -177,6 +177,15 @@ a real one is accepted and placed.
   without which it has no page). Never more than once per photograph, never
   to a blocked or test sender.
 
+## 7a½. Share pages
+
+A link to one photograph is `https://30.torahmitzion.org/p/<id>.html` — a
+static page in the site's repository whose preview image is the photograph.
+Give the functions a fine-grained GitHub token (contents: read/write on
+`Torah-Mitzion/archive`) as the secret `GITHUB_TOKEN` and they commit the
+page the moment a photograph is published; the watchdog fills in any it
+missed. Without the token, run `node scripts/share-pages.mjs` and push.
+
 ## 7b. Arm the watchdog
 
 The sweep runs every two minutes from `pg_cron` and needs its URL (with the

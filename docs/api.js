@@ -148,4 +148,9 @@ async function searchPhotoPeople(q, lang) {
   return await rpc('tmz_photo_people_search', { q, want: lang, lim: 40 }) || [];
 }
 
-window.TMZApi = { loadMap, loadYear, loadTeaser, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };
+async function loadOverview(slug, lang) {
+  const o = await rpc('tmz_community_overview', { community_slug: slug, want: lang });
+  return { roshei: (o?.roshei || []), people: o?.people || 0 };
+}
+
+window.TMZApi = { loadMap, loadYear, loadTeaser, loadOverview, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };

@@ -9,7 +9,7 @@
   --gold: #E8C87D; --gold-lo: #CDBB96; --gold-hi: #FBEFCF; --warn: #C08FD0;
   --serif: 'Frank Ruhl Libre','PT Serif','Times New Roman',serif;
   --sans: 'Heebo','PT Sans','Helvetica Neue',Arial,sans-serif;
-  --mast: 66px; --band: 172px;
+  --mast: 66px; --band: 132px;
 }
 /* Frank Ruhl Libre reads dated in Hebrew. In the Hebrew interface every display
    face is Heebo (300 where the serif was 300, 400/500 for headings); the Latin
@@ -136,6 +136,8 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 .hero-copy { display: flex; flex-direction: column; gap: 9px; padding-top: 2px; min-width: 0; }
 .verse { margin: 0; font-family: var(--sans); font-weight: 500; font-size: 25px; }
 /* Wide enough for the sentence to sit on two lines at 1920, not three. */
+.hero-cta { font-size: 13.5px; color: var(--gold); pointer-events: auto; }
+.hero-cta:hover { color: var(--gold-hi); }
 .lede { margin: 0; max-width: 560px; font-size: 15.5px; font-weight: 300; line-height: 1.65;
         color: var(--muted); text-wrap: pretty; }
 .hero-stats { display: flex; gap: clamp(18px,3vw,38px); flex: 0 0 auto; }
@@ -146,69 +148,36 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 .stat .k { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--dim2); }
 [dir="rtl"] .stat .k { letter-spacing: 0; text-transform: none; font-size: 13px; }
 
-/* Stays on the LEFT in every language: it sits where the MAP is empty, and the
-   empty water is in the Pacific whichever way you read. */
-/* Starts just under the hero and stops above the band, whatever the height:
-   at 800px tall the region list used to run under the band. */
-/* A panel, not text floating on the water: in Hebrew the region names used to
-   land straight on the North-American dots. It hugs its rows and is capped at
-   the band; anything past the cap scrolls behind a fade. */
-.side { position: absolute; left: clamp(16px,3vw,40px); top: max(160px, 34%);
-        max-height: calc(100% - max(160px, 34%) - var(--band) - 8px);
-        width: 244px; z-index: 20; overflow-y: auto; scrollbar-width: none; padding: 14px 16px;
-        background: rgba(8,13,25,.86); backdrop-filter: blur(10px);
-        border: 1px solid rgba(232,200,125,.12); border-radius: 3px; }
-.side::-webkit-scrollbar { display: none; }
-.side::after { content: ""; display: block; position: sticky; bottom: 0; height: 20px; margin-top: -20px;
-               pointer-events: none; background: linear-gradient(to bottom, rgba(8,13,25,0), rgba(8,13,25,.9)); }
-.zoomout { display: flex; align-items: center; gap: 9px; width: 100%; margin-bottom: 16px;
-           padding: 9px 12px; border: 1px solid rgba(232,200,125,.32); border-radius: 2px;
-           background: rgba(232,200,125,.1); color: var(--gold); font-size: 14.5px;
-           font-weight: 500; letter-spacing: .06em; text-align: start; }
-.zoomout:hover { background: rgba(232,200,125,.2); border-color: rgba(232,200,125,.7); }
-/* One wrapped line, not a column: the panel has to fit between the hero and
-   the band on an 800px-tall screen. */
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 16px; }
-.lg { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 300;
-      letter-spacing: .1em; color: var(--muted); }
-[dir="rtl"] .lg { letter-spacing: 0; font-size: 14.5px; }
-.lg .s { flex: 0 0 auto; border-radius: 50%; }
-.lg .s.open { width: 6.5px; height: 6.5px; background: var(--gold); box-shadow: 0 0 10px rgba(232,200,125,.6); }
-.lg .s.alum { width: 6px; height: 6px; border: 1px solid #5A7096; }
-.lg .s.clus { width: 13px; height: 13px; border: 1px solid rgba(232,200,125,.5); background: rgba(232,200,125,.1); }
-.flyto { font-size: 11px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase;
-         color: var(--dim); padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1); }
-[dir="rtl"] .flyto { letter-spacing: 0; text-transform: none; font-size: 13px; }
-.rgn { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%;
-       padding: 6px 0; font-size: 14px; font-weight: 300; letter-spacing: .08em; color: var(--dim2);
-       border-bottom: 1px solid rgba(255,255,255,.05); text-align: start; }
-[dir="rtl"] .rgn { letter-spacing: 0; font-size: 15.5px; }
+/* The regions row: one line of words at the foot of the map, on the ocean. */
+.regions { position: absolute; inset-inline: 0; bottom: calc(var(--band) + 10px); z-index: 20;
+           display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px;
+           padding: 0 clamp(16px,3vw,40px); pointer-events: none; }
+.regions > * { pointer-events: auto; }
+.rgn { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 400; letter-spacing: .04em;
+       color: var(--muted); border: 1px solid transparent; text-shadow: 0 0 8px rgba(7,11,22,.9); }
 .rgn:hover { color: var(--gold-lo); }
-.rgn.on { color: var(--ivory); }
-.rgn .n { font-family: var(--serif); font-size: 15.5px; color: var(--dim); }
-.rgn.on .n { color: var(--gold); }
-/* The map is the landing page, so the mockup notice has to live here — it is the
-   only thing a visitor is guaranteed to see. */
-.side-note { margin: 18px 0 0; font-size: 12px; font-weight: 300; line-height: 1.7;
-             color: var(--dim); text-wrap: pretty; }
-.side-note a { color: var(--dim2); border-bottom: 1px solid rgba(147,161,189,.3); }
-.side-note a:hover { color: var(--gold); }
+.rgn.on { color: var(--ivory); border-color: rgba(232,200,125,.35); background: rgba(8,13,25,.7); }
+.rgn.out { color: var(--gold); }
+.legend-mini { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 14px; font-size: 12px;
+               color: var(--dim2); text-shadow: 0 0 8px rgba(7,11,22,.9); }
+.legend-mini .s { width: 6px; height: 6px; border-radius: 50%; }
+.legend-mini .s.open { background: var(--gold); box-shadow: 0 0 8px rgba(232,200,125,.6); }
+.legend-mini .s.alum { border: 1px solid #5A7096; }
 
-/* The bottom padding lifts the chart and the button clear of the credit that
-   sits absolutely in the band's last 40px. */
-.band { position: absolute; inset-inline: 0; bottom: 0; height: var(--band); z-index: 30;
-        display: flex; align-items: center; gap: clamp(16px,3vw,34px);
-        padding: 0 clamp(16px,3vw,40px) 34px; background: rgba(8,13,25,.93);
-        border-top: 1px solid rgba(232,200,125,.16); backdrop-filter: blur(16px); }
-.band-id { flex: 0 0 244px; display: flex; flex-direction: column; gap: 7px; }
-.band-meta { display: flex; align-items: center; gap: 9px; }
-.band-meta .rg { font-size: 11px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--dim2); }
-.band-meta .st { font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
-[dir="rtl"] .band-meta .rg, [dir="rtl"] .band-meta .st { letter-spacing: 0; text-transform: none; font-size: 13px; }
-.band-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--gold); }
-.band-id h2 { font-family: var(--serif); font-size: 32px; line-height: 1; }
-.band-id h2 a { color: inherit; }
-.band-id h2 a:hover { color: var(--gold-hi); }
+/* The strip: photographs on one side, the selected community on the other. */
+.strip { position: absolute; inset-inline: 0; bottom: 0; height: var(--band); z-index: 30;
+         display: flex; align-items: center; gap: clamp(16px,3vw,34px);
+         padding: 0 clamp(16px,3vw,40px) 26px; background: rgba(8,13,25,.93);
+         border-top: 1px solid rgba(232,200,125,.16); backdrop-filter: blur(16px); }
+.strip-photos { flex: 1 1 auto; min-width: 0; display: flex; gap: 10px; overflow: hidden; }
+.strip-photos .teaser-it { flex: 0 0 auto; width: 96px; aspect-ratio: 4 / 3; }
+.strip-empty { font-size: 13px; }
+.strip-sel { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; color: var(--ivory); text-align: end; }
+.strip-name { font-family: var(--serif); font-size: 30px; line-height: 1; }
+.strip-sel:hover .strip-name { color: var(--gold-hi); }
+.strip-meta { font-size: 13px; color: var(--dim2); }
+.strip-meta b { font-weight: 500; color: var(--gold); }
+
 .rosh { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 13px;
         font-weight: 300; line-height: 1.45; color: var(--muted); }
 .rosh .av { flex: 0 0 auto; width: 27px; height: 27px; border-radius: 50%; background: #1A2740;
@@ -362,16 +331,12 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
   /* A fixed aspect, not a share of the screen height: the projection fills
      whatever box it is given, and 58vh on a phone squashed the world tall. */
   .stage { position: relative; order: 2; height: auto; aspect-ratio: 5 / 4; max-height: 62vh; inset: auto; }
-  .band { position: static; order: 3; height: auto; flex-wrap: wrap; padding: 20px clamp(16px,3vw,40px) 26px; }
-  .teaser { order: 4; }
-  .side { position: static; order: 5; width: auto; max-height: none; overflow: visible;
-          padding: 22px clamp(16px,3vw,40px) 28px;
-          background: none; border: 0; border-radius: 0; backdrop-filter: none; }
-  .side::after { display: none; }
+  .regions { position: static; order: 3; padding: 10px clamp(16px,3vw,40px); }
+  .strip { position: static; order: 4; height: auto; flex-wrap: wrap; padding: 16px clamp(16px,3vw,40px) 22px; }
+  .strip-photos { flex-basis: 100%; overflow-x: auto; padding-bottom: 6px; }
+  .strip-sel { flex-basis: 100%; text-align: start; }
   body[data-route="map"] { overflow: auto; }
   body[data-route="map"] .chat { bottom: 12px; }
-  .band-id { flex-basis: 100%; }
-  .band-chart { flex-basis: 100%; }
 }
 @media (max-width: 620px) {
   .lbl { font-size: 10px; letter-spacing: .1em; }
@@ -436,20 +401,9 @@ body[data-route="map"]:has(.site-banner) .map-wrap {
 
 /* ---- teaser: a few photographs on the landing map ------------------------ */
 
-.teaser { position: absolute; right: clamp(16px,3vw,40px); top: 128px;
-          bottom: calc(var(--band) + 18px); width: 156px; z-index: 20;
-          display: flex; flex-direction: column; gap: 6px; direction: ltr; }
-[dir="rtl"] .teaser { direction: rtl; }
-.teaser-sub { margin: 0 0 6px; font-size: 12.5px; font-weight: 300; line-height: 1.55; color: var(--dim2);
-              text-wrap: pretty; }
-.teaser-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
-               overflow: hidden; min-height: 0;
-               mask-image: linear-gradient(to bottom, #000 82%, transparent); }
 .teaser-it { position: relative; display: block; aspect-ratio: 1; overflow: hidden; border-radius: 2px;
              background: var(--card); border: 1px solid rgba(255,255,255,.1);
              box-shadow: 0 6px 18px rgba(0,0,0,.45); transition: transform .25s, border-color .25s; }
-.teaser-it:nth-child(odd) { transform: rotate(-1.6deg); }
-.teaser-it:nth-child(even) { transform: rotate(1.4deg) translateY(3px); }
 .teaser-it:hover { transform: scale(1.08) rotate(0); border-color: rgba(232,200,125,.7); z-index: 1; }
 .teaser-it img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .teaser-cap { position: absolute; inset-inline: 0; bottom: 0; padding: 14px 6px 5px; display: flex;
@@ -614,7 +568,7 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
   .foot .credit-logo { width: 22px; height: 22px; }
 
   /* year page: the people on the left, the photographs on the right */
-  .cv .yr-cols { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 42fr 58fr; gap: 0 36px; }
+  .cv .yr-cols { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 58fr 42fr; gap: 0 36px; }
   /* The floating buttons sit over the bottom corner; the scrolling columns
      carry enough bottom padding that their last rows can scroll clear of them. */
   .yr-left { min-height: 0; overflow-y: auto; padding-bottom: 130px; scrollbar-width: thin; }
@@ -672,16 +626,6 @@ body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
   .idx-grid .idx-n { grid-column: 2; }
 }
 
-/* Short screens (a laptop at 768–850px tall): the region list is the one
-   thing on the map that has a fixed number of rows, so it tightens first. */
-@media (min-width: 901px) and (max-height: 880px) {
-  .side { top: max(150px, 28%); max-height: calc(100% - max(150px, 28%) - var(--band) - 8px); padding: 10px 14px; }
-  .rgn { padding: 4px 0; font-size: 13px; }
-  .legend { margin-bottom: 10px; }
-  .flyto { padding-bottom: 5px; }
-  .side-note { margin-top: 10px; }
-  .side-note .credit { font-size: 11px; }
-}
 
 /* names under a photograph, and photographs found by name */
 .photo .names { display: block; font-size: 13px; color: var(--gold-hi); margin-bottom: 4px; line-height: 1.35;
@@ -750,3 +694,33 @@ body.lb-open .chat { display: none; }
 .lb-pop a:hover, .lb-pop button:hover { background: rgba(232,200,125,.14); color: var(--gold-hi); }
 .lb-pop svg { flex: 0 0 auto; color: var(--gold); }
 .lb-pop .lb-copy.done { color: var(--gold); }
+
+/* ---- community overview, year page header ------------------------------- */
+
+.crumb-link { font-size: 13.5px; color: var(--muted); }
+.crumb-link:hover { color: var(--gold); }
+.ov .ov-head h1 { font-family: var(--serif); font-size: clamp(34px,5vw,54px); font-weight: 300; line-height: 1; margin: 6px 0 8px; }
+.ov-years { margin-top: 26px; }
+.ybars { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-top: 24px; }
+.ybar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+        gap: 6px; color: var(--dim); border-radius: 3px; padding: 4px 0; }
+.ybar-n { font-family: var(--serif); font-size: 13px; color: var(--gold); min-height: 16px; }
+.ybar-bar { width: 100%; max-width: 22px; border-radius: 2px 2px 0 0; background: rgba(123,95,134,.35); }
+.ybar.has .ybar-bar { background: var(--gold); box-shadow: 0 0 14px rgba(232,200,125,.35); }
+.ybar-y { font-size: 11px; letter-spacing: .06em; }
+.ybar:hover { background: rgba(232,200,125,.08); color: var(--ivory); }
+.ybar.has:hover .ybar-bar { background: var(--gold-hi); }
+.ov-roshei { margin-top: 30px; }
+.ov .card { color: inherit; }
+.ov .card:hover .pn { color: var(--gold-hi); }
+.year .yhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 18px 0 0; }
+.year .yhead-l { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.year .yhead h1 { font-family: var(--serif); font-size: clamp(30px,4vw,42px); font-weight: 300; line-height: 1; margin: 0; }
+.year .yhead-meta { font-size: 14px; color: var(--dim2); }
+.year .rail { padding: 14px 0 4px; }
+.year .empty-year h3 { font-size: clamp(24px,3vw,34px); }
+@media (max-width: 620px) {
+  .ybars { height: 110px; gap: 2px; }
+  .ybar-y { display: none; }
+  .ybar:nth-child(5n+1) .ybar-y { display: block; }
+}

@@ -54,7 +54,14 @@ function shell() {
         </button>
         <div class="lang-menu" id="langMenu" hidden>${langs}</div>
       </div>
-      <a class="btn-gold" href="#/contribute">${esc(t('cta.add'))}</a>
+      <div class="addpick">
+        <button class="btn-gold" id="addBtn" aria-haspopup="true" aria-expanded="false">${esc(t('cta.add'))}
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4l3 3 3-3"/></svg></button>
+        <div class="add-menu" id="addMenu" hidden>
+          <a href="#/contribute">${esc(t('add.site'))}</a>
+          <a href="https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}" target="_blank" rel="noopener">${esc(t('add.wa'))}</a>
+        </div>
+      </div>
     </nav>
   </header>`;
 }
@@ -87,6 +94,11 @@ function footer() {
 function wireShell() {
   const here = parseRoute().name;
   document.querySelectorAll('.nav [data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === here));
+  const ab = $('#addBtn'), am = $('#addMenu');
+  if (ab) {
+    ab.onclick = e => { e.stopPropagation(); const open = !am.hidden; am.hidden = open; ab.setAttribute('aria-expanded', String(!open)); };
+    document.addEventListener('click', () => { if (am) am.hidden = true; }, { once: true });
+  }
   const btn = $('#langBtn'), menu = $('#langMenu');
   if (btn) {
     btn.onclick = e => {
@@ -120,39 +132,65 @@ function mapView() {
         <span class="vrule"></span>
         <div class="hero-copy">
           <p class="verse">${VERSE}</p>
-          <p class="lede">${esc(t('hero.line'))} ${esc(t('hero.sub'))}</p>
+          <p class="lede">${esc(t('hero.line'))}</p>
+          <a class="hero-cta" href="#/contribute">${esc(t('hero.cta'))}</a>
         </div>
       </div>
       <div class="hero-stats" id="heroStats"></div>
     </div>
 
-    <aside class="side" id="side"></aside>
-    <aside class="teaser" id="teaser" hidden></aside>
-    <div class="band" id="band"></div>
+    <div class="regions" id="regions" dir="ltr"></div>
+    <div class="strip" id="strip"></div>
   </div>`;
 }
 
-/* A handful of the photographs already in, drawn at random on every visit,
-   each one a door to its year. Fetched after the map is up so it never
-   delays it, and simply absent while the archive is empty. */
-async function drawTeaser() {
-  const box = $('#teaser');
+/* The one row of words under the map: where to fly, and what the dots mean.
+   It sits on the ocean, below every continent, which is the one place a
+   panel never covered anything. */
+function drawRegions(views) {
+  const zoomed = view.zoom !== 'world' || view.custom;
+  const rows = ['world', ...STATE.regions.map(r => r.id)].filter(k => views[k]).map(k =>
+    `<button class="rgn${view.zoom === k ? ' on' : ''}" data-view="${k}">${esc(t(views[k].key))}</button>`).join('');
+  $('#regions').innerHTML = `
+    ${zoomed ? `<button class="rgn out" id="zoomOut">&larr; ${esc(t('fly.out'))}</button>` : ''}
+    ${rows}
+    <span class="legend-mini"><span class="s open"></span><span class="s alum"></span>${esc(t('legend.short'))}</span>`;
+  $('#regions').querySelectorAll('[data-view]').forEach(b => {
+    b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
+  });
+  const zo = $('#zoomOut');
+  if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
+}
+
+/* The strip along the bottom: a few photographs from the album on one side,
+   the selected community on the other. No chart — the years belong to the
+   community's own page. */
+let teaserItems = null;
+async function drawStrip() {
+  if (teaserItems === null) {
+    try { teaserItems = await TMZApi.loadTeaser(6, LANG); } catch (e) { console.error('teaser', e); teaserItems = []; }
+  }
+  const box = $('#strip');
   if (!box) return;
-  let items;
-  try { items = await TMZApi.loadTeaser(8, LANG); } catch (e) { console.error('teaser', e); return; }
-  if (!$('#teaser') || !items.length) return;
-  box.hidden = false;
+  const c = findCommunity(view.sel);
+  const h = c ? TMZApi.historyFrom(c) : null;
   box.innerHTML = `
-    <span class="eyebrow gold">${esc(t('teaser.title'))}</span>
-    <p class="teaser-sub">${esc(t('teaser.sub'))}</p>
-    <div class="teaser-list">${items.map(p => `
-      <a class="teaser-it" href="#/c/${esc(p.community)}/${p.year}"
+    <div class="strip-photos">${teaserItems.map(p => `
+      <a class="teaser-it" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}"
          title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
         <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name)}" loading="lazy">
         <span class="teaser-cap"><b>${esc(p.community_name)}</b><span dir="ltr">${p.year}</span></span>
       </a>`).join('')}
-    </div>`;
-  if (parseRoute().name === 'map') drawMap();
+      ${teaserItems.length ? '' : `<span class="dim strip-empty">${esc(t('banner.empty'))}</span>`}
+    </div>
+    ${c ? `
+    <a class="strip-sel" href="#/c/${esc(c.id)}">
+      <span class="eyebrow">${esc(t('region.' + c.rg))} &middot; ${esc(c.c ? t('st.closed') + ' ' + c.c : t('st.open'))}</span>
+      <span class="strip-name">${esc(tf(c.name))}</span>
+      <span class="strip-meta"><span dir="ltr">${c.f}&ndash;${c.c || ''}</span> &middot; ${num(h.total)} ${esc(t('strip.photos'))}
+        &middot; <b>${esc(t('cta.fly'))} &rarr;</b></span>
+    </a>` : ''}
+    <div class="band-credit">${credit()}</div>`;
 }
 
 /* The stage can still measure zero on the frame right after innerHTML — fonts
@@ -172,7 +210,7 @@ function drawMap(attempt = 0) {
   const views = buildViews(proj, W, H, STATE.communities, STATE.regions.map(r => r.id));
   /* Fill the chrome BEFORE measuring it: an empty panel measures a few pixels
      tall, and labels then get placed exactly where it is about to appear. */
-  drawSide(views);
+  drawRegions(views);
   drawStats();
   const v = view.zoom === 'custom' && view.custom ? view.custom : (views[view.zoom] || views.world);
   const s = v.s, tx = W / 2 - s * v.cx, ty = H / 2 - s * v.cy;
@@ -208,7 +246,7 @@ function drawMap(attempt = 0) {
   /* .hero is a full-width flex row with a gap in the middle; blocking it whole
      walls off the entire top strip and starves Europe of labels. Measure the two
      halves it actually occupies. */
-  const blocked = ['.hero-l', '.hero-stats', '#side', '#band', '#teaser'].map(sel => {
+  const blocked = ['.hero-l', '.hero-stats', '#regions', '#strip'].map(sel => {
     const e = $(sel); if (!e || e.hidden) return null;
     const r = e.getBoundingClientRect();
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
@@ -221,7 +259,11 @@ function drawMap(attempt = 0) {
     x: g[0].x, y: g[0].y, count: g.length, members: g,
     c: g[0].c, name: tf(g[0].c.name), sel: g[0].c.id === view.sel
   }));
-  placeLabels(markers, blocked, W, H, isRTL());
+  /* At world view only what is alive gets a name: open communities, the
+     selected one, and the clusters' counts. Alumni are a hollow dot until
+     you fly closer — half the text, none of the meaning lost. */
+  const named = zoomed ? markers : markers.filter(m => m.count > 1 || m.sel || !m.c.c);
+  placeLabels(named, blocked, W, H, isRTL());
 
   $('#markers').innerHTML =
     `<div class="jeru" style="left:${jx * s + tx}px; top:${jy * s + ty}px">
@@ -250,7 +292,7 @@ function drawMap(attempt = 0) {
   $('#markers').querySelectorAll('[data-pick]').forEach(b => {
     b.onclick = () => {
       if (view.sel === b.dataset.pick) { location.hash = `#/c/${b.dataset.pick}`; return; }
-      view.sel = b.dataset.pick; drawSide(views); drawBand(); drawMap();
+      view.sel = b.dataset.pick; drawStrip(); drawMap();
     };
   });
   $('#markers').querySelectorAll('[data-go]').forEach(l => {
@@ -276,76 +318,6 @@ function drawStats() {
   ).join('');
 }
 
-function drawSide(views) {
-  const open = STATE.communities.filter(c => !c.c).length;
-  const rows = ['world', ...STATE.regions.map(r => r.id)].filter(k => views[k]).map(k =>
-    `<button class="rgn${view.zoom === k ? ' on' : ''}" data-view="${k}">
-       <span>${esc(t(views[k].key))}</span><span class="n">${num(views[k].n)}</span></button>`).join('');
-
-  const zoomed = view.zoom !== 'world' || view.custom;
-  $('#side').innerHTML = `
-    ${zoomed ? `<button class="zoomout" id="zoomOut">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="9" cy="9" r="6"/><path d="M6.5 9h5"/><path d="M13.5 13.5L18 18"/></svg>
-      <span>${esc(t('fly.out'))}</span></button>` : ''}
-    <div class="legend">
-      <div class="lg"><span class="s open"></span>${esc(t('legend.open'))} &mdash; ${num(open)}</div>
-      <div class="lg"><span class="s alum"></span>${esc(t('legend.alumni'))} &mdash; ${num(STATE.communities.length - open)}</div>
-      <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
-    </div>
-    <div class="flyto">${esc(t('fly.to'))}</div>${rows}
-    `;
-
-  $('#side').querySelectorAll('[data-view]').forEach(b => {
-    b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
-  });
-  const zo = $('#zoomOut');
-  if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
-}
-
-function drawBand() {
-  const c = findCommunity(view.sel);
-  if (!c) { $('#band').innerHTML = ''; return; }
-  /* The Rosh Kollel used to be shown here from a generator. Real tenures need
-     a query per selection, and the year screen already fetches them — so the
-     band carries the community's own span instead, which is always true. */
-  const h = TMZApi.historyFrom(c);
-  /* "30 years still empty" over a 31-year span read as a bug; both numbers
-     have to be on the screen for the count to make sense. */
-  const holes = h.holes === 0 ? esc(t('band.covered'))
-    : esc(t('band.emptyOf')).replace('{n}', num(h.holes)).replace('{total}', num(h.rows.length));
-
-  /* A year that holds photographs is a door to its page; an empty one is
-     only a mark on the axis. */
-  const bars = h.rows.map(o => {
-    const inner = `<div class="bar${o.n === 0 ? ' hole' : ''}" style="height:${
-      o.n === 0 ? 13 : Math.max(4, Math.round(o.n / h.peak * 46))}px"></div>
-     <span class="yl">${o.year % 5 === 0 ? String(o.year).slice(2) : ''}</span>`;
-    return o.n > 0
-      ? `<a class="yb has" href="#/c/${esc(c.id)}/${o.year}" title="${o.year} · ${o.n}">${inner}</a>`
-      : `<div class="yb">${inner}</div>`;
-  }).join('');
-
-  $('#band').innerHTML = `
-    <div class="band-id">
-      <div class="band-meta">
-        <span class="rg">${esc(t('region.' + c.rg))}</span><span class="sep"></span>
-        <span class="st">${c.c ? esc(t('st.closed')) + ' ' + num(c.c) : esc(t('st.open'))}</span>
-      </div>
-      <h2><a href="#/c/${esc(c.id)}">${esc(tf(c.name))}</a></h2>
-      <p class="band-span dim"><span dir="ltr">${c.f}&ndash;${c.c || ' '}</span>
-        &middot; <span dir="ltr">${(c.c || 2026) - c.f + 1}</span> ${esc(t('u.years')).toLowerCase()}</p>
-    </div>
-    <div class="band-chart">
-      <div class="band-head"><span>${esc(t('band.byYear'))}</span>
-        <span class="dim">${num(h.total)} ${esc(t('band.held'))} &middot; <span class="warn">${holes}</span></span></div>
-      <div class="bars">${bars}</div>
-    </div>
-    <a class="btn-ghost" href="#/c/${c.id}">${esc(t('cta.fly'))}
-      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11"/><path d="M11 6l4 4-4 4"/></svg></a>
-    <div class="band-credit">${credit()}</div>`;
-}
-
 /* ---- community / year view ----------------------------------------------- */
 
 function photoArt(p) {
@@ -367,14 +339,54 @@ function initial(name, portrait) {
   return `<span class="ini" aria-hidden="true">${esc(ch || '·')}</span>`;
 }
 
+/* The community's own page: who led it, and the years as a row of bars —
+   the timeline that used to sit on the map, where it belongs. */
+async function overviewView(c) {
+  const h = TMZApi.historyFrom(c);
+  let ov = { roshei: [], people: 0 };
+  try { ov = await TMZApi.loadOverview(c.id, LANG); } catch (e) { console.error('overview', e); }
+  const filled = h.rows.length - h.holes;
+  const bars = h.rows.map(o => `
+    <a class="ybar${o.n ? ' has' : ''}" href="#/c/${esc(c.id)}/${o.year}" title="${o.year}${o.n ? ' · ' + o.n : ''}">
+      <span class="ybar-n">${o.n ? num(o.n) : ''}</span>
+      <span class="ybar-bar" style="height:${o.n ? Math.max(10, Math.round(o.n / h.peak * 90)) : 4}px"></span>
+      <span class="ybar-y" dir="ltr">${String(o.year).slice(2)}</span>
+    </a>`).join('');
+  return `
+  <div class="cv ov">
+    <div class="crumb"><a href="#/">&larr; ${esc(t('cta.back'))}</a></div>
+    <div class="ov-head">
+      <div>
+        <span class="eyebrow">${esc(t('region.' + c.rg))} &middot; ${esc(c.c ? t('st.closed') + ' ' + c.c : t('st.open'))}</span>
+        <h1>${esc(tf(c.name))}</h1>
+        <p class="dim"><span dir="ltr">${c.f}&ndash;${c.c || ''}</span> &middot; ${num(h.rows.length)} ${esc(t('u.years')).toLowerCase()}
+          &middot; ${num(ov.people)} ${esc(t('ov.people'))} &middot; ${num(h.total)} ${esc(t('u.photographs')).toLowerCase()}</p>
+      </div>
+    </div>
+    <section class="ov-years">
+      <div class="sec-head"><span>${esc(t('ov.byYear'))} &middot; ${esc(t('ov.pick'))}</span>
+        <span class="dim">${num(filled)} ${esc(t('ov.filled'))} &middot; <span class="warn">${num(h.holes)} ${esc(t('ov.holes'))}</span></span></div>
+      <div class="ybars" dir="ltr">${bars}</div>
+    </section>
+    ${ov.roshei.length ? `
+    <section class="ov-roshei">
+      <div class="sec-head"><span>${esc(t('ov.roshei'))}</span></div>
+      <div class="cohort">${ov.roshei.map(r => `
+        <a class="card" href="#/c/${esc(c.id)}/${r.from}">${initial(r.name, r.portrait)}<span class="card-txt">
+          <span class="pn">${esc(r.name)}</span>
+          <span class="pr" dir="ltr">${r.from}&ndash;${r.to || ''}</span></span></a>`).join('')}
+      </div>
+    </section>` : ''}
+  </div>`;
+}
+
 async function communityView(id, year) {
   const c = findCommunity(id);
   if (!c) { location.hash = '#/'; return ''; }
+  if (!year) return overviewView(c);
 
   const h = TMZApi.historyFrom(c);
-  const yr = year && year >= h.first && year <= h.last
-    ? year
-    : (h.rows.find(r => r.n > 0) || h.rows[0]).year;
+  const yr = year >= h.first && year <= h.last ? year : h.first;
 
   let data;
   try {
@@ -389,7 +401,7 @@ async function communityView(id, year) {
   const rail = h.rows.map(o => {
     const d = Math.abs(o.year - yr);
     return `<button class="ry${o.year === yr ? ' on' : ''}${o.n === 0 ? ' none' : ''}" data-year="${o.year}"
-      style="--ry:${Math.max(11, 46 - d * 4.6).toFixed(1)}px; opacity:${Math.max(0.2, 1 - d * 0.11).toFixed(2)}">${o.year}</button>`;
+      style="--ry:${Math.max(12, 26 - d * 2.2).toFixed(1)}px; opacity:${Math.max(0.3, 1 - d * 0.09).toFixed(2)}">${o.year}</button>`;
   }).join('');
 
   const peopleNamed = photos.reduce((a, p) => a + (p.people || 0), 0);
@@ -435,9 +447,9 @@ async function communityView(id, year) {
      the copy has to admit that instead. */
   const photoBlock = photos.length === 0 ? `
     <section class="empty-year">
-      <h3>${esc(t('yr.empty'))}</h3>
+      <h3>${esc(t('yr.emptyBig')).replace('{year}', yr)}</h3>
       <p>${esc(rosh || cohort.length ? t('yr.emptySub') : t('yr.emptyNothing'))}</p>
-      <a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a>
+      <a class="btn-gold" href="#/contribute">${esc(t('yr.emptyAsk'))}</a>
     </section>` : `
     <section class="sec">
       <div class="sec-head"><span>${esc(t('yr.photos'))}</span>
@@ -460,38 +472,20 @@ async function communityView(id, year) {
      are plain blocks and the page reads top to bottom as before. */
   return `
   <div class="cv year">
-    <div class="crumb">
-      <a href="#/">&larr; ${esc(t('cta.back'))}</a><span class="sep"></span>
-      <span>${esc(tf(c.name))}</span>
+    <div class="yhead">
+      <div class="yhead-l">
+        <a class="crumb-link" href="#/c/${esc(c.id)}">&larr; ${esc(tf(c.name))}</a>
+        <h1><span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span></h1>
+        <span class="yhead-meta">${num((rosh ? 1 : 0) + household.length + cohort.length)} ${esc(t('u.shlichim')).toLowerCase()}
+          &middot; ${num(photos.length)} ${esc(t('u.photographs')).toLowerCase()}</span>
+      </div>
       <a class="btn-gold sm" href="#/contribute">${esc(t('cta.addYear'))}</a>
     </div>
-
     <div class="rail" id="rail">${rail}</div>
-    <div class="rail-mark"></div>
 
     <div class="yr-cols">
-    <div class="yr-left">
-    <div class="yhead">
-      <div>
-        <span class="eyebrow">${esc(tf(c.name))} &middot; ${esc(t('region.' + c.rg))} &middot; ${esc(t('yr.yearN'))} <span dir="ltr">${yr - c.f + 1}</span></span>
-        <h1><span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span></h1>
-      </div>
-      <div class="ystats">
-        <!-- Everyone the archive knows was here that year. Counting only the
-             cohort printed "0 shlichim" above a Rosh Kollel and his wife, both
-             of whom are shlichim, and both of whom were on the screen. -->
-        <div class="stat"><span class="v">${num((rosh ? 1 : 0) + household.length + cohort.length)}</span><span class="k">${esc(t('u.shlichim'))}</span></div>
-        <div class="stat"><span class="v">${num(photos.length)}</span><span class="k">${esc(t('u.photographs'))}</span></div>
-        ${peopleNamed ? `<div class="stat"><span class="v">${num(peopleNamed)}</span><span class="k">${esc(t('u.peopleNamed'))}</span></div>` : ''}
-      </div>
-    </div>
-
-    ${roshBlock}
-    ${cohortBlock}
-    </div>
-    <div class="yr-right">
-    ${photoBlock}
-    </div>
+      <div class="yr-right">${photoBlock}</div>
+      <div class="yr-left">${roshBlock}${cohortBlock}</div>
     </div>
   </div>`;
 }
@@ -834,10 +828,9 @@ async function render() {
   if (r.name === 'map') {
     root.innerHTML = shell() + banner() + mapView();
     wireShell();
-    drawBand();
     drawStats();
     requestAnimationFrame(() => drawMap());
-    drawTeaser();
+    drawStrip().then(() => { if (parseRoute().name === 'map') drawMap(); });
   } else if (r.name === 'community') {
     root.innerHTML = shell() + banner() +
       `<div class="site-loading">${esc(t('u.loading'))}</div>` + footer();
