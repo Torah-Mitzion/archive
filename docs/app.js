@@ -66,10 +66,21 @@ function provenance() {
   return t(window.TMZApi && window.TMZApi.DEMO ? 'foot.mock' : 'foot.source');
 }
 
+/* Who built the WhatsApp agent and this site. One line, the same everywhere
+   it appears, so the map's side panel and the page footers cannot drift. */
+function credit() {
+  return `<span class="credit">
+    <img class="credit-logo" src="hagai-logo.png" alt="Hag.Ai" width="26" height="26">
+    <span>${esc(t('foot.built'))} <strong>Hag.Ai</strong>
+      &middot; <a dir="ltr" href="https://wa.me/972523114977">0523114977</a>
+      &middot; <a dir="ltr" href="mailto:hagaihq@gmail.com">hagaihq@gmail.com</a></span>
+  </span>`;
+}
+
 function footer() {
   return `<footer class="foot">
     <span>${esc(provenance())}</span>
-    <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a>
+    ${credit()}
   </footer>`;
 }
 
@@ -114,8 +125,32 @@ function mapView() {
     </div>
 
     <aside class="side" id="side"></aside>
+    <aside class="teaser" id="teaser" hidden></aside>
     <div class="band" id="band"></div>
   </div>`;
+}
+
+/* A handful of the photographs already in, drawn at random on every visit,
+   each one a door to its year. Fetched after the map is up so it never
+   delays it, and simply absent while the archive is empty. */
+async function drawTeaser() {
+  const box = $('#teaser');
+  if (!box) return;
+  let items;
+  try { items = await TMZApi.loadTeaser(8, LANG); } catch (e) { console.error('teaser', e); return; }
+  if (!$('#teaser') || !items.length) return;
+  box.hidden = false;
+  box.innerHTML = `
+    <span class="eyebrow gold">${esc(t('teaser.title'))}</span>
+    <p class="teaser-sub">${esc(t('teaser.sub'))}</p>
+    <div class="teaser-list">${items.map(p => `
+      <a class="teaser-it" href="#/c/${esc(p.community)}/${p.year}"
+         title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
+        <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name)}" loading="lazy">
+        <span class="teaser-cap"><b>${esc(p.community_name)}</b><span dir="ltr">${p.year}</span></span>
+      </a>`).join('')}
+    </div>`;
+  if (parseRoute().name === 'map') drawMap();
 }
 
 /* The stage can still measure zero on the frame right after innerHTML — fonts
@@ -171,8 +206,8 @@ function drawMap(attempt = 0) {
   /* .hero is a full-width flex row with a gap in the middle; blocking it whole
      walls off the entire top strip and starves Europe of labels. Measure the two
      halves it actually occupies. */
-  const blocked = ['.hero-l', '.hero-stats', '#side', '#band'].map(sel => {
-    const e = $(sel); if (!e) return null;
+  const blocked = ['.hero-l', '.hero-stats', '#side', '#band', '#teaser'].map(sel => {
+    const e = $(sel); if (!e || e.hidden) return null;
     const r = e.getBoundingClientRect();
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
   }).filter(Boolean);
@@ -247,7 +282,8 @@ function drawSide(views) {
       <div class="lg"><span class="s clus"></span>${esc(t('legend.cluster'))}</div>
     </div>
     <div class="flyto">${esc(t('fly.to'))}</div>${rows}
-    <p class="side-note">${esc(provenance())} <a href="canvas.html">${esc(t('foot.canvas'))} &rarr;</a></p>`;
+    <p class="side-note">${esc(provenance())}</p>
+    <p class="side-note">${credit()}</p>`;
 
   $('#side').querySelectorAll('[data-view]').forEach(b => {
     b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
@@ -385,8 +421,8 @@ async function communityView(id, year) {
       <div class="sec-head"><span>${esc(t('yr.photos'))}</span>
         <span class="dim">${num(photos.length)} ${esc(t('band.held'))}</span></div>
       <div class="photos">
-        ${photos.slice(0, 6).map(p => `
-          <figure class="photo">
+        ${photos.map((p, i) => `
+          <figure class="photo" data-photo="${i}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
             <img src="${esc(p.url)}" alt="${esc(p.event_name || '')}" loading="lazy">
             <figcaption><span class="ev">${esc(p.event_name || '')}</span>
               <span class="mt">${p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : ''}
@@ -567,6 +603,22 @@ function wireContribute() {
   };
 }
 
+/* Every photograph on a year page opens full-screen, where it can be zoomed
+   and panned; the arrows walk the same year's photographs in order. */
+function wireLightbox(root) {
+  const figs = [...root.querySelectorAll('[data-photo]')];
+  if (!figs.length || !window.TMZLightbox) return;
+  const items = figs.map(f => ({
+    url: f.querySelector('img').src,
+    title: (f.querySelector('.ev') || {}).textContent || '',
+    sub: (f.querySelector('.mt') || {}).textContent.trim() || ''
+  }));
+  figs.forEach((f, i) => {
+    f.onclick = () => TMZLightbox.open(items, i);
+    f.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); TMZLightbox.open(items, i); } };
+  });
+}
+
 /* ---- router -------------------------------------------------------------- */
 
 function parseRoute() {
@@ -632,6 +684,7 @@ async function render() {
     drawBand();
     drawStats();
     requestAnimationFrame(() => drawMap());
+    drawTeaser();
   } else if (r.name === 'community') {
     root.innerHTML = shell() + banner() +
       `<div class="site-loading">${esc(t('u.loading'))}</div>` + footer();
@@ -645,12 +698,14 @@ async function render() {
     });
     const on = root.querySelector('.ry.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+    wireLightbox(root);
   } else {
     root.innerHTML = shell() + contributeView() + footer();
     wireShell();
     wireContribute();
   }
   window.scrollTo(0, 0);
+  if (window.TMZChat) TMZChat.relabel();
 }
 
 /* Switching language changes the resolved names, so the payload is refetched

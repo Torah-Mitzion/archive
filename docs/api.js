@@ -131,4 +131,11 @@ async function loadYear(slug, year, lang) {
   };
 }
 
-window.TMZApi = { loadMap, loadYear, historyFrom, photoUrl, DEMO };
+/* ---- teaser -------------------------------------------------------------- */
+
+async function loadTeaser(n, lang) {
+  const rows = await rpc('tmz_teaser', { n, want: lang });
+  return (rows || []).map(p => ({ ...p, url: photoUrl(p.path) }));
+}
+
+window.TMZApi = { loadMap, loadYear, loadTeaser, historyFrom, photoUrl, DEMO };

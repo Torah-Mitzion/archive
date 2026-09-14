@@ -118,7 +118,12 @@ is refused for good — so the dials want setting before the campaign, not durin
 ```bash
 ./node_modules/.bin/supabase functions deploy tmz-upload   --use-api --no-verify-jwt --project-ref <REF>
 ./node_modules/.bin/supabase functions deploy tmz-whatsapp --use-api --no-verify-jwt --project-ref <REF>
+./node_modules/.bin/supabase functions deploy tmz-chat     --use-api --no-verify-jwt --project-ref <REF>
 ```
+
+`tmz-chat` is the site's floating guide. It reads the same `GEMINI_API_KEY`
+and knows only what the year pages print (`tmz_chat_facts()`), so there is
+nothing to configure beyond deploying it.
 
 ## 7. Connect Heyy
 

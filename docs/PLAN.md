@@ -47,7 +47,7 @@ These are locked. Do not relitigate without the user.
 - [x] Screen-space clustering + drill-down that terminates
 - [x] Hebrew RTL board proving the layout mirroring
 - [x] Year/roster screen (Rosh Kollel + household + cohort + photos)
-- [x] Design canvas published → `docs/canvas.html`
+- [x] Design canvas published → `docs/canvas.html` (no longer linked from the site)
 
 ### ✅ Phase 1 — Live mockup (done)
 
