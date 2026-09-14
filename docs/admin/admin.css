@@ -27,10 +27,15 @@ h1, h2, h3 { margin: 0; font-weight: 400; }
 .gate-card img { width: 52px; height: 48px; margin-bottom: 24px; }
 .gate-card h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; margin-bottom: 8px; }
 .gate-card p { margin: 0 0 28px; color: var(--muted); font-weight: 300; line-height: 1.6; }
-.btn-google { display: inline-flex; align-items: center; gap: 11px; padding: 12px 22px;
-              background: var(--ivory); color: var(--ink); border-radius: 3px;
-              font-size: 14px; font-weight: 500; }
-.btn-google:hover { background: #fff; color: var(--ink); }
+.gate-form { display: flex; flex-direction: column; gap: 14px; text-align: start; }
+.gate-form label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; letter-spacing: .12em;
+                   text-transform: uppercase; color: var(--dim2); }
+.gate-form input { padding: 11px 13px; border-radius: 3px; border: 1px solid var(--line2); background: var(--ink);
+                   color: var(--ivory); font: inherit; font-size: 14px; letter-spacing: 0; text-transform: none; }
+.gate-form input:focus { outline: none; border-color: rgba(232,200,125,.6); }
+.gate-form .btn { justify-content: center; padding: 12px; margin-top: 4px; }
+.gate-err { margin: 0 !important; padding: 9px 12px; border-radius: 3px; font-size: 12.5px;
+            color: var(--danger, #E07B7B); background: rgba(224,123,123,.1); }
 .gate-card small { display: block; margin-top: 22px; font-size: 11.5px; color: var(--dim); }
 
 /* ---- first-run intake ---------------------------------------------------- */

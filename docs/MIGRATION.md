@@ -181,7 +181,7 @@ move.
 2. Google account → GitHub organisation → repository transferred.
 3. Supabase project. Migrations pushed, real data imported, buckets created by
    migration 8.
-4. Google OAuth: new client, redirect URLs for the Pages domain, into Supabase
+4. Back-office account created in Supabase Auth (username + password), signups off
    Auth. Promote the first admin.
 5. Gemini key with billing. Set the secrets. Deploy both edge functions.
 6. Re-point the three client files, push, confirm Pages serves.

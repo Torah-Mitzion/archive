@@ -22,7 +22,7 @@ function readSession() {
 }
 
 /* Access tokens last an hour. Without this the back office signs you out
-   mid-afternoon and sends you back through Google, which is no way to spend a
+   mid-afternoon and asks for the password again, which is no way to spend a
    day editing records. Refresh a minute early so a long request cannot land
    on an expired token. */
 async function refreshSession() {
@@ -62,9 +62,8 @@ function writeSession(s) {
   else localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
-/* Supabase's implicit-flow redirect appends the tokens in the URL fragment.
-   We pick them up on load, stash them, then wipe the hash so the same URL is
-   safe to bookmark or share. */
+/* Left over from the OAuth days: a redirect that still carries tokens in the
+   URL fragment is honoured, then wiped so the URL is safe to bookmark. */
 export function captureRedirect() {
   if (!location.hash.includes('access_token=')) return null;
   const params = new URLSearchParams(location.hash.slice(1));
@@ -92,13 +91,33 @@ export function signOut() {
   location.reload();
 }
 
-/* Google → Supabase Auth → back here. Supabase's OAuth endpoint expects the
-   redirect URL to be on the allow list (added earlier). */
-export function signInWithGoogle(redirectTo) {
-  const url = new URL(`${AUTH}/authorize`);
-  url.searchParams.set('provider', 'google');
-  url.searchParams.set('redirect_to', redirectTo || location.href.split('#')[0]);
-  location.href = url.toString();
+/* Username and password. The username is a synthetic address on the site's
+   own domain — nobody needs to receive mail at it — so a plain "tmzadmin"
+   becomes tmzadmin@30.torahmitzion.org before it reaches Auth. A full e-mail
+   address, if someone has one, passes through untouched. */
+const USERNAME_DOMAIN = '30.torahmitzion.org';
+
+export async function signInWithPassword(username, password) {
+  const email = username.includes('@') ? username.trim() : `${username.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
+  const res = await fetch(`${AUTH}/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.access_token) {
+    throw new Error(d.error_description || d.msg || d.message || 'Wrong username or password.');
+  }
+  const ttl = d.expires_in ?? 3600;
+  const s = {
+    access_token: d.access_token,
+    refresh_token: d.refresh_token,
+    expires_in: ttl,
+    expires_at: Math.floor(Date.now() / 1000) + ttl - 60,
+    token_type: d.token_type || 'bearer'
+  };
+  writeSession(s);
+  return s;
 }
 
 // ---- request layer ---------------------------------------------------------

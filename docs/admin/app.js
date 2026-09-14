@@ -1,11 +1,10 @@
-import { sb, captureRedirect, ensureSession, signInWithGoogle, signOut } from './sb.js';
+import { sb, captureRedirect, ensureSession, signInWithPassword, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
 import { dashboard, campaign, communities, people, photos, translations } from './views.js';
 
-/* Auth boot order matters: the redirect back from Google carries the token in
-   the URL fragment, so we capture and clear that BEFORE we ever ask the DB who
-   we are — otherwise the first request goes out anonymous and the RLS check
-   for tmz_app_user fails silently. */
+/* A token arriving in the URL fragment is captured and cleared BEFORE we ask
+   the DB who we are — otherwise the first request goes out anonymous and the
+   RLS check for tmz_app_user fails silently. */
 captureRedirect();
 
 const app = $('#app');
@@ -29,19 +28,35 @@ async function boot() {
 
 /* ---- signed out --------------------------------------------------------- */
 
-function renderGate() {
+function renderGate(error) {
   app.innerHTML = `
     <div class="gate"><div class="gate-card">
       <img src="../tmz-mark.png" alt="Torah MiTzion">
       <h1>Back office</h1>
       <p>Sign in to manage communities, people and photographs for the Torah MiTzion 30 archive.</p>
-      <button class="btn-google" id="signIn">
-        <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#4285F4" d="M45 24c0-1.6-.1-3.1-.4-4.5H24v9h11.8c-.5 2.7-2.1 5-4.4 6.5v5.4h7.1C42.7 36.4 45 30.7 45 24z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.4c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.9-12.3-9H4.4v5.7C8 41.4 15.4 46 24 46z"/><path fill="#FBBC04" d="M11.7 28.4c-.5-1.3-.7-2.7-.7-4.4s.2-3 .7-4.4v-5.7H4.4C2.9 17 2 20.4 2 24s.9 7 2.4 10.1l7.3-5.7z"/><path fill="#EA4335" d="M24 10c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 3.4 29.9 1 24 1 15.4 1 8 5.6 4.4 12.2l7.3 5.7C13.5 13.9 18.3 10 24 10z"/></svg>
-        Continue with Google
-      </button>
-      <small>Access is granted per user by an administrator after first sign-in.</small>
+      <form class="gate-form" id="gateForm" autocomplete="on">
+        <label>Username<input id="gateUser" name="username" autocomplete="username" required autofocus></label>
+        <label>Password<input id="gatePass" name="password" type="password" autocomplete="current-password" required></label>
+        <p class="gate-err" id="gateErr" hidden></p>
+        <button class="btn solid" id="signIn" type="submit">Sign in</button>
+      </form>
+      <small>Accounts are created by an administrator.</small>
     </div></div>`;
-  $('#signIn').onclick = () => signInWithGoogle(location.href.split('#')[0]);
+  const err = $('#gateErr');
+  if (error) { err.textContent = error; err.hidden = false; }
+  $('#gateForm').onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#signIn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    err.hidden = true;
+    try {
+      await signInWithPassword($('#gateUser').value, $('#gatePass').value);
+      boot();
+    } catch (ex) {
+      err.textContent = ex.message; err.hidden = false;
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  };
 }
 
 /* ---- first-run intake --------------------------------------------------- */

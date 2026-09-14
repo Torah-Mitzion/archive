@@ -81,21 +81,22 @@ node scripts/repoint.mjs <REF> <anon key>
 git add -A && git commit -m "Point the site at Torah MiTzion's own project" && git push tmz master
 ```
 
-## 5. Google sign-in for the back office
+## 5. The back office sign-in
 
-In Supabase → Authentication → Providers → Google, paste a Google OAuth client
-ID and secret, then add the redirect URLs:
-
-```
-https://torah-mitzion.github.io/archive/admin/
-https://<subdomain>.torahmitzion.org/admin/
-```
-
-First person to sign in stays a `contributor`. Promote them:
+The back office signs in with a username and password — no Google. The
+username is a synthetic address on the site's domain (`tmzadmin` is
+`tmzadmin@30.torahmitzion.org`); nothing is ever mailed to it. Create the
+account from the Supabase dashboard (Authentication → Users → Add user, tick
+"auto confirm") or with the admin API, then promote it:
 
 ```sql
 update tmz_app_user set role = 'admin' where id = '<their auth.users id>';
 ```
+
+**In the dashboard, Authentication → Sign In / Providers → turn "Allow new
+users to sign up" OFF.** Otherwise anyone can register an account at the
+password endpoint. (The API token used for the migration cannot change this
+setting; it has to be clicked.) Passwords: minimum 10 characters is sensible.
 
 ## 6. Secrets for the edge functions
 

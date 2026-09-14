@@ -232,8 +232,10 @@ function drawMap(attempt = 0) {
                   <button class="clus" data-cluster="${i}">${m.count}</button></div>`;
       }
       const cls = m.sel ? 'is-sel' : (m.c.c ? 'is-alumni' : 'is-active');
+      /* The lit name is a link: one click selects a community, the next one
+         on its name (or its dot) flies to its page. */
       const lab = m.label
-        ? `<span class="lbl" style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
+        ? `<span class="lbl" ${m.sel ? `data-go="${m.c.id}" role="link" title="${esc(t('cta.fly'))}"` : ''} style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
             m.label[2] === 'e' ? 'translate(-100%,-50%)' : m.label[2] === 'm' ? 'translate(-50%,-50%)' : 'translateY(-50%)'
           }">${esc(m.name)}</span>` : '';
       return `<div class="mk ${cls}" style="left:${m.x}px; top:${m.y}px">
@@ -242,7 +244,13 @@ function drawMap(attempt = 0) {
     }).join('');
 
   $('#markers').querySelectorAll('[data-pick]').forEach(b => {
-    b.onclick = () => { view.sel = b.dataset.pick; drawSide(views); drawBand(); drawMap(); };
+    b.onclick = () => {
+      if (view.sel === b.dataset.pick) { location.hash = `#/c/${b.dataset.pick}`; return; }
+      view.sel = b.dataset.pick; drawSide(views); drawBand(); drawMap();
+    };
+  });
+  $('#markers').querySelectorAll('[data-go]').forEach(l => {
+    l.onclick = () => { location.hash = `#/c/${l.dataset.go}`; };
   });
   $('#markers').querySelectorAll('[data-cluster]').forEach(b => {
     b.onclick = () => {
