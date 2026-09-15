@@ -49,7 +49,7 @@ export interface Extracted {
   request: { kind: 'takedown' | 'fix_name' | 'fix_details' | 'tag_me' | 'question' | 'other';
              summary: string; proposed?: Record<string, string> } | null;
   person_name: string | null;  // when the photograph is a portrait of the sender (or of one named person)
-  target_photo: number | null; // which candidate the message was about, when there were several
+  target_photo: number | 'all' | null; // which candidate the message was about, when there were several
   community_slug: string | null;
   year: number | null;
   people: string | null;
@@ -154,7 +154,11 @@ CURRENT STATE:
 ${candidates.length > 1
   ? `- SEVERAL of their photographs are still waiting on answers, and they did not say which this is about:
 ${candidates.map(cd => `    [${cd.index}] ${cd.description} — community=${cd.community ?? '?'}, year=${cd.year ?? '?'}, still missing: ${cd.missing}`).join('\n')}
-  If their message plainly fits one of these (by its content, or because it answers what only one is missing), set target_photo to that number and answer for it. If you cannot tell, set target_photo to null and ASK which one, describing them by what they show — e.g. "the one with three people by the flag, or the one at the table?" — never by number.`
+  People who send several photographs at once nearly always answer for the whole batch. So:
+  - A COMMUNITY or a YEAR with nothing pointing at one photograph → target_photo "all".
+  - "All of them", "כולם", "the same for all" → target_photo "all".
+  - Names or an occasion → "all" when they say so or when the photographs plainly came as one batch (same day, same place); otherwise, if the message plainly fits one of them by its content, that number; if you cannot tell, null and ASK which one, describing them by what they show — never by number.
+  With "all", write the reply for the batch ("all N photographs").`
   : open
   ? `- Photograph under discussion${open.description ? ` (${open.description})` : ''}: community=${open.community ?? 'UNKNOWN'}, year=${open.year ?? 'UNKNOWN'}, who=${open.people_text ?? 'UNKNOWN'}, occasion=${open.occasion_text ?? 'UNKNOWN'}
 - Still missing for it: ${missing.length ? missing.join(', ') : 'nothing — it is complete'}`
@@ -168,7 +172,7 @@ Return ONLY JSON:
  "intent": "answer" | "question" | "greeting" | "thanks" | "portrait" | "request" | "other",
  "person_name": string | null,     // only with intent "portrait": whose picture it is
  "request": {"kind": "takedown"|"fix_name"|"fix_details"|"tag_me"|"question"|"other", "summary": string, "proposed": object} | null,
- "target_photo": number | null,    // only when several were listed above
+ "target_photo": number | "all" | null,    // only when several were listed above
  "community_slug": string | null,   // one of the slugs above, if their message names a community
  "year": number | null,             // 1990-2030, if their message gives a year
  "people": string | null,           // names, if their message says who is in the photograph
@@ -208,7 +212,8 @@ export async function converse(model: string, key: string, prompt: string): Prom
           summary: String(out.request.summary).slice(0, 300),
           proposed: out.request.proposed && typeof out.request.proposed === 'object' ? out.request.proposed : {} }
       : null,
-    target_photo: Number.isInteger(out.target_photo) && out.target_photo > 0 ? out.target_photo : null,
+    target_photo: out.target_photo === 'all' || /^all$/i.test(String(out.target_photo)) ? 'all'
+      : Number.isInteger(out.target_photo) && out.target_photo > 0 ? out.target_photo : null,
     community_slug: out.community_slug ?? null,
     year: Number.isInteger(out.year) && out.year >= 1990 && out.year <= 2030 ? out.year : null,
     people: out.people ? String(out.people).slice(0, 500) : null,

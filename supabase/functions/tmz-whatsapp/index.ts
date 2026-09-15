@@ -634,7 +634,7 @@ async function handleSweep(req: Request, url: URL) {
   try {
     const day = 24 * 3600_000;
     const waiting = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year,people_text,occasion_text` +
-      `&status=eq.pending&agent_decision=eq.publish&portrait_of=is.null&or=(community_id.is.null,year.is.null)&submitter_ref=like.wa:%25` +
+      `&status=eq.pending&agent_decision=eq.publish&portrait_of=is.null&public_path=is.null&submitter_ref=like.wa:%25` +
       `&created_at=lt.${encodeURIComponent(new Date(Date.now() - day).toISOString())}` +
       `&created_at=gt.${encodeURIComponent(new Date(Date.now() - 8 * day).toISOString())}&order=created_at.asc&limit=20`);
     let reminded = 0;
@@ -665,6 +665,30 @@ async function handleSweep(req: Request, url: URL) {
       report.share_pages = written;
     }
   } catch (e) { report.share_page_error = String(e).slice(0, 120); }
+
+  // 8. complete, cleared, and somehow not on the site: publish, and say so
+  try {
+    const ready = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year` +
+      `&status=eq.pending&agent_decision=eq.publish&public_path=is.null&portrait_of=is.null` +
+      `&community_id=not.is.null&year=not.is.null&people_text=not.is.null&occasion_text=not.is.null&limit=20`);
+    const bySender = new Map<string, any[]>();
+    for (const p of ready ?? []) {
+      if ((await publishIfReady(p.id, ch)) !== 'fresh') continue;
+      if (!bySender.has(p.submitter_ref)) bySender.set(p.submitter_ref, []);
+      bySender.get(p.submitter_ref)!.push(p);
+    }
+    let published = 0;
+    for (const [ref, list] of bySender) {
+      published += list.length;
+      if (!ref?.startsWith('wa:')) continue;
+      const c = await contactOf(ref);
+      if (c?.is_test) continue;
+      const from = ref.replace(/^wa:/, '');
+      if (list.length === 1) await announcePublished(list[0].id, ref, from, c?.lang ?? 'en', ch, await providerIdOfPhoto(ref, list[0].id));
+      else await announceBatch(list, ref, from, c?.lang ?? 'en', ch, await providerIdOfPhoto(ref, list[0].id));
+    }
+    report.published_late = published;
+  } catch (e) { report.publish_error = String(e).slice(0, 120); }
 
   // 7. requests the team resolved and the sender has not yet heard about
   try {
@@ -1046,6 +1070,8 @@ async function handle(body: any, ch: Channel) {
       if (r && Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000) openLive = r;
     }
     const ambiguous = !quotedPhotoId && candidates.length > 1;
+    /* The whole batch, when the answer was for all of them. */
+    let batch: any[] | null = null;
     const past = await history(waId);
     const lastRefusal = [...past].reverse().find(h => h.kind === 'refusal');
 
@@ -1076,11 +1102,16 @@ async function handle(body: any, ch: Channel) {
            the answer meant, that one is the target. When it could not, the
            reply it wrote asks — and nothing is written to any of them. */
         if (ambiguous) {
-          openLive = out.target_photo ? (candidates[out.target_photo - 1] ?? null) : null;
-          ch.trace(openLive ? 'disambiguated' : 'asking which photograph', { target: out.target_photo });
+          if (out.target_photo === 'all') { openLive = candidates[0]; batch = candidates; }
+          else openLive = out.target_photo ? (candidates[out.target_photo - 1] ?? null) : null;
+          ch.trace(openLive ? (batch ? 'batch' : 'disambiguated') : 'asking which photograph', { target: out.target_photo, n: batch?.length });
         }
       } catch (e) { ch.trace('converse failed', { error: String(e).slice(0, 160) }); }
     }
+
+    /* No model, several waiting, a plain community or year typed: it is for
+       all of them — that is what people mean when they answer a batch. */
+    if (!out && ambiguous && (local.community_slug || local.year)) { openLive = candidates[0]; batch = candidates; }
 
     /* Plain matching wins where it found something: it read the actual words
        and cannot hallucinate a community that was never named. */
@@ -1136,6 +1167,21 @@ async function handle(body: any, ch: Channel) {
     }
 
     if (openLive) {
+      const targets: any[] = batch ?? [openLive];
+      /* The renderings and the screening are done once for the message, not
+         once per photograph — the text is the same. */
+      const rendered: Record<string, unknown> = {};
+      for (const [k, v] of [['people_text', det.people], ['occasion_text', det.event_note]] as const) {
+        if (!v) continue;
+        const ok = await captionOk(GEMINI_MODEL, GEMINI_KEY, String(v));
+        if (ok === false) { ch.trace('caption refused', { field: k }); rendered[k] = false; continue; }
+        if (ok) rendered[k === 'people_text' ? 'people_tr' : 'occasion_tr'] =
+          await renderNames(GEMINI_MODEL, GEMINI_KEY, String(v), k === 'people_text' ? 'people' : 'occasion');
+      }
+      const fresh: any[] = [];   // photographs that went live from this message
+      let merged: any = openLive, missing: any = null, patchedAny = false;
+      for (const target of targets) {
+      openLive = target;
       /* A value the message STATES overwrites what is there. The first version
          only filled empty fields, so "sorry, I was confused, it was Melbourne"
          acknowledged the correction in words and kept Montevideo in the row.
@@ -1148,26 +1194,18 @@ async function handle(body: any, ch: Channel) {
          "whole message is the answer" fallback must not fire — "Cape Town
          2011" quoted at photograph B is not who is in it, whatever was last
          asked about photograph A. */
-      const askingThis = contact.asking_for === openLive.id;
+      const askingThis = contact.asking_for === openLive.id || Boolean(batch);
       const patch: Record<string, unknown> = {};
       if (communityId && communityId !== openLive.community_id) patch.community_id = communityId;
       if (det.year && det.year !== openLive.year) patch.year = det.year;
-      if (det.people && det.people !== openLive.people_text) patch.people_text = det.people;
-      else if (askingThis && contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
-      if (det.event_note && det.event_note !== openLive.occasion_text) patch.occasion_text = det.event_note;
-      else if (askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
-
-      /* Whatever is typed for names or occasion goes on a public page, so it
-         is screened first; text the screener refuses is not recorded, and
-         text it could not judge stays private (rendered later by the sweep). */
-      for (const k of ['people_text', 'occasion_text'] as const) {
-        if (!patch[k]) continue;
-        const ok = await captionOk(GEMINI_MODEL, GEMINI_KEY, String(patch[k]));
-        if (ok === false) { ch.trace('caption refused', { field: k }); delete patch[k]; continue; }
-        if (ok) patch[k === 'people_text' ? 'people_tr' : 'occasion_tr'] =
-          await renderNames(GEMINI_MODEL, GEMINI_KEY, String(patch[k]), k === 'people_text' ? 'people' : 'occasion');
-      }
+      if (det.people && rendered.people_text !== false && det.people !== openLive.people_text) {
+        patch.people_text = det.people; if (rendered.people_tr) patch.people_tr = rendered.people_tr;
+      } else if (!det.people && askingThis && contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
+      if (det.event_note && rendered.occasion_text !== false && det.event_note !== openLive.occasion_text) {
+        patch.occasion_text = det.event_note; if (rendered.occasion_tr) patch.occasion_tr = rendered.occasion_tr;
+      } else if (!det.event_note && askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
       if (Object.keys(patch).length) {
+        patchedAny = true;
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
         ch.trace('attached', { photo_id: openLive.id, patch });
         if (patch.community_id && openLive.portrait_name && !openLive.portrait_of) {
@@ -1180,33 +1218,40 @@ async function handle(body: any, ch: Channel) {
           await writeSharePage(openLive.id);
         }
       }
-      const merged = { ...openLive, ...patch };
+      merged = { ...openLive, ...patch };
 
       /* The state machine still decides what is missing and whether the
          photograph publishes; the model only chose the words. */
-      const missing = nextMissing(merged);
-      /* Quote the photograph this is about, so the question visibly hangs off
-         the right picture even with five in flight. */
-      const quote = await providerIdOfPhoto(waId, merged.id);
-      if (missing) {
-        await remember(waId, { asking: missing, asking_for: merged.id });
-      } else {
-        await remember(waId, { asking: null, asking_for: null });
+      missing = nextMissing(merged);
+      if (!missing) {
         const live = await publishIfReady(merged.id, ch);
         ch.trace(live ? 'published' : 'complete, held', { photo_id: merged.id });
-        if (live === 'fresh') {
-          /* The model's acknowledgement, then the link — the one thing it
-             cannot write, because it does not know the address. */
-          await announcePublished(merged.id, waId, from, spoken, ch, quote, out ? out.reply + '\n\n' : '', Boolean(out));
-          return;
-        }
+        if (live === 'fresh') fresh.push(merged);
+      }
+      }   // end of the loop over targets
+
+      /* Quote the photograph this is about, so the question visibly hangs off
+         the right picture even with five in flight — for a batch, the first. */
+      const quote = await providerIdOfPhoto(waId, merged.id);
+      if (missing) await remember(waId, { asking: missing, asking_for: merged.id });
+      else await remember(waId, { asking: null, asking_for: null });
+
+      if (fresh.length === 1) {
+        /* The model's acknowledgement, then the link — the one thing it
+           cannot write, because it does not know the address. */
+        await announcePublished(fresh[0].id, waId, from, spoken, ch, quote, out ? out.reply + '\n\n' : '', Boolean(out));
+        return;
+      }
+      if (fresh.length > 1) {
+        await announceBatch(fresh, waId, from, spoken, ch, quote, out ? out.reply + '\n\n' : '');
+        return;
       }
 
       if (out) {
         const sentId = await ch.reply(from, out.reply, quote);
         await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {}, sentId);
       } else {
-        await continueConversation(waId, from, merged, spoken, ch, Object.keys(patch).length === 0, '', quote);
+        await continueConversation(waId, from, merged, spoken, ch, !patchedAny, '', quote);
       }
       return;
     }
@@ -1724,7 +1769,7 @@ function parseLocally(text: string, comms: { slug: string; names?: string[]; nam
   if (years.length === 1) out.year = years[0];
   /* A range like "2003-2004" is the school year the archive already thinks in;
      take the first, which is how every tenure in the database is keyed. */
-  else if (years.length > 1 && years[1] - years[0] === 1) out.year = years[0];
+  else if (years.length > 1) out.year = Math.min(...years);   // "2010-2012": the first year, corrected later if need be
 
   const hay = text.toLowerCase();
   let best: { slug: string; len: number } | null = null;
@@ -1792,6 +1837,34 @@ async function publishIfReady(photoId: string, ch: Channel): Promise<false | 'al
 }
 
 /* ---- the moment it goes up ------------------------------------------------- */
+
+/* Several photographs went live from one answer: one message, one link per
+   page they landed on (a batch is usually one page), then the ask to share
+   the first time. */
+async function announceBatch(photos: any[], waId: string, from: string, lang: string,
+                             ch: Channel, quote: string | null, lead = '') {
+  const pages = new Map<string, string>();
+  for (const p of photos) {
+    const slug = (await pg(`/tmz_community?select=slug&id=eq.${p.community_id}`))?.[0]?.slug;
+    if (slug && p.year) pages.set(`${slug}/${p.year}`, `${SITE_URL}/#/c/${slug}/${p.year}`);
+  }
+  const links = [...pages.values()].join('\n') || `${SITE_URL}/`;
+  const first = lead + (await phrase(lang, x => x.batchLive)).replace('{n}', String(photos.length)) + '\n' + links;
+  const id = await ch.reply(from, first, quote);
+  await log(waId, 'out', 'text', first, photos[0].id, { reason: 'published', batch: photos.length }, id);
+  const c = await contactOf(waId);
+  if (c?.pitched_at) return;
+  const wa = `https://wa.me/${PUBLIC_WA}`;
+  for (const text of [
+    await phrase(lang, x => x.pitch1),
+    (await phrase(lang, x => x.pitch2)).replace('{site}', SITE_URL).replace('{wa}', wa),
+    await phrase(lang, x => x.pitch3) + '\n\n' + await phrase(lang, x => x.portraitHint)
+  ]) {
+    const sid = await ch.reply(from, text);
+    await log(waId, 'out', 'text', text, null, { reason: 'pitch' }, sid);
+  }
+  await remember(waId, { pitched_at: new Date().toISOString() });
+}
 
 /* Said once per photograph, the moment it is on the site: where to see it,
    with a link that opens on that very picture. The first time it happens for

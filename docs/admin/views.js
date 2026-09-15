@@ -734,18 +734,31 @@ const PHOTO_TABS = { agent: 'On the site', pending: 'Unsettled', all: 'Everythin
 let photoTab = 'agent';
 
 const PUBLIC_BASE = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
+/* Published: the public copy. Not yet: the private derivative, through a
+   signed URL that staff may mint (the bucket's read policy is staff-only). */
 const thumb = p => p.public_path
   ? `<img class="thumb" src="${PUBLIC_BASE}${encodeURI(p.public_path)}" alt="" loading="lazy">`
-  : `<span class="thumb none" title="Not published — the original stays private">—</span>`;
+  : (p.derived_path || p.storage_path)
+    ? `<img class="thumb" data-private="${esc(p.derived_path || p.storage_path)}" alt="" loading="lazy">`
+    : `<span class="thumb none">—</span>`;
+
+async function loadPrivateThumbs(root) {
+  const imgs = [...root.querySelectorAll('img[data-private]')];
+  if (!imgs.length) return;
+  try {
+    const urls = await sb.signedUrls('tmz-photo-originals', imgs.map(i => i.dataset.private));
+    imgs.forEach((img, i) => { if (urls[i]) img.src = urls[i]; else img.replaceWith(Object.assign(document.createElement('span'), { className: 'thumb none', textContent: '—' })); });
+  } catch (e) { console.error('private thumbs', e); }
+}
 
 export async function photos() {
   const [pending, agentUp, counts] = await Promise.all([
     sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,public_path,source,status,agent_decision,created_at,' +
+      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
       'tmz_community(slug,tmz_community_tr(lang,name))',
       { filter: { status: 'eq.pending' }, order: 'created_at.desc', limit: 200 }),
     sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,public_path,source,status,agent_decision,published_at,' +
+      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,published_at,' +
       'tmz_community(slug,tmz_community_tr(lang,name))',
       { filter: { published_by: 'eq.agent' }, order: 'published_at.desc', limit: 200 }),
     sb.from('tmz_photo', {}).select('id,status', { limit: 2000 })
@@ -755,7 +768,7 @@ export async function photos() {
   const rows = photoTab === 'pending' ? pending
              : photoTab === 'agent' ? agentUp
              : await sb.from('tmz_photo', {}).select(
-                 'id,year,storage_path,public_path,source,status,agent_decision,created_at,' +
+                 'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
                  'tmz_community(slug,tmz_community_tr(lang,name))',
                  { order: 'created_at.desc', limit: 200 });
 
@@ -789,6 +802,7 @@ export async function photos() {
         </td>
       </tr>`).join('')}</tbody>
     </table></div>`}`;
+  loadPrivateThumbs($('#page'));
 
   document.querySelectorAll('#page .tab').forEach(b => {
     b.onclick = () => { photoTab = b.dataset.tab; photos(); };

@@ -230,6 +230,19 @@ export const sb = {
     return res.json();
   },
 
+  /* Signed URLs for private objects, a batch at a time; the Storage API
+     returns one entry per path with either a signedURL or an error. */
+  async signedUrls(bucket, paths) {
+    const s = await ensureSession();
+    const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/sign/${bucket}`, {
+      method: 'POST', headers: { ...authHeaders(s), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: 3600, paths })
+    });
+    if (!res.ok) throw new Error(`sign → ${res.status} ${await res.text()}`);
+    const out = await res.json();
+    return out.map(o => o.signedURL ? `${window.TMZ_SUPABASE_URL}/storage/v1${o.signedURL}` : null);
+  },
+
   async storageRemove(bucket, key) {
     const s = await ensureSession();
     const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
