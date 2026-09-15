@@ -172,6 +172,11 @@ a real one is accepted and placed.
   (`SITE_URL`, `WHATSAPP_PUBLIC_NUMBER`; defaults are the live values), and
   the thanks with the portrait hint — and never again for that sender
   (`tmz_wa_contact.pitched_at`).
+- **What a photograph needs to go up: a community and a year.** Nothing
+  else. The agent asks for those two, one at a time, and publishes the
+  moment both are known. Who is in it and the occasion are asked for once,
+  in the message that carries the link, and added under the photograph
+  whenever they arrive - the same way a correction is.
 - **Requests.** When a sender asks for something the agent must not do
   alone — take a photograph down, fix a name in the register, "I am in that
   picture" — it opens a request (`tmz_request`) and says the team will

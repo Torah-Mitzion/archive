@@ -634,7 +634,7 @@ async function handleSweep(req: Request, url: URL) {
   try {
     const day = 24 * 3600_000;
     const waiting = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year,people_text,occasion_text` +
-      `&status=eq.pending&agent_decision=eq.publish&portrait_of=is.null&public_path=is.null&submitter_ref=like.wa:%25` +
+      `&status=eq.pending&agent_decision=eq.publish&portrait_of=is.null&public_path=is.null&or=(community_id.is.null,year.is.null)&submitter_ref=like.wa:%25` +
       `&created_at=lt.${encodeURIComponent(new Date(Date.now() - day).toISOString())}` +
       `&created_at=gt.${encodeURIComponent(new Date(Date.now() - 8 * day).toISOString())}&order=created_at.asc&limit=20`);
     let reminded = 0;
@@ -670,7 +670,7 @@ async function handleSweep(req: Request, url: URL) {
   try {
     const ready = await pg(`/tmz_photo?select=id,submitter_ref,community_id,year` +
       `&status=eq.pending&agent_decision=eq.publish&public_path=is.null&portrait_of=is.null` +
-      `&community_id=not.is.null&year=not.is.null&people_text=not.is.null&occasion_text=not.is.null&limit=20`);
+      `&community_id=not.is.null&year=not.is.null&limit=20`);
     const bySender = new Map<string, any[]>();
     for (const p of ready ?? []) {
       if ((await publishIfReady(p.id, ch)) !== 'fresh') continue;
@@ -1234,7 +1234,7 @@ async function handle(body: any, ch: Channel) {
          the right picture even with five in flight — for a batch, the first. */
       const quote = await providerIdOfPhoto(waId, merged.id);
       if (missing) await remember(waId, { asking: missing, asking_for: merged.id });
-      else await remember(waId, { asking: null, asking_for: null });
+      else await remember(waId, { asking: extrasWanted(merged) ? 'people' : null, asking_for: extrasWanted(merged) ? merged.id : null });
 
       if (fresh.length === 1) {
         /* The model's acknowledgement, then the link — the one thing it
@@ -1660,8 +1660,11 @@ async function rescreen(p: any, ch: Channel) {
 
 /* ---- the conversation ----------------------------------------------------- */
 
-const ASK_ORDER: Array<'community' | 'year' | 'people' | 'occasion'> =
-  ['community', 'year', 'people', 'occasion'];
+/* Only the place and the year are asked for before a photograph goes up:
+   those are what put it on a page. Who is in it and what the occasion was
+   are welcome, asked once after it is up, and added under the photograph
+   whenever they arrive. */
+const ASK_ORDER: Array<'community' | 'year'> = ['community', 'year'];
 
 /* Asks for the next thing the photograph is missing, or — when nothing is —
    publishes it and says so. One question per message: a person who has just
@@ -1684,7 +1687,7 @@ async function continueConversation(
     return;
   }
 
-  await remember(waId, { asking: null, asking_for: null });
+  await remember(waId, { asking: extrasWanted(photo) ? 'people' : null, asking_for: extrasWanted(photo) ? photo.id : null });
   const live = await publishIfReady(photo.id, ch);
   ch.trace(live ? 'published' : 'complete, held', { photo_id: photo.id, decision: photo.agent_decision });
   if (live === 'fresh') { await announcePublished(photo.id, waId, from, lang, ch, quote, lead); return; }
@@ -1703,12 +1706,12 @@ async function providerIdOfPhoto(ref: string, photoId: string): Promise<string |
   } catch { return null; }
 }
 
-function nextMissing(photo: any): 'community' | 'year' | 'people' | 'occasion' | null {
+function nextMissing(photo: any): 'community' | 'year' | null {
   if (photo.portrait_of) return null;   // a portrait is complete the moment it is linked
-  return ASK_ORDER.find(k =>
-    k === 'community' ? !photo.community_id : k === 'year' ? !photo.year :
-    k === 'people' ? !photo.people_text : !photo.occasion_text) ?? null;
+  return ASK_ORDER.find(k => k === 'community' ? !photo.community_id : !photo.year) ?? null;
 }
+/* What would still be nice to know, once it is up. */
+const extrasWanted = (photo: any) => !photo.portrait_of && (!photo.people_text || !photo.occasion_text);
 
 /* ---- placement ----------------------------------------------------------- */
 
@@ -1849,7 +1852,8 @@ async function announceBatch(photos: any[], waId: string, from: string, lang: st
     if (slug && p.year) pages.set(`${slug}/${p.year}`, `${SITE_URL}/#/c/${slug}/${p.year}`);
   }
   const links = [...pages.values()].join('\n') || `${SITE_URL}/`;
-  const first = lead + (await phrase(lang, x => x.batchLive)).replace('{n}', String(photos.length)) + '\n' + links;
+  const first = lead + (await phrase(lang, x => x.batchLive)).replace('{n}', String(photos.length)) + '\n' + links +
+    (photos.some(extrasWanted) ? '\n\n' + await phrase(lang, x => x.extras) : '');
   const id = await ch.reply(from, first, quote);
   await log(waId, 'out', 'text', first, photos[0].id, { reason: 'published', batch: photos.length }, id);
   const c = await contactOf(waId);
@@ -1873,13 +1877,14 @@ async function announceBatch(photos: any[], waId: string, from: string, lang: st
    that sender. */
 async function announcePublished(photoId: string, waId: string, from: string, lang: string,
                                  ch: Channel, quote: string | null, lead = '', modelSpoke = false) {
-  const p = (await pg(`/tmz_photo?select=id,year,community_id,tmz_community(slug)&id=eq.${photoId}`))?.[0];
+  const p = (await pg(`/tmz_photo?select=id,year,community_id,people_text,occasion_text,portrait_of,tmz_community(slug)&id=eq.${photoId}`))?.[0];
   const slug = p?.tmz_community?.slug;
   const url = slug && p?.year ? `${SITE_URL}/#/c/${slug}/${p.year}/${photoId}` : `${SITE_URL}/`;
   /* When the model already wrote the acknowledgement, only the link is added
      to it — the one thing it cannot write, because it does not know the address. */
   const first = lead + (modelSpoke ? '' : await phrase(lang, x => x.complete) + '\n\n') +
-    (await phrase(lang, x => x.seeIt)).replace('{url}', url);
+    (await phrase(lang, x => x.seeIt)).replace('{url}', url) +
+    (p && extrasWanted(p) ? '\n\n' + await phrase(lang, x => x.extras) : '');
   const id = await ch.reply(from, first, quote);
   await log(waId, 'out', 'text', first, photoId, { reason: 'published', url }, id);
 

@@ -37,6 +37,7 @@ type Strings = {
   reminder: string;         // a day later, a photograph still lacks a place or a year
   seeIt: string;            // "{url}" — it is on the site, here
   batchLive: string;        // "{n}" — several went up together; links follow
+  extras: string;           // the one soft ask for names and occasion, after it is up
   portraitHint: string;     // how to send a picture of yourself
   pitch1: string;           // please share the bot and the site
   pitch2: string;           // "{site}" "{wa}" — the forwardable message itself
@@ -91,6 +92,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'Your photograph from yesterday is still waiting on one detail before it can go up. ',
     seeIt: 'You can see it on the site here:\n{url}',
     batchLive: 'Wonderful — all {n} photographs are on the site now! 🎉 You can see them here:',
+    extras: 'If you remember who is in it, or what the occasion was, write it here and I will add it under the photograph.',
     portraitHint: 'Were you a shaliach or shlicha? Send a picture of yourself with the words “this is me” and your name, and it will appear next to your name.',
     pitch1: 'To fill the album of every one of these thirty years, we would love you to share this with shlichim, community members and partners along the way.',
     pitch2: '📷 Thirty years of Torah MiTzion in photographs — every kollel, every year since 1996.\nFind your year: {site}\nSend the pictures you kept, straight from WhatsApp: {wa}',
@@ -143,6 +145,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'התמונה ששלחתם אתמול עדיין מחכה לפרט אחד לפני שתעלה. ',
     seeIt: 'אפשר לראות אותה באתר כאן:\n{url}',
     batchLive: 'מצוין — כל {n} התמונות באתר! 🎉 אפשר לראות אותן כאן:',
+    extras: 'אם אתם זוכרים מי בתמונה, או מה היה האירוע — כתבו כאן ואוסיף את זה מתחת לתמונה.',
     portraitHint: 'הייתם שליחים או שליחות? שלחו תמונה של עצמכם עם המילים ״זו תמונה שלי״ והשם שלכם, והיא תופיע ליד השם שלכם.',
     pitch1: 'כדי למלא את האלבום של כל אחת משלושים השנים האלה, נשמח שתשתפו את זה עם שליחים, חברי קהילות ושותפים לדרך.',
     pitch2: '📷 שלושים שנות תורה מציון בתמונות — כל כולל, כל שנה מאז 1996.\nמצאו את השנה שלכם: {site}\nשלחו את התמונות ששמרתם, ישר מהוואטסאפ: {wa}',
@@ -195,6 +198,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'Ваша вчерашняя фотография всё ещё ждёт одной детали, прежде чем попасть на сайт. ',
     seeIt: 'Её можно увидеть на сайте здесь:\n{url}',
     batchLive: 'Отлично — все {n} фотографий уже на сайте! 🎉 Их можно увидеть здесь:',
+    extras: 'Если помните, кто на ней или по какому поводу снимали, напишите здесь — я добавлю это под фотографией.',
     portraitHint: 'Вы были шалиахом или шлихой? Пришлите свою фотографию со словами «это я» и своим именем — она появится рядом с вашим именем.',
     pitch1: 'Чтобы альбом каждого из этих тридцати лет наполнился, мы будем рады, если вы поделитесь этим со шлихим, членами общин и друзьями.',
     pitch2: '📷 Тридцать лет Тора ми-Цион в фотографиях — каждый колель, каждый год с 1996-го.\nНайдите свой год: {site}\nПришлите сохранённые снимки прямо из WhatsApp: {wa}',
@@ -247,6 +251,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'Votre photographie d’hier attend encore un détail avant de pouvoir être publiée. ',
     seeIt: 'Vous pouvez la voir sur le site ici :\n{url}',
     batchLive: 'Formidable — les {n} photographies sont sur le site ! 🎉 Vous pouvez les voir ici :',
+    extras: 'Si vous vous souvenez de qui est dessus, ou de l’occasion, écrivez-le ici et je l’ajouterai sous la photographie.',
     portraitHint: 'Vous avez été chaliah ou chliha ? Envoyez une photo de vous avec les mots « c’est moi » et votre nom, et elle apparaîtra à côté de votre nom.',
     pitch1: 'Pour remplir l’album de chacune de ces trente années, nous serions heureux que vous partagiez ceci avec des chlihim, des membres de communautés et des compagnons de route.',
     pitch2: '📷 Trente ans de Torah MiTzion en photographies — chaque kollel, chaque année depuis 1996.\nTrouvez votre année : {site}\nEnvoyez les photos que vous avez gardées, directement depuis WhatsApp : {wa}',
@@ -299,6 +304,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'Ihr Foto von gestern wartet noch auf ein Detail, bevor es online gehen kann. ',
     seeIt: 'Hier ist es auf der Website zu sehen:\n{url}',
     batchLive: 'Wunderbar – alle {n} Fotos sind jetzt auf der Website! 🎉 Hier sind sie:',
+    extras: 'Wenn Sie wissen, wer darauf ist oder was der Anlass war, schreiben Sie es hier – ich füge es unter dem Foto ein.',
     portraitHint: 'Waren Sie Schaliach oder Schlicha? Schicken Sie ein Bild von sich mit den Worten „das bin ich“ und Ihrem Namen – es erscheint neben Ihrem Namen.',
     pitch1: 'Damit das Album jedes dieser dreißig Jahre voll wird, freuen wir uns, wenn Sie das mit Schlichim, Gemeindemitgliedern und Weggefährten teilen.',
     pitch2: '📷 Dreißig Jahre Torah MiTzion in Fotos – jedes Kollel, jedes Jahr seit 1996.\nFinden Sie Ihr Jahr: {site}\nSchicken Sie die Bilder, die Sie aufbewahrt haben, direkt aus WhatsApp: {wa}',
@@ -351,6 +357,7 @@ const S: Record<Lang, Strings> = {
     reminder: 'Tu fotografía de ayer todavía espera un detalle antes de poder publicarse. ',
     seeIt: 'Puedes verla en el sitio aquí:\n{url}',
     batchLive: 'Estupendo — ¡las {n} fotografías ya están en el sitio! 🎉 Puedes verlas aquí:',
+    extras: 'Si recuerdas quién aparece o cuál fue la ocasión, escríbelo aquí y lo añadiré debajo de la fotografía.',
     portraitHint: '¿Fuiste shaliaj o shlijá? Envía una foto tuya con las palabras «este soy yo» y tu nombre, y aparecerá junto a tu nombre.',
     pitch1: 'Para llenar el álbum de cada uno de estos treinta años, nos encantaría que compartieras esto con shlijim, miembros de las comunidades y compañeros de camino.',
     pitch2: '📷 Treinta años de Torah MiTzion en fotografías: cada kolel, cada año desde 1996.\nEncuentra tu año: {site}\nEnvía las fotos que guardaste, directo desde WhatsApp: {wa}',
