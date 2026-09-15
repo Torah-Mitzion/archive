@@ -973,3 +973,81 @@ async function takeDown(id) {
     photos();
   } catch (e) { alert(e.message); }
 }
+
+/* ---- requests ------------------------------------------------------------ */
+
+const KINDS = { takedown: 'Take down', fix_name: 'Fix a name', fix_details: 'Fix details', tag_me: 'I am in it', question: 'Question', other: 'Other' };
+const STATUSES = { open: 'Open', in_progress: 'In progress', done: 'Done', declined: 'Declined' };
+const PUBLIC_BASE_R = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
+
+export async function openRequestCount() {
+  return sb.count('tmz_request', { status: 'eq.open' });
+}
+
+export async function requests() {
+  const show = (location.hash.split('?')[1] || '').includes('all=1');
+  const rows = await sb.from('tmz_request_board', {}).select('*', {
+    order: 'created_at.desc', limit: 300, ...(show ? {} : { filter: { status: 'in.(open,in_progress)' } })
+  });
+  $('#page').innerHTML = `
+    <div class="page-head">
+      <div><h1>Requests</h1>
+        <p>What the people who send photographs asked for over WhatsApp. Resolve one and the agent tells them.</p></div>
+      <a class="btn ghost" href="#/requests${show ? '' : '?all=1'}">${show ? 'Open only' : 'Show resolved too'}</a>
+    </div>
+    ${rows.length === 0 ? `<div class="empty">Nothing waiting.</div>` : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>When</th><th>Kind</th><th>Request</th><th>Photograph</th><th>From</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map(r => `<tr data-id="${r.id}">
+        <td class="mono dim">${esc(r.created_at.slice(0, 16).replace('T', ' '))}</td>
+        <td><span class="pill ${r.kind}">${esc(KINDS[r.kind] || r.kind)}</span></td>
+        <td>${esc(r.summary)}${r.quote ? `<br><span class="dim" dir="auto" style="font-size:12.5px">“${esc(r.quote.slice(0, 140))}${r.quote.length > 140 ? '…' : ''}”</span>` : ''}</td>
+        <td>${r.public_path ? `<a href="https://30.torahmitzion.org/#/c/${esc(r.community_slug)}/${r.year}/${r.photo_id}" target="_blank" rel="noopener"><img src="${PUBLIC_BASE_R}${esc(r.public_path)}" alt="" style="width:64px;height:48px;object-fit:cover;border-radius:2px;vertical-align:middle"> ${esc(r.community_slug || '')} ${r.year || ''}</a>`
+              : r.photo_id ? `<span class="dim">${r.photo_status}</span>` : '—'}</td>
+        <td class="mono">${esc(r.submitter_ref.replace(/^wa:/, '+'))}</td>
+        <td><span class="pill ${r.status}">${esc(STATUSES[r.status])}</span></td>
+        <td class="actions"><button class="edit">Handle</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`}`;
+  document.querySelectorAll('#page tbody tr').forEach(tr => {
+    tr.querySelector('.edit').onclick = () => requestDrawer(rows.find(r => r.id === tr.dataset.id));
+  });
+}
+
+/* One request: what they asked, the photograph, the person, a note that
+   goes back to them word for word, and the buttons that settle it. For a
+   takedown, "Take down and close" removes the public copy as well. */
+function requestDrawer(r) {
+  const el = openDrawer(`${KINDS[r.kind] || r.kind} — ${r.submitter_ref.replace(/^wa:/, '+')}`, `
+    <div class="field"><label>They asked</label><p>${esc(r.summary)}</p>
+      ${r.quote ? `<p class="dim" dir="auto">“${esc(r.quote)}”</p>` : ''}</div>
+    ${Object.keys(r.proposed || {}).length ? `<div class="field"><label>Proposed</label><pre class="mono" style="white-space:pre-wrap">${esc(JSON.stringify(r.proposed, null, 1))}</pre></div>` : ''}
+    ${r.public_path ? `<div class="field"><label>Photograph</label>
+      <a href="https://30.torahmitzion.org/#/c/${esc(r.community_slug)}/${r.year}/${r.photo_id}" target="_blank" rel="noopener">
+        <img src="${PUBLIC_BASE_R}${esc(r.public_path)}" alt="" style="max-width:100%;border-radius:3px"></a>
+      <p class="dim">${esc(r.community_slug || '')} ${r.year || ''} · ${esc(r.people_text || '')}</p></div>` : ''}
+    ${r.person_name ? `<div class="field"><label>Person in the register</label><p>${esc(r.person_name)} <a href="#/people">(edit in People)</a></p></div>` : ''}
+    <div class="field"><label>Status</label>
+      <select id="rqStatus">${Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Note to the sender <span class="dim">(sent word for word over WhatsApp when the request is Done or Declined)</span></label>
+      <textarea id="rqNote" rows="3" dir="auto">${esc(r.staff_note || '')}</textarea></div>
+    ${r.reply_sent_at ? `<p class="dim">Sender was told on ${esc(r.reply_sent_at.slice(0, 16).replace('T', ' '))}.</p>` : ''}
+  `, [
+    ...(r.kind === 'takedown' && r.public_path ? [{ label: 'Take down and close', kind: 'danger', onClick: async () => {
+      if (!confirm('Take this photograph off the site and mark the request done?')) return;
+      try {
+        await sb.storageRemove('tmz-photo-public', r.public_path);
+        await sb.from('tmz_photo').update({ status: 'rejected', public_path: null, published_by: null, published_at: null }, { id: `eq.${r.photo_id}` });
+        await sb.from('tmz_request').update({ status: 'done', staff_note: $('#rqNote').value.trim() || null }, { id: `eq.${r.id}` });
+        closeDrawer(); toast('Taken down; the sender will be told.'); requests();
+      } catch (e) { alert(e.message); }
+    } }] : []),
+    { label: 'Save', kind: 'solid', onClick: async () => {
+      try {
+        await sb.from('tmz_request').update({ status: $('#rqStatus').value, staff_note: $('#rqNote').value.trim() || null }, { id: `eq.${r.id}` });
+        closeDrawer(); toast('Saved.'); requests();
+      } catch (e) { alert(e.message); }
+    } }
+  ]);
+  return el;
+}

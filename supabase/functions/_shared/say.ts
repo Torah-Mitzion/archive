@@ -45,6 +45,10 @@ type Strings = {
   portraitNone: string;     // the name is not in the register
   portraitTaken: string;    // "{name}" already has a picture
   portraitLive: string;     // "{url}" — the portrait is up
+  requestOpened: string;    // the team will see it
+  requestDone: string;      // "{note}" — staff resolved it
+  requestDeclined: string;  // "{note}" — staff could not
+  requestTakedownDone: string;
   blocked: string;
 };
 
@@ -94,6 +98,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'I could not find that name in the register. How is it written in Hebrew or in English?',
     portraitTaken: '{name} already has a picture on the site, so I will leave that one as it is — if it should change, the Torah MiTzion office can swap it.',
     portraitLive: 'Your picture is up, next to your name:\n{url}',
+    requestOpened: 'I have passed that on to the Torah MiTzion team; they will look at it and answer you here.',
+    requestDone: 'Update from the Torah MiTzion team about your request: it is done. {note}',
+    requestDeclined: 'Update from the Torah MiTzion team about your request: {note}',
+    requestTakedownDone: 'Your photograph has been taken off the site, as you asked.',
     blocked: ''
   },
   he: {
@@ -141,6 +149,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'לא מצאתי את השם הזה ברישומים. איך הוא נכתב בעברית או באנגלית?',
     portraitTaken: 'ל{name} כבר יש תמונה באתר, אז אשאיר אותה כמו שהיא — אם צריך להחליף, המשרד של תורה מציון יכול.',
     portraitLive: 'התמונה שלכם באתר, ליד השם שלכם:\n{url}',
+    requestOpened: 'העברתי את זה לצוות של תורה מציון; הם יסתכלו ויענו לכם כאן.',
+    requestDone: 'עדכון מצוות תורה מציון לגבי הבקשה שלכם: בוצע. {note}',
+    requestDeclined: 'עדכון מצוות תורה מציון לגבי הבקשה שלכם: {note}',
+    requestTakedownDone: 'התמונה שלכם הוסרה מהאתר, כפי שביקשתם.',
     blocked: ''
   },
   ru: {
@@ -188,6 +200,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'Не нашёл такого имени в реестре. Как оно пишется на иврите или по-английски?',
     portraitTaken: 'У {name} на сайте уже есть фотография, оставлю её как есть — если нужно заменить, это может сделать офис Тора ми-Цион.',
     portraitLive: 'Ваша фотография на сайте, рядом с вашим именем:\n{url}',
+    requestOpened: 'Я передал это команде Тора ми-Цион; они посмотрят и ответят вам здесь.',
+    requestDone: 'Новости от команды Тора ми-Цион по вашему запросу: сделано. {note}',
+    requestDeclined: 'Новости от команды Тора ми-Цион по вашему запросу: {note}',
+    requestTakedownDone: 'Ваша фотография снята с сайта, как вы просили.',
     blocked: ''
   },
   fr: {
@@ -235,6 +251,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'Je n’ai pas trouvé ce nom dans le registre. Comment s’écrit-il en hébreu ou en anglais ?',
     portraitTaken: '{name} a déjà une photo sur le site, je la laisse telle quelle — s’il faut la changer, le bureau de Torah MiTzion peut le faire.',
     portraitLive: 'Votre photo est en ligne, à côté de votre nom :\n{url}',
+    requestOpened: 'J’ai transmis cela à l’équipe de Torah MiTzion ; ils regarderont et vous répondront ici.',
+    requestDone: 'Nouvelles de l’équipe Torah MiTzion concernant votre demande : c’est fait. {note}',
+    requestDeclined: 'Nouvelles de l’équipe Torah MiTzion concernant votre demande : {note}',
+    requestTakedownDone: 'Votre photographie a été retirée du site, comme demandé.',
     blocked: ''
   },
   de: {
@@ -282,6 +302,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'Diesen Namen finde ich nicht im Register. Wie wird er auf Hebräisch oder Englisch geschrieben?',
     portraitTaken: '{name} hat auf der Website schon ein Bild; das lasse ich so – wenn es getauscht werden soll, kann das Büro von Torah MiTzion das tun.',
     portraitLive: 'Ihr Bild ist online, neben Ihrem Namen:\n{url}',
+    requestOpened: 'Ich habe das an das Team von Torah MiTzion weitergegeben; es sieht es sich an und antwortet Ihnen hier.',
+    requestDone: 'Nachricht vom Torah-MiTzion-Team zu Ihrer Anfrage: erledigt. {note}',
+    requestDeclined: 'Nachricht vom Torah-MiTzion-Team zu Ihrer Anfrage: {note}',
+    requestTakedownDone: 'Ihr Foto wurde wie gewünscht von der Website genommen.',
     blocked: ''
   },
   es: {
@@ -329,6 +353,10 @@ const S: Record<Lang, Strings> = {
     portraitNone: 'No encontré ese nombre en el registro. ¿Cómo se escribe en hebreo o en inglés?',
     portraitTaken: '{name} ya tiene una foto en el sitio, así que la dejo como está — si hay que cambiarla, la oficina de Torah MiTzion puede hacerlo.',
     portraitLive: 'Tu foto está en el sitio, junto a tu nombre:\n{url}',
+    requestOpened: 'Se lo he pasado al equipo de Torah MiTzion; lo revisarán y te responderán aquí.',
+    requestDone: 'Novedades del equipo de Torah MiTzion sobre tu solicitud: hecho. {note}',
+    requestDeclined: 'Novedades del equipo de Torah MiTzion sobre tu solicitud: {note}',
+    requestTakedownDone: 'Tu fotografía se ha retirado del sitio, como pediste.',
     blocked: ''
   }
 };

@@ -1,6 +1,6 @@
 import { sb, captureRedirect, ensureSession, signInWithPassword, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
-import { dashboard, campaign, communities, people, photos, translations } from './views.js';
+import { dashboard, campaign, communities, people, photos, translations, requests, openRequestCount } from './views.js';
 
 /* A token arriving in the URL fragment is captured and cleared BEFORE we ask
    the DB who we are — otherwise the first request goes out anonymous and the
@@ -98,6 +98,7 @@ function renderShell(user, profile) {
           <a href="#/people" data-route="people">People</a>
           <a href="#/translations" data-route="translations">Translations</a>
           <a href="#/photos" data-route="photos">Moderation</a>
+          <a href="#/requests" data-route="requests">Requests <span class="nav-badge" id="reqBadge" hidden></span></a>
         </nav>
         <div class="side-me">
           <span class="name">${esc(displayName)}<span class="role-badge">${esc(profile.role)}</span></span>
@@ -128,7 +129,7 @@ function renderShell(user, profile) {
 /* ---- routing ------------------------------------------------------------ */
 
 const routes = {
-  dashboard, campaign, communities, people, photos, translations
+  dashboard, campaign, communities, people, photos, translations, requests
 };
 
 async function handleRoute() {
@@ -138,6 +139,7 @@ async function handleRoute() {
   const name = routes[h] ? h : 'dashboard';
   document.querySelectorAll('#nav a').forEach(a =>
     a.classList.toggle('on', a.dataset.route === name));
+  openRequestCount().then(n => { const b = $('#reqBadge'); if (b) { b.textContent = n; b.hidden = !n; } }).catch(() => {});
   try {
     $('#page').innerHTML = `<div class="empty">Loading…</div>`;
     await routes[name]();

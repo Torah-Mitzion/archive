@@ -172,6 +172,13 @@ a real one is accepted and placed.
   (`SITE_URL`, `WHATSAPP_PUBLIC_NUMBER`; defaults are the live values), and
   the thanks with the portrait hint — and never again for that sender
   (`tmz_wa_contact.pitched_at`).
+- **Requests.** When a sender asks for something the agent must not do
+  alone — take a photograph down, fix a name in the register, "I am in that
+  picture" — it opens a request (`tmz_request`) and says the team will
+  answer. The back office's **Requests** tab lists them; resolving one
+  (Done / Declined, with an optional note) has the watchdog send the note to
+  the sender word for word within two minutes. "Take down and close" removes
+  the public copy in the same click.
 - **Reminders.** The watchdog nudges once, a day later, about a photograph
   that passed screening but still lacks a community or a year (the two things
   without which it has no page). Never more than once per photograph, never

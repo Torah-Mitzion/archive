@@ -43,7 +43,11 @@ export interface Candidate {
 
 export interface Extracted {
   reply: string;
-  intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'portrait' | 'other';
+  intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'portrait' | 'request' | 'other';
+  /* A request for the people who run the album — something the assistant
+     must not do alone. */
+  request: { kind: 'takedown' | 'fix_name' | 'fix_details' | 'tag_me' | 'question' | 'other';
+             summary: string; proposed?: Record<string, string> } | null;
   person_name: string | null;  // when the photograph is a portrait of the sender (or of one named person)
   target_photo: number | null; // which candidate the message was about, when there were several
   community_slug: string | null;
@@ -111,7 +115,21 @@ may have such photographs. Your whole purpose:
    corrected value in the matching field and confirm the change in the reply —
    even for a photograph that is already complete or already on the site. When
    several photographs were listed and they did not say which, ask which.
-6. Be warm, brief and specific. Two or three sentences at most. Answer what they
+6. REQUESTS for the people who run the album — things you must not do yourself:
+   - they want a photograph TAKEN DOWN or removed ("delete it", "I don't want it
+     on the site", "that's my child, take it off") → kind "takedown";
+   - the spelling of a person's name IN THE REGISTER (a shaliach's listed name,
+     not the caption they typed) is wrong → kind "fix_name", proposed {"from","to"};
+   - they say they are IN a photograph someone else sent, or served in a year the
+     register misses → kind "tag_me";
+   - anything else about the site you cannot settle → kind "question"/"other".
+   Set intent "request", fill "request" with a one-line English summary of what
+   they want (and "proposed" when a concrete change was named), and in the reply
+   say plainly that the Torah MiTzion team will see it and answer here — never
+   promise it is done. A takedown of THEIR OWN photograph: also say it will be
+   taken off as soon as a person confirms. Caption corrections to their own
+   photograph are NOT requests — rule 5 handles those yourself.
+7. Be warm, brief and specific. Two or three sentences at most. Answer what they
    actually said. Never repeat a question they have just answered. Never ask for
    something you already know. If they ask something off-topic, answer briefly
    and steer back.
@@ -147,8 +165,9 @@ THEIR NEW MESSAGE: """${message}"""
 
 Return ONLY JSON:
 {"reply": string,
- "intent": "answer" | "question" | "greeting" | "thanks" | "portrait" | "other",
+ "intent": "answer" | "question" | "greeting" | "thanks" | "portrait" | "request" | "other",
  "person_name": string | null,     // only with intent "portrait": whose picture it is
+ "request": {"kind": "takedown"|"fix_name"|"fix_details"|"tag_me"|"question"|"other", "summary": string, "proposed": object} | null,
  "target_photo": number | null,    // only when several were listed above
  "community_slug": string | null,   // one of the slugs above, if their message names a community
  "year": number | null,             // 1990-2030, if their message gives a year
@@ -184,6 +203,11 @@ export async function converse(model: string, key: string, prompt: string): Prom
     reply: out.reply.trim().slice(0, 1500),
     intent: out.intent ?? 'other',
     person_name: out.person_name ? String(out.person_name).slice(0, 120) : null,
+    request: out.request && typeof out.request.summary === 'string'
+      ? { kind: ['takedown', 'fix_name', 'fix_details', 'tag_me', 'question', 'other'].includes(out.request.kind) ? out.request.kind : 'other',
+          summary: String(out.request.summary).slice(0, 300),
+          proposed: out.request.proposed && typeof out.request.proposed === 'object' ? out.request.proposed : {} }
+      : null,
     target_photo: Number.isInteger(out.target_photo) && out.target_photo > 0 ? out.target_photo : null,
     community_slug: out.community_slug ?? null,
     year: Number.isInteger(out.year) && out.year >= 1990 && out.year <= 2030 ? out.year : null,

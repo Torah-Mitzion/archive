@@ -666,6 +666,27 @@ async function handleSweep(req: Request, url: URL) {
     }
   } catch (e) { report.share_page_error = String(e).slice(0, 120); }
 
+  // 7. requests the team resolved and the sender has not yet heard about
+  try {
+    const done = await pg(`/tmz_request?select=id,kind,status,submitter_ref,lang,staff_note,photo_id` +
+      `&status=in.(done,declined)&reply_sent_at=is.null&submitter_ref=like.wa:%25&limit=10`);
+    let answered = 0;
+    for (const r of done ?? []) {
+      const note = (r.staff_note ?? '').trim();
+      const base = r.status === 'declined'
+        ? (await phrase(r.lang ?? 'en', x => x.requestDeclined)).replace('{note}', note || '—')
+        : r.kind === 'takedown' && !note
+          ? await phrase(r.lang ?? 'en', x => x.requestTakedownDone)
+          : (await phrase(r.lang ?? 'en', x => x.requestDone)).replace('{note}', note).trim();
+      const quote = r.photo_id ? await providerIdOfPhoto(r.submitter_ref, r.photo_id) : null;
+      const id = await ch.reply(r.submitter_ref.replace(/^wa:/, ''), base, quote);
+      await log(r.submitter_ref, 'out', 'text', base, r.photo_id, { reason: 'request resolved', request: r.id }, id);
+      await pg(`/tmz_request?id=eq.${r.id}`, { method: 'PATCH', body: JSON.stringify({ reply_sent_at: new Date().toISOString() }) });
+      answered++;
+    }
+    report.requests_answered = answered;
+  } catch (e) { report.requests_error = String(e).slice(0, 120); }
+
   // 3. the provider has a newer inbound than we do
   try {
     if (HEYY_API_TOKEN && HEYY_CHANNEL_ID) {
@@ -1050,7 +1071,7 @@ async function handle(body: any, ch: Channel) {
           message: text
         }));
         ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
-                                people: out.people, occasion: out.occasion, target: out.target_photo });
+                                people: out.people, occasion: out.occasion, target: out.target_photo, request: out.request?.kind ?? null });
         /* When several photographs are open and the model could tell which one
            the answer meant, that one is the target. When it could not, the
            reply it wrote asks — and nothing is written to any of them. */
@@ -1082,6 +1103,27 @@ async function handle(body: any, ch: Channel) {
       ...(communityId ? { community_id: communityId } : {}),
       ...(det.year ? { year: det.year } : {})
     });
+
+    /* A request is opened for the team and confirmed to the sender, in
+       addition to whatever else the message did. */
+    if (out?.request && (out.intent === 'request' || out.request.kind === 'takedown')) {
+      const r = out.request;
+      let personId: string | null = null;
+      if (r.kind === 'fix_name' && r.proposed?.from) {
+        const hits = await rpc('tmz_person_search', { q: String(r.proposed.from), want: 'en', lim: 2 }).catch(() => []);
+        if (hits.length === 1) personId = hits[0].id;
+      }
+      await pg('/tmz_request', { method: 'POST', body: JSON.stringify([{
+        kind: r.kind, submitter_ref: waId, lang: spoken, photo_id: openLive?.id ?? null, person_id: personId,
+        summary: r.summary, quote: text.slice(0, 1000), proposed: r.proposed ?? {}
+      }]) });
+      ch.trace('request opened', { kind: r.kind, photo: openLive?.id ?? null });
+      const quote = openLive ? await providerIdOfPhoto(waId, openLive.id) : null;
+      const said = out.reply + '\n\n' + await phrase(spoken, x => x.requestOpened);
+      const sentId = await ch.reply(from, said, quote);
+      await log(waId, 'out', 'text', said, openLive?.id ?? null, { reason: 'request', kind: r.kind }, sentId);
+      return;
+    }
 
     if (openLive && out?.intent === 'portrait') {
       const line = await linkPortrait(openLive, out.person_name, waId, from, lang, ch);
