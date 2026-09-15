@@ -458,7 +458,17 @@ body.lb-open { overflow: hidden; }
 .chat { position: fixed; right: 18px; bottom: 18px; z-index: 150; display: flex;
         flex-direction: column; align-items: flex-end; gap: 12px; }
 /* On the map the band owns the bottom edge; the guide sits just above it. */
-body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
+/* On the map, on a desktop, the guide sits at the top right of the map —
+   under the statistics, over the Pacific — and its panel opens downward.
+   The strip along the foot and the region row stay clear. */
+@media (min-width: 901px) {
+  body[data-route="map"] .chat { bottom: auto; top: calc(var(--mast) + 118px); }
+  body[data-route="map"] .chat .chat-fab { order: 0; }
+  body[data-route="map"] .chat-panel { height: min(520px, calc(100dvh - var(--mast) - var(--band) - 190px)); }
+}
+@media (max-width: 900px) {
+  body[data-route="map"] .chat { bottom: calc(var(--band) + 16px); }
+}
 .chat-fab { display: flex; align-items: center; gap: 9px; padding: 11px 16px 11px 13px; border-radius: 999px;
             background: var(--gold); color: var(--ink); font-size: 15px; font-weight: 500;
             box-shadow: 0 8px 28px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
