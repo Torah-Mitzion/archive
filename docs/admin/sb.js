@@ -203,7 +203,7 @@ export const sb = {
       headers: { ...authHeaders(s), Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' }
     });
     if (!res.ok && res.status !== 206) throw new Error(`count ${table} → ${res.status}`);
-    /* "*/0" when the table is empty; "0-0/6" otherwise */
+    // content-range reads 0-0/6, or */0 when the table is empty.
     const total = (res.headers.get('content-range') || '/0').split('/')[1];
     return total === '*' ? 0 : (+total || 0);
   },

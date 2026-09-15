@@ -230,11 +230,18 @@ Then in the repo's Settings → Pages → Custom domain, enter
 ## 9. Before telling anybody the number
 
 ```bash
+node scripts/check-browser.mjs
 node scripts/smoke.mjs
 ```
 
-Ten photographs through both doors, checking each lands where expected. Then
-send a dozen of the organisation's **own** photographs through
+The first parses every script under `docs/`. There is no build step here — what
+is committed is what the browser runs — so a syntax error otherwise reaches
+production intact and the page that loads the file never runs at all; that is
+how the back office once spent a morning showing nothing but "Loading…". Worth
+running after any change under `docs/`, not only before the campaign.
+
+The second puts ten photographs through both doors, checking each lands where
+expected. Then send a dozen of the organisation's **own** photographs through
 `/sim/` and read the verdicts — that is the calibration pass, and it is the
 part that cannot be skipped.
 

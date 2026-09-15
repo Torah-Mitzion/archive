@@ -12,6 +12,17 @@
 </head>
 <body>
 <div id="app"><div class="boot">Loading…</div></div>
+<script>
+/* A module that fails to parse never runs at all, and the page would sit on
+   "Loading…" for ever with the reason only in the console — which is how a
+   stray character in sb.js once closed the back office to everybody. Put the
+   error where the person looking at the screen can read it. */
+addEventListener('error', function (e) {
+  if (!e.message) return;                     // a missing image, not a broken script
+  var boot = document.querySelector('.boot');
+  if (boot) boot.textContent = 'The back office could not start: ' + e.message;
+}, true);
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

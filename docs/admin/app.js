@@ -51,7 +51,7 @@ function renderGate(error) {
     err.hidden = true;
     try {
       await signInWithPassword($('#gateUser').value, $('#gatePass').value);
-      boot();
+      start();
     } catch (ex) {
       err.textContent = ex.message; err.hidden = false;
       btn.disabled = false; btn.textContent = 'Sign in';
@@ -68,7 +68,7 @@ async function autoRegister(user) {
   const displayName = user.user_metadata?.full_name || user.email || null;
   try {
     await sb.from('tmz_app_user').insert({ id: user.id, display_name: displayName });
-    boot();
+    start();
   } catch (e) {
     app.innerHTML = `<div class="gate"><div class="gate-card">
       <h1>Couldn't register</h1>
@@ -149,5 +149,16 @@ async function handleRoute() {
   }
 }
 
+/* Until boot() paints something the page is nothing but the word "Loading",
+   so a failure on the way in — the network down, a table that answers 500 —
+   would leave it there for ever with the reason only in the console. Say it
+   on screen, above the sign-in form, where the person can act on it. */
+function start() {
+  boot().catch(e => {
+    console.error(e);
+    renderGate(e.message || String(e));
+  });
+}
+
 window.addEventListener('hashchange', handleRoute);
-boot();
+start();
