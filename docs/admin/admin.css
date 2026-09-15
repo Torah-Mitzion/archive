@@ -271,3 +271,6 @@ table.tbl td.actions .del:hover { color: var(--danger); }
 .pill.in_progress { color: var(--ivory); }
 .pill.done { color: #7BC68E; border-color: rgba(123,198,142,.5); }
 .pill.declined { color: var(--dim); }
+
+.thumb, .preview { background: var(--card); }
+.thumb[data-private]:not([src]), .preview[data-private]:not([src]) { min-height: 40px; }

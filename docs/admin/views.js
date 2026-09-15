@@ -820,8 +820,9 @@ export async function photos() {
    published that record is the only account of why it is on the site. */
 async function photoDrawer(row) {
   const [full] = await sb.from('tmz_photo', {}).select(
-    'id,community_id,year,taken_on,venue,event_type_id,status,source,storage_path,' +
+    'id,community_id,year,taken_on,venue,event_type_id,status,source,storage_path,derived_path,' +
     'public_path,published_by,published_at,width,height,bytes,phash,submitter_ref,agent_decision,' +
+    'people_text,people_tr,occasion_text,occasion_tr,portrait_of,ai_description,' +
     'tmz_photo_tr(lang,caption),tmz_photo_person(person_id,tmz_person(tmz_person_tr(lang,display_name)))',
     { filter: { id: `eq.${row.id}` } });
   const p = full || row;
@@ -842,8 +843,15 @@ async function photoDrawer(row) {
   const el = openDrawer('Photograph', `
     ${p.public_path
       ? `<img class="preview" src="${PUBLIC_BASE}${encodeURI(p.public_path)}" alt="">`
-      : `<div class="preview none">Not published, so there is no public copy to show.
-           The original is in the private bucket.</div>`}
+      : `<img class="preview" data-private="${esc(p.derived_path || p.storage_path)}" alt="">`}
+    ${p.status === 'pending' && p.agent_decision === 'publish'
+      ? `<p class="dim" style="margin:8px 0 0">${p.community_id && p.year
+          ? 'Cleared and placed — the watchdog puts it on the site within two minutes.'
+          : 'Cleared by the screener. It goes on the site as soon as it has a community and a year — set them here or let the sender answer.'}</p>`
+      : p.status === 'pending' && p.agent_decision === 'hold'
+      ? `<p class="dim" style="margin:8px 0 0">Held: the screener could not reach a verdict; it is retried automatically.</p>` : ''}
+    ${p.portrait_of ? `<p class="dim" style="margin:8px 0 0">A portrait — shown beside the person's name, never in the gallery.</p>` : ''}
+    ${p.ai_description ? `<p class="dim" style="margin:8px 0 0">Screener saw: ${esc(p.ai_description)}</p>` : ''}
 
     <div class="grid2">
       <div><label>Community</label>
@@ -861,6 +869,14 @@ async function photoDrawer(row) {
         </select></div>
     </div>
     <label>Place</label><input id="f_venue" value="${esc(p.venue ?? '')}">
+
+    <h3 class="drawer-h3">What the sender said</h3>
+    <label>Who is in it <span class="dim">(shown under the photograph; rendered into every language automatically)</span></label>
+    <input id="f_people" dir="auto" value="${esc(p.people_text ?? '')}">
+    ${p.people_tr?.en ? `<p class="dim" style="margin:2px 0 8px;font-size:12.5px">English: ${esc(p.people_tr.en)}</p>` : ''}
+    <label>Occasion <span class="dim">(as they wrote it)</span></label>
+    <input id="f_occasion" dir="auto" value="${esc(p.occasion_text ?? '')}">
+    ${p.occasion_tr?.en ? `<p class="dim" style="margin:2px 0 8px;font-size:12.5px">English: ${esc(p.occasion_tr.en)}</p>` : ''}
 
     <h3 class="drawer-h3">Caption</h3>
     ${LANGS.map(l => `<label>${LANG_NAMES[l]}</label>
@@ -897,6 +913,8 @@ async function photoDrawer(row) {
         : [])
     ]);
 
+  loadPrivateThumbs(el);
+
   /* The name list is only fetched when the drawer opens — 231 people is small,
      but the photographs list is not the place to carry it. */
   const people = await sb.from('tmz_person', {}).select(
@@ -927,12 +945,19 @@ async function photoDrawer(row) {
   async function save() {
     try {
       const year = el.querySelector('#f_year').value;
+      const people_text = el.querySelector('#f_people').value.trim() || null;
+      const occasion_text = el.querySelector('#f_occasion').value.trim() || null;
       await sb.from('tmz_photo').update({
         community_id: el.querySelector('#f_comm').value || null,
         year: year ? Number(year) : null,
         taken_on: el.querySelector('#f_date').value || null,
         event_type_id: el.querySelector('#f_event').value || null,
-        venue: el.querySelector('#f_venue').value.trim() || null
+        venue: el.querySelector('#f_venue').value.trim() || null,
+        people_text, occasion_text,
+        /* A changed line is rendered afresh by the watchdog; an unchanged one keeps its renderings. */
+        ...(people_text !== (p.people_text ?? null) ? { people_tr: {} } : {}),
+        ...(occasion_text !== (p.occasion_text ?? null) ? { occasion_tr: {} } : {}),
+        ...(p.public_path ? { share_page_at: null } : {})
       }, { id: `eq.${p.id}` });
 
       /* Captions: write the ones with text, delete the ones emptied. A blank
