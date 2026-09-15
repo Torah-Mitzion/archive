@@ -79,7 +79,7 @@ function credit() {
   return `<span class="credit">
     <img class="credit-logo" src="hagai-logo.png" alt="Hag.Ai" width="26" height="26">
     <span>${esc(t('foot.built'))} <strong>Hag.Ai</strong>
-      &middot; <a dir="ltr" href="https://wa.me/972523114977">0523114977</a>
+      &middot; <a dir="ltr" href="https://wa.me/972586879347">058-6879347</a>
       &middot; <a dir="ltr" href="mailto:hagaihq@gmail.com">hagaihq@gmail.com</a></span>
   </span>`;
 }
