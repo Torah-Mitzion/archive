@@ -58,6 +58,7 @@ const rows = readFileSync(join(ROOT, 'scripts/shlichim-multi.tsv'), 'utf8').spli
 });
 
 const comms = await pg('/tmz_community?select=id,slug');
+const midreshet = (await pg('/tmz_institution_tr?select=institution_id&name=eq.Midreshet%20Zion&limit=1'))?.[0]?.institution_id ?? null;
 const commId = new Map(comms.map(c => [c.slug, c.id]));
 const people = await (async () => { const out = []; for (let off = 0; ; off += 1000) { const p = await pg(`/tmz_person?select=id,tmz_person_tr(lang,display_name)&order=id&offset=${off}&limit=1000`); out.push(...p); if (p.length < 1000) break; } return out; })();
 const byHe = new Map(people.map(p => [p.tmz_person_tr.find(t => t.lang === 'he')?.display_name, p.id]));
@@ -96,7 +97,8 @@ for (const r of rows) {
       if (mate) { role = 'spouse'; household_of = mate.id ?? mate; }   // a pending husband is linked after he is written
       else role = 'shlicha';   // a woman with no husband on the roster stands as a shlicha, whatever the title
     }
-    adds.push({ person_id: pid, community_id: commId.get(slug), role, start_year: a, end_year: b, household_of, institution_id: null,
+    adds.push({ person_id: pid, community_id: commId.get(slug), role, start_year: a, end_year: b, household_of,
+                institution_id: r.kind === 'מדרשת ציון' ? midreshet : null,
                 _who: `${r.first} ${r.last}`, _last: r.last, _where: `${slug} ${a}–${b} ${role}` });
   }
 }
