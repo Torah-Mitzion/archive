@@ -907,6 +907,9 @@ async function photoDrawer(row) {
     </p>`,
     [
       { label: 'Save', kind: 'solid', onClick: save },
+      ...(p.status !== 'approved' && !p.portrait_of
+        ? [{ label: 'Publish', kind: 'solid', onClick: () => save({ publish: true }) }]
+        : []),
       ...(p.status === 'approved'
         ? [{ label: 'Take down', kind: 'danger',
              onClick: () => { closeDrawer(); takeDown(p.id); } }]
@@ -942,9 +945,16 @@ async function photoDrawer(row) {
     el.querySelector('#f_person').value = '';
   };
 
-  async function save() {
+  /* Publish: a staff verdict in place of the screener's. The row is marked
+     cleared and the watchdog puts it on the site within two minutes, tells
+     the sender, and writes the share page - the same path every photograph
+     takes, so nothing is skipped. */
+  async function save({ publish = false } = {}) {
     try {
       const year = el.querySelector('#f_year').value;
+      if (publish && (!el.querySelector('#f_comm').value || !year)) {
+        alert('A photograph needs a community and a year before it can go on the site.'); return;
+      }
       const people_text = el.querySelector('#f_people').value.trim() || null;
       const occasion_text = el.querySelector('#f_occasion').value.trim() || null;
       await sb.from('tmz_photo').update({
@@ -957,8 +967,15 @@ async function photoDrawer(row) {
         /* A changed line is rendered afresh by the watchdog; an unchanged one keeps its renderings. */
         ...(people_text !== (p.people_text ?? null) ? { people_tr: {} } : {}),
         ...(occasion_text !== (p.occasion_text ?? null) ? { occasion_tr: {} } : {}),
-        ...(p.public_path ? { share_page_at: null } : {})
+        ...(p.public_path ? { share_page_at: null } : {}),
+        ...(publish ? { status: 'pending', agent_decision: 'publish', needs_rescreen: false } : {})
       }, { id: `eq.${p.id}` });
+      if (publish) {
+        await sb.from('tmz_moderation').insert({
+          photo_id: p.id, model: 'staff', pass: 'final', verdict: 'pending', decision: 'publish',
+          scores: {}, reasons: ['published by staff from the back office']
+        }, { return: 'minimal' });
+      }
 
       /* Captions: write the ones with text, delete the ones emptied. A blank
          row would satisfy the fallback chain and show a caption of nothing. */
@@ -984,7 +1001,7 @@ async function photoDrawer(row) {
       }
 
       closeDrawer();
-      toast('Saved.');
+      toast(publish ? 'Cleared. It goes on the site within two minutes, and the sender is told.' : 'Saved.');
       photos();
     } catch (e) { alert(e.message); }
   }

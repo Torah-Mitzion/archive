@@ -172,6 +172,12 @@ a real one is accepted and placed.
   (`SITE_URL`, `WHATSAPP_PUBLIC_NUMBER`; defaults are the live values), and
   the thanks with the portrait hint — and never again for that sender
   (`tmz_wa_contact.pitched_at`).
+- **Publishing by hand.** Moderation → Open a photograph → set community
+  and year → **Publish**. That records a staff verdict in place of the
+  screener's; the watchdog puts it on the site within two minutes, tells
+  the sender and writes the share page. Useful for a photograph the
+  screener held (could not reach a verdict) or one whose sender never
+  answered.
 - **What a photograph needs to go up: a community and a year.** Nothing
   else. The agent asks for those two, one at a time, and publishes the
   moment both are known. Who is in it and the occasion are asked for once,
