@@ -12,6 +12,12 @@ const view = { zoom: 'world', custom: null, sel: null, history: [] };
 const STATE = { communities: [], regions: [], loaded: false, error: null };
 const findCommunity = id => STATE.communities.find(c => c.id === id);
 
+/* The years a kollel ran, and all that is said about it. A community that
+   closed is not announced as closed anywhere on the site — the span ends, and
+   the reader can see that for themselves; one that is still open runs to
+   today. Keep it inside dir="ltr" so the years stay in reading order. */
+const yearSpan = c => `${c.f}\u2013${c.c || t('yr.present')}`;
+
 /* Every view change remembers where it came from, so zooming out walks back the
    way you came in instead of dumping you at the world. */
 function setView(next) {
@@ -185,9 +191,9 @@ async function drawStrip() {
     </div>
     ${c ? `
     <a class="strip-sel" href="#/c/${esc(c.id)}">
-      <span class="eyebrow">${esc(t('region.' + c.rg))} &middot; ${esc(c.c ? t('st.closed') + ' ' + c.c : t('st.open'))}</span>
+      <span class="eyebrow">${esc(t('region.' + c.rg))}</span>
       <span class="strip-name">${esc(tf(c.name))}</span>
-      <span class="strip-meta"><span dir="ltr">${c.f}&ndash;${c.c || ''}</span> &middot; ${num(h.total)} ${esc(t('strip.photos'))}
+      <span class="strip-meta"><span dir="ltr">${esc(yearSpan(c))}</span> &middot; ${num(h.total)} ${esc(t('strip.photos'))}
         &middot; <b>${esc(t('cta.fly'))} &rarr;</b></span>
     </a>` : ''}
     <div class="band-credit">${credit()}</div>`;
@@ -387,9 +393,9 @@ async function overviewView(c) {
     <div class="crumb"><a href="#/">&larr; ${esc(t('cta.back'))}</a></div>
     <div class="ov-head">
       <div>
-        <span class="eyebrow">${esc(t('region.' + c.rg))} &middot; ${esc(c.c ? t('st.closed') + ' ' + c.c : t('st.open'))}</span>
+        <span class="eyebrow">${esc(t('region.' + c.rg))}</span>
         <h1>${esc(tf(c.name))}</h1>
-        <p class="dim"><span dir="ltr">${c.f}&ndash;${c.c || ''}</span> &middot; ${num(h.rows.length)} ${esc(t('u.years')).toLowerCase()}
+        <p class="dim"><span dir="ltr">${esc(yearSpan(c))}</span> &middot; ${num(h.rows.length)} ${esc(t('u.years')).toLowerCase()}
           &middot; ${num(ov.people)} ${esc(t('ov.people'))} &middot; ${num(h.total)} ${esc(t('u.photographs')).toLowerCase()}</p>
       </div>
     </div>
@@ -709,8 +715,7 @@ function communitiesView() {
       <div class="idx-list">${rows.map(c => `
         <a class="idx-row" href="#/c/${esc(c.id)}">
           <span class="idx-name">${esc(tf(c.name))}</span>
-          <span class="idx-span" dir="ltr">${c.f}–${c.c || ''}</span>
-          <span class="idx-st ${c.c ? 'closed' : 'open'}">${esc(c.c ? t('idx.closed') : t('idx.open'))}</span>
+          <span class="idx-span" dir="ltr">${esc(yearSpan(c))}</span>
           <span class="idx-n">${c.total ? num(c.total) : '<span class="warn">0</span>'}</span>
         </a>`).join('')}</div>
     </section>`;
