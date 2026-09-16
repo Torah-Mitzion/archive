@@ -133,9 +133,43 @@ async function loadYear(slug, year, lang) {
 
 /* ---- teaser -------------------------------------------------------------- */
 
+/* A few random photographs. Once the landing page's strip; now only the
+   fallback the gallery shows while tmz_gallery is not yet deployed. */
+
 async function loadTeaser(n, lang) {
   const rows = await rpc('tmz_teaser', { n, want: lang });
   return (rows || []).map(p => ({ ...p, url: photoUrl(p.path) }));
+}
+
+/* ---- gallery -------------------------------------------------------------- */
+
+/* One function serves the landing page's gallery (no community: the newest
+   photographs album-wide) and the community page (that community's newest,
+   plus one cover per year). Cached per call for the life of the page: the
+   landing gallery follows the pointer from dot to dot, and the second pass
+   over a community must not cost a round trip.
+
+   Until the migration that adds tmz_gallery has been pushed, the call fails;
+   the landing then falls back to the teaser it already had, and the community
+   page draws its year tiles without pictures. `live` says which happened. */
+const withUrl = p => ({ ...p, url: photoUrl(p.path) });
+const galleryCache = new Map();
+
+function loadGallery(slug, n, lang) {
+  const key = `${slug || ''}|${n}|${lang}`;
+  if (!galleryCache.has(key)) {
+    galleryCache.set(key, (async () => {
+      try {
+        const g = await rpc('tmz_gallery', { community_slug: slug || null, n, want: lang });
+        return { total: g.total || 0, photos: (g.photos || []).map(withUrl), covers: (g.covers || []).map(withUrl), live: true };
+      } catch (e) {
+        console.warn('tmz_gallery unavailable, showing the teaser instead:', e.message);
+        const tease = await loadTeaser(24, lang).catch(() => []);
+        return { total: null, photos: slug ? tease.filter(p => p.community === slug) : tease, covers: [], live: false };
+      }
+    })());
+  }
+  return galleryCache.get(key);
 }
 
 /* ---- people --------------------------------------------------------------- */
@@ -153,4 +187,4 @@ async function loadOverview(slug, lang) {
   return { roshei: (o?.roshei || []), people: o?.people || 0 };
 }
 
-window.TMZApi = { loadMap, loadYear, loadTeaser, loadOverview, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };
+window.TMZApi = { loadMap, loadYear, loadTeaser, loadGallery, loadOverview, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };

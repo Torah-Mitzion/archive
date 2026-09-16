@@ -125,6 +125,7 @@ function wireShell() {
 function mapView() {
   return `
   <div class="map-wrap">
+    <aside class="gal" id="gal" aria-live="polite"></aside>
     <div class="stage" id="stage" dir="ltr">
       <div class="ambient" id="ambient"></div>
       <div class="zion-glow" id="zionGlow"></div>
@@ -146,7 +147,6 @@ function mapView() {
     </div>
 
     <div class="regions" id="regions" dir="ltr"></div>
-    <div class="strip" id="strip"></div>
   </div>`;
 }
 
@@ -168,35 +168,97 @@ function drawRegions(views) {
   if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
 }
 
-/* The strip along the bottom: a few photographs from the album on one side,
-   the selected community on the other. No chart — the years belong to the
-   community's own page. */
-let teaserItems = null;
-async function drawStrip() {
-  if (teaserItems === null) {
-    try { teaserItems = await TMZApi.loadTeaser(6, LANG); } catch (e) { console.error('teaser', e); teaserItems = []; }
-  }
-  const box = $('#strip');
+/* ---- the gallery beside the map ------------------------------------------ */
+
+/* The map used to end in a strip of six random thumbnails, and nobody could
+   tell that the dots led to photographs. The gallery that replaced it sits
+   beside the map and shows whatever the pointer is over: hover a community
+   and its photographs appear, click and they stay, leave and the newest
+   photographs in the whole album come back. On a touch screen there is no
+   hover; a tap pins, and the gallery sits under the map. */
+const gal = { hover: null, seq: 0, timer: null };
+const canHover = () => window.matchMedia('(hover: hover)').matches;
+
+function galleryHover(id) {
+  if (!canHover()) return;
+  clearTimeout(gal.timer);
+  /* a short grace on leaving, so crossing from a dot to its label does not
+     flick the gallery back and forth */
+  gal.timer = setTimeout(() => {
+    if (gal.hover === id) return;
+    gal.hover = id;
+    drawGallery();
+  }, id ? 80 : 240);
+}
+
+function galleryItem(p, showCommunity) {
+  const what = showCommunity ? p.community_name : (p.event_name || p.occasion_text || p.people_text || '');
+  return `<a class="gal-it" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}"
+     title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
+    <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name || '')}" loading="lazy">
+    <span class="gal-cap"><b dir="ltr">${p.year}</b>${esc(what || '')}</span></a>`;
+}
+
+async function drawGallery() {
+  const box = $('#gal');
   if (!box) return;
-  const c = findCommunity(view.sel);
-  const h = c ? TMZApi.historyFrom(c) : null;
-  box.innerHTML = `
-    <div class="strip-photos">${teaserItems.map(p => `
-      <a class="teaser-it" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}"
-         title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
-        <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name)}" loading="lazy">
-        <span class="teaser-cap"><b>${esc(p.community_name)}</b><span dir="ltr">${p.year}</span></span>
-      </a>`).join('')}
-      ${teaserItems.length ? '' : `<span class="dim strip-empty">${esc(t('banner.empty'))}</span>`}
-    </div>
-    ${c ? `
-    <a class="strip-sel" href="#/c/${esc(c.id)}">
+  const id = gal.hover || view.sel;
+  const c = id ? findCommunity(id) : null;
+  const my = ++gal.seq;
+  const albumTotal = STATE.communities.reduce((a, x) => a + (x.total || 0), 0);
+
+  /* The heading goes up at once, so the switch feels instant even while the
+     pictures are on their way. */
+  const head = c ? `
+    <div class="gal-head">
       <span class="eyebrow">${esc(t('region.' + c.rg))}</span>
-      <span class="strip-name">${esc(tf(c.name))}</span>
-      <span class="strip-meta"><span dir="ltr">${esc(yearSpan(c))}</span> &middot; ${num(h.total)} ${esc(t('strip.photos'))}
-        &middot; <b>${esc(t('cta.fly'))} &rarr;</b></span>
-    </a>` : ''}
-    <div class="band-credit">${credit()}</div>`;
+      <div class="gal-top">
+        <a class="gal-name" href="#/c/${esc(c.id)}">${esc(tf(c.name))}</a>
+        ${view.sel === c.id ? `<button class="gal-unpin" id="galUnpin" aria-label="${esc(t('gal.back'))}" title="${esc(t('gal.back'))}">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg></button>` : ''}
+      </div>
+      <span class="gal-meta"><span dir="ltr">${esc(yearSpan(c))}</span> &middot; ${num(c.total || 0)} ${esc(t('u.photographs')).toLowerCase()}</span>
+    </div>` : `
+    <div class="gal-head">
+      <span class="eyebrow">${esc(t('teaser.title'))}</span>
+      <div class="gal-top"><span class="gal-name">${esc(t('gal.latest'))}</span></div>
+      <span class="gal-meta">${num(STATE.communities.length)} ${esc(t('u.communities')).toLowerCase()} &middot; ${num(albumTotal)} ${esc(t('u.photographs')).toLowerCase()}</span>
+    </div>`;
+  const skeleton = Array.from({ length: 9 }, () => '<span class="gal-it skel"></span>').join('');
+  box.innerHTML = `${head}<div class="gal-grid" id="galGrid">${skeleton}</div><div class="gal-foot" id="galFoot"></div>`;
+  const unpin = box.querySelector('#galUnpin');
+  if (unpin) unpin.onclick = () => { view.sel = null; gal.hover = null; drawGallery(); drawMap(); };
+
+  let g = { photos: [], total: 0 };
+  try { g = await TMZApi.loadGallery(c ? c.id : null, 9, LANG); } catch (e) { console.error('gallery', e); }
+  if (my !== gal.seq) return;   // the pointer has moved on; a later call owns the panel
+  const grid = $('#galGrid'), foot = $('#galFoot');
+  if (!grid || !foot) return;
+
+  if (g.photos.length) {
+    grid.innerHTML = g.photos.slice(0, 9).map(p => galleryItem(p, !c)).join('');
+  } else if (c && !g.live && c.total > 0) {
+    /* Before tmz_gallery is deployed the fallback is a random handful, which
+       may hold none of this community's photographs. It has some; say how
+       many and offer the page, rather than announce an emptiness that is
+       not there. */
+    grid.className = 'gal-empty quiet';
+    grid.innerHTML = `<p>${num(c.total)} ${esc(t('u.photographs')).toLowerCase()}</p>
+      <a class="btn-gold sm" href="#/c/${esc(c.id)}">${esc(t('gal.open').replace('{name}', tf(c.name)))}</a>`;
+  } else {
+    /* Two kinds of empty, both an invitation: this community has nothing
+       yet, or the whole album is still waiting for its first photograph. */
+    grid.className = 'gal-empty';
+    grid.innerHTML = c
+      ? `<p>${esc(t('gal.none').replace('{name}', tf(c.name)))}</p><a class="btn-gold sm" href="#/contribute">${esc(t('yr.emptyAsk'))}</a>`
+      : `<p>${esc(t('banner.empty'))}</p><a class="btn-gold sm" href="#/contribute">${esc(t('cta.send'))}</a>`;
+  }
+  foot.innerHTML = `
+    <div class="gal-row">
+      ${c && g.photos.length ? `<a class="btn-gold sm" href="#/c/${esc(c.id)}">${esc(t('gal.open').replace('{name}', tf(c.name)))}</a>` : ''}
+      <span class="gal-hint">${esc(canHover() ? t('gal.hint') : t('gal.hintTouch'))}</span>
+    </div>
+    <div class="gal-credit">${credit()}</div>`;
 }
 
 /* The stage can still measure zero on the frame right after innerHTML — fonts
@@ -259,7 +321,7 @@ function drawMap(attempt = 0) {
      walls off the entire top strip and starves Europe of labels. Measure the two
      halves it actually occupies. */
   /* The floating AI button sits over the Pacific corner, right where Sydney is. */
-  const blocked = ['.hero-l', '.hero-stats', '#regions', '#strip', '.chat'].map(sel => {
+  const blocked = ['.hero-l', '.hero-stats', '#regions', '.chat'].map(sel => {
     const e = $(sel); if (!e || e.hidden) return null;
     const r = e.getBoundingClientRect();
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
@@ -306,9 +368,14 @@ function drawMap(attempt = 0) {
      what a click on the dot does. */
   const pick = id => {
     if (view.sel === id) { location.hash = `#/c/${id}`; return; }
-    view.sel = id; drawStrip(); drawMap();
+    view.sel = id; drawGallery(); drawMap();
+    /* On a touch screen the gallery sits under the map, maybe below the fold;
+       a tap that changed nothing in view would look like a tap that failed. */
+    const g = $('#gal');
+    if (!canHover() && g && g.getBoundingClientRect().top > window.innerHeight * 0.6) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const hot = (id, on) => {
+    galleryHover(on ? id : null);
     $('#mapSvg').querySelectorAll(`.arc[data-arc="${CSS.escape(id)}"]`).forEach(a => a.classList.toggle('hot', on));
     /* The dot itself, or the cluster it is folded into — the name still shows. */
     const mk = $('#markers').querySelector(`.mk[data-id="${CSS.escape(id)}"]`)
@@ -366,6 +433,22 @@ function photoArt(p) {
     <circle cx="${c2 % 190 + 25}" cy="92" r="14" fill="#1B2B48"/></svg>`;
 }
 
+/* One photograph in a grid, in the markup the viewer reads back: the id for
+   the share link, .ev / .names / .mt for its caption. `lead` opens the small
+   line — the year, on a page that spans years. */
+function photoFigure(p, i, lead = '') {
+  const title = p.event_name || p.occasion_text || '';
+  const mt = [lead, p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : '',
+              p.event_name && p.occasion_text ? esc(p.occasion_text) : ''].filter(Boolean).join(' &middot; ');
+  return `
+    <figure class="photo" data-photo="${i}" data-photo-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
+      <img src="${esc(p.url)}" alt="${esc(title)}" loading="lazy">
+      <figcaption><span class="ev">${esc(title)}</span>
+        ${p.people_text ? `<span class="names" dir="auto">${esc(p.people_text)}</span>` : ''}
+        <span class="mt">${mt}</span>
+      </figcaption></figure>`;
+}
+
 /* No portraits are held yet, so a grey silhouette would only be a placeholder
    pretending to be a photograph. The first letter of the name, set in the
    serif, says who without pretending to show them. */
@@ -375,19 +458,33 @@ function initial(name, portrait) {
   return `<span class="ini" aria-hidden="true">${esc(ch || '·')}</span>`;
 }
 
-/* The community's own page: who led it, and the years as a row of bars —
-   the timeline that used to sit on the map, where it belongs. */
+/* The community's own page: who led it, and every year as a tile — a
+   photograph where there is one, an invitation where there is not. The bar
+   chart this replaced said the same in numbers, and a visitor who had just
+   come from the map for the pictures found none on it. */
 async function overviewView(c) {
   const h = TMZApi.historyFrom(c);
   let ov = { roshei: [], people: 0 };
-  try { ov = await TMZApi.loadOverview(c.id, LANG); } catch (e) { console.error('overview', e); }
+  let g = { photos: [], covers: [], total: 0, live: false };
+  const [o, gg] = await Promise.allSettled([TMZApi.loadOverview(c.id, LANG), TMZApi.loadGallery(c.id, 24, LANG)]);
+  if (o.status === 'fulfilled') ov = o.value; else console.error('overview', o.reason);
+  if (gg.status === 'fulfilled') g = gg.value; else console.error('gallery', gg.reason);
   const filled = h.rows.length - h.holes;
-  const bars = h.rows.map(o => `
-    <a class="ybar${o.n ? ' has' : ''}" href="#/c/${esc(c.id)}/${o.year}" title="${o.year}${o.n ? ' · ' + o.n : ''}">
-      <span class="ybar-n">${o.n ? num(o.n) : ''}</span>
-      <span class="ybar-bar" style="height:${o.n ? Math.max(10, Math.round(o.n / h.peak * 90)) : 4}px"></span>
-      <span class="ybar-y" dir="ltr">${String(o.year).slice(2)}</span>
-    </a>`).join('');
+  const cover = Object.fromEntries(g.covers.map(k => [String(k.year), k]));
+  const tiles = h.rows.map(o => o.n ? `
+    <a class="ytile has" href="#/c/${esc(c.id)}/${o.year}" title="${o.year} · ${o.n}">
+      ${cover[o.year] ? `<img src="${esc(cover[o.year].url)}" alt="" loading="lazy">` : ''}
+      <span class="ytile-cap"><b>${o.year}</b><i>${num(o.n)}</i></span></a>` : `
+    <a class="ytile none" href="#/c/${esc(c.id)}/${o.year}" title="${o.year}">
+      <em>${o.year}</em><b>+</b><i>${esc(t('ov.wereYou'))}</i></a>`).join('');
+  const shown = g.photos.length;
+  const wall = shown ? `
+    <section class="ov-wall">
+      <div class="sec-head"><span>${esc(t('ov.wall'))}</span>
+        <span class="dim">${g.live ? `${num(g.total)} &middot; ${esc(t('ov.latestFirst'))}` : ''}</span></div>
+      <div class="photos">${g.photos.map((p, i) => photoFigure(p, i, `<span dir="ltr">${p.year}</span>`)).join('')}</div>
+      ${g.live && g.total > shown ? `<p class="dim ov-showing">${esc(t('ov.showing')).replace('{shown}', num(shown)).replace('{total}', num(g.total))}</p>` : ''}
+    </section>` : '';
   return `
   <div class="cv ov">
     <div class="crumb"><a href="#/">&larr; ${esc(t('cta.back'))}</a></div>
@@ -402,8 +499,9 @@ async function overviewView(c) {
     <section class="ov-years">
       <div class="sec-head"><span>${esc(t('ov.byYear'))} &middot; ${esc(t('ov.pick'))}</span>
         <span class="dim">${num(filled)} ${esc(t('ov.filled'))} &middot; <span class="warn">${num(h.holes)} ${esc(t('ov.holes'))}</span></span></div>
-      <div class="ybars" dir="ltr">${bars}</div>
+      <div class="ytiles" dir="ltr">${tiles}</div>
     </section>
+    ${wall}
     ${ov.roshei.length ? `
     <section class="ov-roshei">
       <div class="sec-head"><span>${esc(t('ov.roshei'))}</span></div>
@@ -490,16 +588,7 @@ async function communityView(id, year) {
     <section class="sec">
       <div class="sec-head"><span>${esc(t('yr.photos'))}</span>
         <span class="dim">${num(photos.length)} ${esc(t('band.held'))}</span></div>
-      <div class="photos">
-        ${photos.map((p, i) => `
-          <figure class="photo" data-photo="${i}" data-photo-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
-            <img src="${esc(p.url)}" alt="${esc(p.event_name || p.occasion_text || '')}" loading="lazy">
-            <figcaption><span class="ev">${esc(p.event_name || p.occasion_text || '')}</span>
-              ${p.people_text ? `<span class="names" dir="auto">${esc(p.people_text)}</span>` : ''}
-              <span class="mt">${p.taken_on ? `<span dir="ltr">${esc(p.taken_on)}</span>` : ''}
-                ${p.event_name && p.occasion_text ? ' &middot; ' + esc(p.occasion_text) : ''}</span>
-            </figcaption></figure>`).join('')}
-      </div>
+      <div class="photos">${photos.map((p, i) => photoFigure(p, i)).join('')}</div>
     </section>`;
 
   /* On a maximized desktop the page is two columns under the rail — the
@@ -827,11 +916,9 @@ async function loadState() {
     STATE.error = e.message;
   }
   STATE.loaded = true;
-  // Keep a valid selection: the first community with photographs, else the first.
-  if (!findCommunity(view.sel)) {
-    const withPhotos = STATE.communities.find(c => c.total > 0);
-    view.sel = (withPhotos || STATE.communities[0] || {}).id ?? null;
-  }
+  /* Nothing is selected on arrival: the gallery opens on the whole album and
+     the map on the whole world, and the visitor's first hover or tap picks. */
+  if (!findCommunity(view.sel)) view.sel = null;
 }
 
 function banner() {
@@ -861,11 +948,14 @@ async function render() {
   }
 
   if (r.name === 'map') {
+    /* A hover that was live when the page went away never got its leave
+       event; it must not outlive the page. The pinned selection does. */
+    clearTimeout(gal.timer); gal.hover = null;
     root.innerHTML = shell() + banner() + mapView();
     wireShell();
     drawStats();
     requestAnimationFrame(() => drawMap());
-    drawStrip().then(() => { if (parseRoute().name === 'map') drawMap(); });
+    drawGallery();
   } else if (r.name === 'community') {
     root.innerHTML = shell() + banner() +
       `<div class="site-loading">${esc(t('u.loading'))}</div>` + footer();
