@@ -580,7 +580,12 @@ body.lb-open { overflow: hidden; }
           background: rgba(var(--hair-rgb),.07); color: var(--ivory); display: flex; align-items: center;
           justify-content: center; z-index: 2; }
 .lb-nav:hover { background: rgba(var(--gold-rgb),.25); color: var(--gold-hi); }
-.lb-prev { left: 14px; } .lb-next { right: 14px; }
+/* The buttons sit where the pictures they reach for are: previous behind,
+   next ahead, both along the reading direction. They used to be pinned
+   physically while the arrow keys mirrored, so in Hebrew the key and the
+   button for "next" pointed opposite ways. The chevrons turn with them. */
+.lb-prev { inset-inline-start: 14px; } .lb-next { inset-inline-end: 14px; }
+[dir="rtl"] .lb-nav svg { transform: scaleX(-1); }
 .lb-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
            padding: 12px clamp(16px,3vw,40px) 16px; border-top: 1px solid var(--line); }
 .lb-cap b { display: block; font-weight: 400; font-size: 17px; }

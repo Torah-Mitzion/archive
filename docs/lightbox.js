@@ -15,10 +15,15 @@
 (function () {
   const MIN = 1, MAX = 8;
   /* How far a drag must travel before it counts as a walk rather than a
-     wobble: a share of the stage on a phone, capped so a wide screen does not
-     demand an arm's length. */
-  const SWIPE_AT = w => Math.min(90, w * 0.18);
+     wobble, as a share of the stage. */
+  const SWIPE_AT = w => w * 0.30;
   const SLIDE_MS = 280;
+  /* Which way the set runs. In a right-to-left interface the next picture
+     lies to the left, so the drag that reaches for it is a drag to the
+     right — the same mirroring the arrow keys already follow, and the two
+     nav buttons now follow with them. Read live rather than cached: the
+     language can change under a viewer that is still open. */
+  const rtl = () => document.documentElement.dir === 'rtl';
   let items = [], idx = 0;
   let scale = 1, tx = 0, ty = 0;
   const pointers = new Map();
@@ -152,7 +157,7 @@
       if (pointers.size === 0) {
         dragging = false;
         if (swipe && swipe.axis === 'x') {
-          if (Math.abs(swipe.dx) > SWIPE_AT(stageW())) slideTo(swipe.dx < 0 ? 1 : -1);
+          if (Math.abs(swipe.dx) > SWIPE_AT(stageW())) slideTo((swipe.dx < 0) === rtl() ? -1 : 1);
           else setTrack(0, true);   // not far enough: let it fall back
         }
         swipe = null;
@@ -200,7 +205,8 @@
     if (settling || items.length < 2) { setTrack(0, true); return; }
     settling = true;
     togglePop(false);
-    setTrack(dir > 0 ? -stageW() : stageW(), true);
+    /* which way the strip travels to bring that picture into the frame */
+    setTrack((rtl() ? dir : -dir) * stageW(), true);
     setTimeout(() => {
       idx = (idx + dir + items.length) % items.length;
       settling = false;
@@ -243,7 +249,11 @@
        walk they are already in the browser's cache, so the swap paints in the
        same frame the strip snaps back. */
     slides.forEach((sl, k) => {
-      const nb = items[((idx + k - 1) % n + n) % n];
+      /* -1, 0, +1 along the reading direction: in Hebrew the next picture is
+         the one on the left, so the strip is filled the other way round and a
+         drag rightwards uncovers it. */
+      const step = rtl() ? 1 - k : k - 1;
+      const nb = items[((idx + step) % n + n) % n];
       const im = sl.querySelector('img');
       if (im.getAttribute('src') !== nb.url) im.src = nb.url;
       im.alt = k === 1 ? (it.title || '') : '';
