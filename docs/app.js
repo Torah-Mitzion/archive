@@ -383,12 +383,15 @@ function drawMap(attempt = 0) {
                   <button class="clus" data-cluster="${i}">${m.count}</button></div>`;
       }
       const cls = m.sel ? 'is-sel' : (m.c.c ? 'is-alumni' : 'is-active');
-      /* The lit name is a link: one click selects a community, the next one
-         on its name (or its dot) flies to its page. */
+      /* Every name is a door to its community, not only the chosen one's.
+         Reaching for the word is what people try first, and going by the dot
+         asks for two clicks to get there: one to choose it, another to enter.
+         A real anchor rather than a span with a handler, so it takes the
+         keyboard, the middle button and open-in-new-tab for nothing. */
       const lab = m.label
-        ? `<span class="lbl" ${m.sel ? `data-go="${m.c.id}" role="link" title="${esc(t('cta.fly'))}"` : ''} style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
+        ? `<a class="lbl" href="#/c/${esc(m.c.id)}" data-lbl="${esc(m.c.id)}" title="${esc(t('cta.fly'))}" style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
             m.label[2] === 'e' ? 'translate(-100%,-50%)' : m.label[2] === 'm' ? 'translate(-50%,-50%)' : 'translateY(-50%)'
-          }">${esc(m.name)}</span>` : '';
+          }">${esc(m.name)}</a>` : '';
       return `<div class="mk ${cls}" data-id="${esc(m.c.id)}" data-name="${esc(m.name)}" style="left:${m.x}px; top:${m.y}px">
                 <button class="hit" data-pick="${m.c.id}" aria-label="${esc(m.name)}"></button>
                 <span class="dot"></span>${lab}</div>`;
@@ -428,8 +431,11 @@ function drawMap(attempt = 0) {
     b.onmouseenter = () => hot(b.dataset.pick, true);
     b.onmouseleave = () => hot(b.dataset.pick, false);
   });
-  $('#markers').querySelectorAll('[data-go]').forEach(l => {
-    l.onclick = () => { location.hash = `#/c/${l.dataset.go}`; };
+  /* The name answers the pointer exactly as its dot does, so reading a label
+     brings up that community's photographs without having to find the dot. */
+  $('#markers').querySelectorAll('[data-lbl]').forEach(a => {
+    a.onmouseenter = () => hot(a.dataset.lbl, true);
+    a.onmouseleave = () => hot(a.dataset.lbl, false);
   });
   $('#markers').querySelectorAll('[data-cluster]').forEach(b => {
     b.onclick = () => {

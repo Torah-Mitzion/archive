@@ -1,16 +1,32 @@
-/* Full-screen viewer for the year pages' photographs.
+/* Full-screen viewer for the photographs.
  *
- * Wheel or pinch zooms about the pointer, drag pans, double-tap toggles
- * between fit and 2.5×, arrows walk the year, Esc closes. It lives outside
- * #app so a route change cannot tear it down mid-look. */
+ * Wheel or pinch zooms about the pointer, drag pans once zoomed, double-tap
+ * toggles between fit and 2.5×, arrows and swipes walk the set, Esc closes.
+ * It lives outside #app so a route change cannot tear it down mid-look.
+ *
+ * The stage holds a strip of three pictures — the one before, the one being
+ * looked at, and the one after — so a drag carries the neighbour in with the
+ * finger rather than cutting to it on release. Every move between pictures
+ * goes through slideTo(), buttons and arrow keys included, so all three feel
+ * like the same gesture. The strip is transformed for the walk and the middle
+ * picture for the zoom, which keeps the two from fighting over one transform.
+ * Since the set wraps, the neighbours always exist. */
 
 (function () {
   const MIN = 1, MAX = 8;
+  /* How far a drag must travel before it counts as a walk rather than a
+     wobble: a share of the stage on a phone, capped so a wide screen does not
+     demand an arm's length. */
+  const SWIPE_AT = w => Math.min(90, w * 0.18);
+  const SLIDE_MS = 280;
   let items = [], idx = 0;
   let scale = 1, tx = 0, ty = 0;
   const pointers = new Map();
   let lastDist = 0, dragging = false, moved = false, lastTap = 0;
-  let root, img, cap, counter, shareBtn, pop, popOpen = false;
+  /* while a one-finger drag is walking the strip: where it began, how far it
+     has come, and which axis it committed to */
+  let swipe = null, settling = false;
+  let root, track, slides, img, cap, counter, shareBtn, pop, popOpen = false;
 
   function build() {
     root = document.createElement('div');
@@ -22,7 +38,13 @@
         <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></button>
       <button class="lb-nav lb-next" data-lb="next" aria-label="">
         <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg></button>
-      <div class="lb-stage"><img class="lb-img" alt="" draggable="false"></div>
+      <div class="lb-stage">
+        <div class="lb-track">
+          <div class="lb-slide"><img class="lb-img" alt="" draggable="false"></div>
+          <div class="lb-slide"><img class="lb-img" alt="" draggable="false"></div>
+          <div class="lb-slide"><img class="lb-img" alt="" draggable="false"></div>
+        </div>
+      </div>
       <div class="lb-foot">
         <div class="lb-cap"></div>
         <div class="lb-meta">
@@ -42,7 +64,11 @@
         </div>
       </div>`;
     document.body.appendChild(root);
-    img = root.querySelector('.lb-img');
+    track = root.querySelector('.lb-track');
+    slides = [...root.querySelectorAll('.lb-slide')];
+    /* The three slides are never rebuilt, only refilled, so the middle
+       picture is one stable node for the zoom to hold on to. */
+    img = slides[1].querySelector('img');
     cap = root.querySelector('.lb-cap');
     counter = root.querySelector('.lb-count');
     shareBtn = root.querySelector('.lb-share');
@@ -57,7 +83,19 @@
       b.onclick = e => { e.stopPropagation(); ({ close, prev, next })[b.dataset.lb](); };
     });
     const stage = root.querySelector('.lb-stage');
-    stage.addEventListener('click', e => { if (e.target === stage && !moved) close(); });
+    /* Closing on a click outside the picture, and only there. The obvious test
+       is e.target, and it cannot work here: the drag needs setPointerCapture,
+       and a captured pointer retargets its up event to the capturing element,
+       so every click inside the stage arrives claiming the stage as its
+       target no matter what it landed on. (That is why a double-click never
+       zoomed — the first of its two clicks closed the viewer.) Ask the
+       geometry instead, which capture does not touch. */
+    stage.addEventListener('click', e => {
+      if (moved || settling) return;
+      const r = img.getBoundingClientRect();
+      const onPicture = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (!onPicture) close();
+    });
 
     stage.addEventListener('wheel', e => {
       e.preventDefault();
@@ -66,10 +104,21 @@
     }, { passive: false });
 
     stage.addEventListener('pointerdown', e => {
-      stage.setPointerCapture(e.pointerId);
+      if (settling) return;
+      /* Capture keeps a drag alive when the finger leaves the picture, but it
+         is allowed to fail — a pointer that has already been released, or a
+         browser that will not give it — and an exception here would take the
+         whole gesture down with it. The drag works without it as long as the
+         finger stays over the stage, which is where it is. */
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* drag on regardless */ }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) { dragging = true; moved = false; }
-      if (pointers.size === 2) lastDist = dist();
+      if (pointers.size === 1) {
+        dragging = true; moved = false;
+        /* Only a picture sitting at its fit size walks the strip. Once it is
+           zoomed the same drag is the only way to see the rest of it. */
+        swipe = scale <= 1.01 ? { x0: e.clientX, y0: e.clientY, dx: 0, axis: null } : null;
+      }
+      if (pointers.size === 2) { lastDist = dist(); swipe = null; setTrack(0, true); }
     });
     stage.addEventListener('pointermove', e => {
       if (!pointers.has(e.pointerId)) return;
@@ -84,9 +133,17 @@
           zoomAt(scale * d / lastDist, (a.x + b.x) / 2 - r.left - r.width / 2, (a.y + b.y) / 2 - r.top - r.height / 2);
         }
         lastDist = d;
-      } else if (dragging && scale > 1) {
+      } else if (dragging) {
         if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
-        tx += dx; ty += dy; apply();
+        if (swipe) {
+          /* Commit to an axis once and hold it, so a thumb travelling mostly
+             downwards does not drag the strip sideways with it. */
+          const totX = e.clientX - swipe.x0, totY = e.clientY - swipe.y0;
+          if (!swipe.axis && Math.abs(totX) + Math.abs(totY) > 8) {
+            swipe.axis = Math.abs(totX) > Math.abs(totY) ? 'x' : 'y';
+          }
+          if (swipe.axis === 'x') { swipe.dx = totX; setTrack(totX, false); }
+        } else if (scale > 1) { tx += dx; ty += dy; apply(); }
       }
     });
     const up = e => {
@@ -94,6 +151,11 @@
       if (pointers.size < 2) lastDist = 0;
       if (pointers.size === 0) {
         dragging = false;
+        if (swipe && swipe.axis === 'x') {
+          if (Math.abs(swipe.dx) > SWIPE_AT(stageW())) slideTo(swipe.dx < 0 ? 1 : -1);
+          else setTrack(0, true);   // not far enough: let it fall back
+        }
+        swipe = null;
         // a second tap within 300ms is a double-tap: fit ↔ 2.5×
         const now = Date.now();
         if (!moved && e.pointerType !== 'mouse') {
@@ -118,6 +180,32 @@
   function dist() {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  const stageW = () => root.querySelector('.lb-stage').clientWidth;
+
+  /* The strip is three stages wide and sits one stage to the left, so the
+     middle picture fills the frame; `dx` is how far the finger has carried it
+     from there. */
+  function setTrack(dx, animate) {
+    track.style.transition = animate ? `transform ${SLIDE_MS}ms cubic-bezier(.22,.61,.36,1)` : 'none';
+    track.style.transform = `translate3d(${-stageW() + dx}px, 0, 0)`;
+  }
+
+  /* One picture along: let the strip finish travelling, then adopt whichever
+     picture landed in the frame as the middle one and put the strip back.
+     Refusing while one is already settling keeps a held arrow key or a flurry
+     of taps from stacking half-finished walks. */
+  function slideTo(dir) {
+    if (settling || items.length < 2) { setTrack(0, true); return; }
+    settling = true;
+    togglePop(false);
+    setTrack(dir > 0 ? -stageW() : stageW(), true);
+    setTimeout(() => {
+      idx = (idx + dir + items.length) % items.length;
+      settling = false;
+      show();
+    }, SLIDE_MS);
   }
 
   /* Zoom keeping the point under (px,py) — offsets from the stage centre —
@@ -148,11 +236,21 @@
   }
 
   function show() {
+    const n = items.length;
     const it = items[idx];
-    scale = 1; tx = ty = 0; img.dataset.s = 1;
-    img.style.transform = '';
-    img.src = it.url;
-    img.alt = it.title || '';
+    scale = 1; tx = ty = 0;
+    /* Fill all three: the two neighbours are what a drag reveals, and after a
+       walk they are already in the browser's cache, so the swap paints in the
+       same frame the strip snaps back. */
+    slides.forEach((sl, k) => {
+      const nb = items[((idx + k - 1) % n + n) % n];
+      const im = sl.querySelector('img');
+      if (im.getAttribute('src') !== nb.url) im.src = nb.url;
+      im.alt = k === 1 ? (it.title || '') : '';
+      im.style.transform = '';
+      im.dataset.s = 1;
+    });
+    setTrack(0, false);
     cap.innerHTML = `<b>${escape(it.title || '')}</b>${it.sub ? `<span>${escape(it.sub)}</span>` : ''}`;
     counter.innerHTML = items.length > 1 ? `<span dir="ltr">${idx + 1} / ${items.length}</span>` : '';
     root.querySelector('.lb-prev').hidden = root.querySelector('.lb-next').hidden = items.length < 2;
@@ -247,6 +345,10 @@
     }, 2000);
   }
 
+  window.addEventListener('resize', () => {
+    if (root && !root.hidden && !settling && !swipe) setTrack(0, false);
+  });
+
   function open(list, i) {
     if (!root) build();
     items = list; idx = i || 0;
@@ -259,10 +361,11 @@
     togglePop(false);
     root.hidden = true;
     document.body.classList.remove('lb-open');
-    img.src = '';
+    settling = false; swipe = null;
+    slides.forEach(sl => { sl.querySelector('img').src = ''; });
   }
-  function prev() { if (items.length > 1) { idx = (idx - 1 + items.length) % items.length; show(); } }
-  function next() { if (items.length > 1) { idx = (idx + 1) % items.length; show(); } }
+  function prev() { slideTo(-1); }
+  function next() { slideTo(1); }
 
   window.TMZLightbox = { open, close, relabel };
 })();

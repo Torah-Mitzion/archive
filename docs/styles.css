@@ -171,7 +171,7 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
              transition: opacity 700ms ease, left 900ms cubic-bezier(.22,.61,.36,1), top 900ms cubic-bezier(.22,.61,.36,1);
              background: var(--zion-bg); }
 .markers { position: absolute; inset: 0; pointer-events: none; }
-.markers .hit, .markers .clus, .markers .lbl[data-go] { pointer-events: auto; }
+.markers .hit, .markers .clus, .markers a.lbl { pointer-events: auto; }
 /* arcs: faint, lit under the pointer, the selected one brightest */
 .arc { stroke: var(--gold); fill: none; opacity: var(--arc-op); stroke-linecap: round; transition: opacity .15s; }
 .arc.sel { stroke: var(--gold-hi); opacity: .9; }
@@ -203,8 +203,15 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
 [dir="rtl"] .lbl { letter-spacing: 0; text-transform: none; font-size: 14px; }
 .is-active .lbl { color: var(--gold-lo); }
 .is-sel .lbl { color: var(--gold-hi); font-weight: 500; font-size: 14.5px; letter-spacing: .2em;
-               pointer-events: auto; cursor: pointer; border-bottom: 1px solid rgba(var(--gold-hi-rgb),.35); }
+               cursor: pointer; border-bottom: 1px solid rgba(var(--gold-hi-rgb),.35); }
+/* Every name on the map is a door to its community, not only the chosen one's:
+   reaching for the word is what people try first, and the dot asks for two
+   clicks to get there. The underline appears under the hand rather than
+   standing on all of them at once, which would rule the map with lines. */
+a.lbl { cursor: pointer; border-bottom: 1px solid transparent; }
+a.lbl:hover, a.lbl:focus-visible { color: var(--gold-hi); border-bottom-color: rgba(var(--gold-hi-rgb),.55); }
 .is-sel .lbl:hover { border-bottom-color: var(--gold-hi); }
+a.lbl:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 1px; }
 [dir="rtl"] .is-sel .lbl { letter-spacing: 0; font-size: 17px; }
 .clus { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
         border-radius: 50%; border: 1px solid rgba(var(--gold-rgb),.5); background: rgba(var(--gold-rgb),.1);
@@ -553,7 +560,14 @@ body.lb-open { overflow: hidden; }
       --shadow-lg: 0 24px 60px rgba(0,0,0,.6);
       color: var(--ivory); }
 .lb-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; user-select: none; }
-/* Absolutely placed so max-height resolves against the stage, not the viewport. */
+/* The strip of three: the picture before, the one being looked at, and the one
+   after, each the width of the stage. `direction: ltr` is not a reading
+   decision — a flex row lays its items out along the text direction, and the
+   strip is positioned in pixels, so under Hebrew the neighbours would sit on
+   the wrong sides of the middle and every drag would run backwards. */
+.lb-track { position: absolute; inset: 0; display: flex; direction: ltr; will-change: transform; }
+.lb-slide { position: relative; flex: 0 0 100%; height: 100%; }
+/* Absolutely placed so max-height resolves against the slide, not the viewport. */
 .lb-img { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; transform-origin: center;
           transition: transform .06s linear; will-change: transform; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
 .lb-x { position: absolute; top: 14px; inset-inline-end: 16px; width: 40px; height: 40px; border-radius: 50%;
