@@ -226,7 +226,7 @@ function galleryItem(p, showCommunity) {
   return `<a class="gal-it" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}"
      title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
     <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name || '')}" loading="lazy">
-    <span class="gal-cap"><b dir="ltr">${p.year}</b>${esc(what || '')}</span></a>`;
+    <span class="gal-cap"><b>${p.year}</b>${esc(what || '')}</span></a>`;
 }
 
 async function drawGallery() {
