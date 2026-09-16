@@ -6,6 +6,24 @@ const esc = s => String(s).replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>'
 
 const view = { zoom: 'world', custom: null, sel: null, history: [] };
 
+/* ---- theme ----------------------------------------------------------------
+   Dark is the design and the default; light is a choice, remembered in this
+   browser. index.html reads the same key and sets the attribute before the
+   first paint, so a reader who chose light never sees the dark ground flash
+   past on the way in. Everything else is CSS: no view redraws to change it. */
+const THEME_KEY = 'tmz.theme';
+const theme = () => document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+/* The icon and the label name where the button goes, not where it is: an
+   icon-only control that shows its own state reads backwards to half of
+   the people who meet it. */
+const themeLabel = () => t(theme() === 'light' ? 'theme.toDark' : 'theme.toLight');
+
+function setTheme(next) {
+  if (next === 'light') document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* private window */ }
+}
+
 /* Everything the map draws now comes from the database. Loaded once per
    language change and held here; the geometry in map.js is passed this list
    rather than reading a global. */
@@ -60,6 +78,12 @@ function shell() {
         </button>
         <div class="lang-menu" id="langMenu" hidden>${langs}</div>
       </div>
+      <button class="theme-btn" id="themeBtn" type="button" title="${esc(themeLabel())}" aria-label="${esc(themeLabel())}">
+        <svg class="ico-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
+        <svg class="ico-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7z"/></svg>
+      </button>
       <div class="addpick">
         <button class="btn-gold" id="addBtn" aria-haspopup="true" aria-expanded="false">${esc(t('cta.add'))}
           <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4l3 3 3-3"/></svg></button>
@@ -105,6 +129,12 @@ function wireShell() {
     ab.onclick = e => { e.stopPropagation(); const open = !am.hidden; am.hidden = open; ab.setAttribute('aria-expanded', String(!open)); };
     document.addEventListener('click', () => { if (am) am.hidden = true; }, { once: true });
   }
+  const tb = $('#themeBtn');
+  if (tb) tb.onclick = () => {
+    setTheme(theme() === 'light' ? 'dark' : 'light');
+    tb.title = themeLabel();
+    tb.setAttribute('aria-label', themeLabel());
+  };
   const btn = $('#langBtn'), menu = $('#langMenu');
   if (btn) {
     btn.onclick = e => {
@@ -305,7 +335,7 @@ function drawMap(attempt = 0) {
   $('#mapSvg').setAttribute('viewBox', `0 0 ${W} ${H}`);
   $('#mapSvg').innerHTML = `
     <g style="transform: translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(4)})">
-      <path d="${stipple(proj, W, H, s, tx, ty, step)}" stroke="#33518A" stroke-width="${(2.15 / s).toFixed(3)}" stroke-linecap="round" fill="none"/>
+      <path class="map-land" d="${stipple(proj, W, H, s, tx, ty, step)}" stroke-width="${(2.15 / s).toFixed(3)}"/>
       ${arcs}${hits}
     </g>`;
 
@@ -343,8 +373,8 @@ function drawMap(attempt = 0) {
   $('#markers').innerHTML =
     `<div class="jeru" style="left:${jx * s + tx}px; top:${jy * s + ty}px">
        <svg viewBox="0 0 44 44" width="44" height="44">
-         <circle cx="22" cy="22" r="18" fill="none" stroke="#F6E2AE" stroke-width=".6" opacity=".3"/>
-         <path d="M22 5 L24.6 19.4 L39 22 L24.6 24.6 L22 39 L19.4 24.6 L5 22 L19.4 19.4 Z" fill="#FBEFCF"/>
+         <circle class="jeru-ring" cx="22" cy="22" r="18" stroke-width=".6"/>
+         <path class="jeru-star" d="M22 5 L24.6 19.4 L39 22 L24.6 24.6 L22 39 L19.4 24.6 L5 22 L19.4 19.4 Z"/>
        </svg><span>${LANG === 'he' ? 'ירושלים' : LANG === 'ru' ? 'Иерусалим' : 'Jerusalem'}</span>
      </div>` +
     markers.map((m, i) => {
@@ -641,7 +671,7 @@ function contributeView() {
     <label class="drop" id="drop">
       <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/heic" hidden>
       <div id="dropIdle">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E8C87D" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="drop-ico" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-5 5-2-2-6 5"/></svg>
         <span>${esc(t('con.drop'))}</span>
         <span class="btn-gold sm">${esc(t('cta.choose'))}</span>
@@ -671,7 +701,7 @@ function contributeView() {
     </label>
 
     <p class="screened">
-      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#93A1BD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5z"/><path d="M7.5 10l1.8 1.8L13 8"/></svg>
+      <svg class="screened-ico" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5z"/><path d="M7.5 10l1.8 1.8L13 8"/></svg>
       ${esc(t('con.screened'))}</p>
 
     <button class="btn-gold big" id="u_send" disabled>${esc(t('cta.send'))}</button>
