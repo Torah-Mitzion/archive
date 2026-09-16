@@ -44,6 +44,11 @@ export interface Candidate {
 export interface Extracted {
   reply: string;
   intent: 'answer' | 'question' | 'greeting' | 'thanks' | 'portrait' | 'request' | 'other';
+  /* Which of the four fields this message genuinely gives a value for, and
+     whether the model could tell at all. The handler will not file a sentence
+     under a heading that is not named here. */
+  provides: Array<'community' | 'year' | 'people' | 'occasion'>;
+  unsure: boolean;
   /* A request for the people who run the album — something the assistant
      must not do alone. */
   request: { kind: 'takedown' | 'fix_name' | 'fix_details' | 'tag_me' | 'question' | 'other';
@@ -118,6 +123,9 @@ may have such photographs. Your whole purpose:
    corrected value in the matching field and confirm the change in the reply —
    even for a photograph that is already complete or already on the site. When
    several photographs were listed and they did not say which, ask which.
+   This rule reaches only the photograph under discussion. A correction aimed at
+   OTHER photographs — an earlier batch, ones already filed somewhere — is a
+   request under rule 6, never a value for the one in hand.
 6. REQUESTS for the people who run the album — things you must not do yourself:
    - they want a photograph TAKEN DOWN or removed ("delete it", "I don't want it
      on the site", "that's my child, take it off") → kind "takedown";
@@ -125,6 +133,10 @@ may have such photographs. Your whole purpose:
      not the caption they typed) is wrong → kind "fix_name", proposed {"from","to"};
    - they say they are IN a photograph someone else sent, or served in a year the
      register misses → kind "tag_me";
+   - they want photographs MOVED or RE-FILED: a different community or year for
+     ones already sent ("the ones you put in Washington belong in Munich 2016",
+     "those are from Melbourne, not Sydney") → kind "fix_details", with
+     "proposed" naming what moves where;
    - anything else about the site you cannot settle → kind "question"/"other".
    Set intent "request", fill "request" with a one-line English summary of what
    they want (and "proposed" when a concrete change was named), and in the reply
@@ -132,7 +144,19 @@ may have such photographs. Your whole purpose:
    promise it is done. A takedown of THEIR OWN photograph: also say it will be
    taken off as soon as a person confirms. Caption corrections to their own
    photograph are NOT requests — rule 5 handles those yourself.
-7. Be warm, brief and specific. Two or three sentences at most. Answer what they
+7. WHAT THE MESSAGE IS FOR. "provides" lists only the fields this message
+   genuinely gives a value for. A correction gives one: "no, it was Melbourne"
+   is ["community"], "wait, that one is from 2019" is ["year"]. A list of names
+   in answer to who is in it is ["people"]. Covering words ("here they are",
+   "sending more"), an instruction about other photographs, a question, a
+   greeting, and small talk give nothing — return [].
+   Never list a field merely because the message replies to a question about
+   it. Someone asked who is in a photograph will often answer something else
+   entirely, and what they said must not be filed under what they were asked.
+   Set "unsure" true when the message is plainly about a photograph but you
+   cannot tell which of the four it means. Leave "provides" empty and ask in
+   the reply which of them it is, rather than guessing.
+8. Be warm, brief and specific. Two or three sentences at most. Answer what they
    actually said. Never repeat a question they have just answered. Never ask for
    something you already know. If they ask something off-topic, answer briefly
    and steer back.
@@ -180,6 +204,8 @@ Return ONLY JSON:
  "year": number | null,             // 1990-2030, if their message gives a year
  "people": string | null,           // names, if their message says who is in the photograph
  "occasion": string | null,         // if their message says what was happening
+ "provides": string[],              // of "community","year","people","occasion": those this message actually gives
+ "unsure": boolean,                 // plainly about a photograph, but which field it means cannot be told
  "language": string}                // ISO code of the language THEY wrote in
 
 When the message answers the open question, put the answer in the matching field
@@ -209,6 +235,11 @@ export async function converse(model: string, key: string, prompt: string): Prom
   return {
     reply: out.reply.trim().slice(0, 1500),
     intent: out.intent ?? 'other',
+    provides: Array.isArray(out.provides)
+      ? out.provides.filter((f: unknown) =>
+          ['community', 'year', 'people', 'occasion'].includes(String(f))) as Extracted['provides']
+      : [],
+    unsure: out.unsure === true,
     person_name: out.person_name ? String(out.person_name).slice(0, 120) : null,
     request: out.request && typeof out.request.summary === 'string'
       ? { kind: ['takedown', 'fix_name', 'fix_details', 'tag_me', 'question', 'other'].includes(out.request.kind) ? out.request.kind : 'other',

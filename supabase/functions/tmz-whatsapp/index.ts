@@ -29,6 +29,7 @@ import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
 import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
+import { captionDecision } from '../_shared/caption.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -1119,7 +1120,16 @@ async function handle(body: any, ch: Channel) {
       community_slug: local.community_slug ?? out?.community_slug ?? null,
       year: local.year ?? out?.year ?? null,
       people: out?.people ?? null,
-      event_note: out?.occasion ?? null
+      event_note: out?.occasion ?? null,
+      /* What the message actually gives, as opposed to what it was asked for.
+         Plain matching read the words, so a community or a year it found is a
+         value the message really carries. */
+      provides: new Set<string>([
+        ...(out?.provides ?? []),
+        ...(local.community_slug ? ['community'] : []),
+        ...(local.year ? ['year'] : [])
+      ]),
+      unsure: out?.unsure === true
     };
     const hasLatinWords = /[a-z]{2,}/i.test(text);
     const spoken = hasLatinWords && out?.language && scriptOf(text) === 'en' ? out.language : lang;
@@ -1198,12 +1208,32 @@ async function handle(body: any, ch: Channel) {
       const patch: Record<string, unknown> = {};
       if (communityId && communityId !== openLive.community_id) patch.community_id = communityId;
       if (det.year && det.year !== openLive.year) patch.year = det.year;
-      if (det.people && rendered.people_text !== false && det.people !== openLive.people_text) {
-        patch.people_text = det.people; if (rendered.people_tr) patch.people_tr = rendered.people_tr;
-      } else if (!det.people && askingThis && contact.asking === 'people' && !openLive.people_text) patch.people_text = text;
-      if (det.event_note && rendered.occasion_text !== false && det.event_note !== openLive.occasion_text) {
-        patch.occasion_text = det.event_note; if (rendered.occasion_tr) patch.occasion_tr = rendered.occasion_tr;
-      } else if (!det.event_note && askingThis && contact.asking === 'occasion' && !openLive.occasion_text) patch.occasion_text = text;
+      /* Which of the two free-text fields a message may write, and whether
+         the whole of it may stand in for an answer the extractor could not
+         isolate, is decided in _shared/caption.ts — six lines, out where they
+         can be read at a glance and tested without a model, a webhook or a
+         database. That clause used to fire on the last question alone, so an
+         instruction to move a batch to Munich was printed under five
+         photographs as the people in them. The renderings computed above ride
+         along only when the value written is the one the model isolated: the
+         whole-message fallback was never screened, and the hourly sweep
+         renders whatever is left with empty renderings. */
+      const cap = captionDecision({
+        text, people: det.people, occasion: det.event_note,
+        provides: det.provides, hasModel: Boolean(out),
+        asking: contact.asking, askingThis,
+        peopleRefused: rendered.people_text === false,
+        occasionRefused: rendered.occasion_text === false,
+        current: { people_text: openLive.people_text, occasion_text: openLive.occasion_text }
+      });
+      if (cap.people_text !== undefined) {
+        patch.people_text = cap.people_text;
+        if (cap.people_text === det.people && rendered.people_tr) patch.people_tr = rendered.people_tr;
+      }
+      if (cap.occasion_text !== undefined) {
+        patch.occasion_text = cap.occasion_text;
+        if (cap.occasion_text === det.event_note && rendered.occasion_tr) patch.occasion_tr = rendered.occasion_tr;
+      }
       if (Object.keys(patch).length) {
         patchedAny = true;
         await pg(`/tmz_photo?id=eq.${openLive.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -1244,6 +1274,19 @@ async function handle(body: any, ch: Channel) {
       }
       if (fresh.length > 1) {
         await announceBatch(fresh, waId, from, spoken, ch, quote, out ? out.reply + '\n\n' : '');
+        return;
+      }
+
+      /* Nothing in the message belonged anywhere, and the model could not tell
+         which of the four it meant. Ask. Filing it somewhere on the strength of
+         the last question asked is what put an instruction under five
+         photographs as the names of the people in them. When the photograph is
+         still missing its place or its year the reply already asks for that,
+         which is the better question, so this only speaks for the extras. */
+      if (!patchedAny && det.unsure && !missing) {
+        const said = (out ? out.reply + '\n\n' : '') + await phrase(spoken, x => x.whichField);
+        const sentId = await ch.reply(from, said, quote);
+        await log(waId, 'out', 'question', said, merged.id, { field: 'which' }, sentId);
         return;
       }
 

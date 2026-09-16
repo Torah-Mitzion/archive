@@ -25,6 +25,7 @@ type Strings = {
   more: string;             // nudge after completion
   dupe: string;
   unclear: string;          // an answer that answered nothing
+  whichField: string;       // it was about a photograph, but which of the four it meant is not clear
   refuse: {                 // each names its reason
     nopeople: string; notphoto: string; sexual: string; violence: string;
     advert: string; screenshot: string; document: string; unclear: string;
@@ -72,6 +73,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\nHave more from that year, or from another one? Send them whenever you like.',
     dupe: 'We already have that one — thank you all the same! Have another?',
     unclear: 'I did not quite catch that. ',
+    whichField: 'Sorry — I am not sure which part that is about. Is it who is in the photograph, what the occasion was, or the community and year? Tell me which and I will put it in the right place.',
     refuse: {
       nopeople: 'Thank you for sending it. This album is about the people — the communities, the shlichim, the families — so we can only take photographs with people in them. Anything with faces is very welcome.',
       notphoto: 'That looks like a graphic or a drawing rather than a photograph, so I cannot add it. A photo of the real thing — even a scan of an old print — would be perfect.',
@@ -125,6 +127,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\nיש עוד מאותה שנה, או משנה אחרת? שלחו מתי שתרצו.',
     dupe: 'את זו כבר יש לנו — תודה בכל זאת! יש עוד אחת?',
     unclear: 'לא הבנתי בדיוק. ',
+    whichField: 'סליחה, אני לא בטוח לְמה זה מתייחס. זה מי נמצא בתמונה, מה היה האירוע, או הקהילה והשנה? תגידו לי מה, ואשים את זה במקום הנכון.',
     refuse: {
       nopeople: 'תודה ששלחתם. האלבום הזה הוא על האנשים — הקהילות, השליחים, המשפחות — אז אנחנו יכולים לקבל רק תמונות שיש בהן אנשים. כל דבר עם פנים מתקבל בשמחה.',
       notphoto: 'זה נראה כמו גרפיקה או איור ולא כמו תמונה, אז אי אפשר להוסיף. צילום של הדבר האמיתי — אפילו סריקה של תדפיס ישן — יהיה מושלם.',
@@ -178,6 +181,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\nЕсть ещё с того года или с другого? Присылайте, когда захотите.',
     dupe: 'Эта у нас уже есть — всё равно спасибо! Есть ещё?',
     unclear: 'Не совсем понял. ',
+    whichField: 'Извините — я не понял, к чему это относится. Это кто на фотографии, что там происходило, или община и год? Скажите, и я запишу в нужное место.',
     refuse: {
       nopeople: 'Спасибо, что прислали. Этот альбом — о людях: общинах, шлихим, семьях, — поэтому мы берём только фотографии с людьми. Любой снимок с лицами очень ждём.',
       notphoto: 'Это похоже на графику или рисунок, а не на фотографию, поэтому добавить не могу. Фото настоящего — даже скан старого снимка — будет то что нужно.',
@@ -231,6 +235,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\nVous en avez d’autres de cette année-là, ou d’une autre ? Envoyez-les quand vous voulez.',
     dupe: 'Celle-ci, nous l’avons déjà — merci quand même ! Une autre ?',
     unclear: 'Je n’ai pas bien compris. ',
+    whichField: 'Pardon — je ne sais pas à quoi cela se rapporte. S’agit-il des personnes sur la photo, de l’occasion, ou de la communauté et de l’année ? Dites-le-moi et je le mettrai au bon endroit.',
     refuse: {
       nopeople: 'Merci de l’avoir envoyée. Cet album parle des gens — communautés, chlihim, familles — donc nous ne prenons que des photographies avec des personnes. Tout cliché avec des visages est le bienvenu.',
       notphoto: 'Cela ressemble à un graphisme ou un dessin plutôt qu’à une photographie, je ne peux donc pas l’ajouter. Une photo de la vraie chose — même un scan d’un vieux tirage — serait parfaite.',
@@ -284,6 +289,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\nHaben Sie noch mehr aus dem Jahr, oder aus einem anderen? Schicken Sie sie, wann Sie mögen.',
     dupe: 'Das haben wir schon — trotzdem danke! Noch eins?',
     unclear: 'Das habe ich nicht ganz verstanden. ',
+    whichField: 'Entschuldigung — ich bin nicht sicher, worauf sich das bezieht. Geht es darum, wer auf dem Foto ist, um den Anlass, oder um Gemeinde und Jahr? Sagen Sie es mir, dann trage ich es an der richtigen Stelle ein.',
     refuse: {
       nopeople: 'Danke fürs Schicken. In diesem Album geht es um Menschen – Gemeinden, Schlichim, Familien –, deshalb nehmen wir nur Fotos mit Personen darauf. Alles mit Gesichtern ist sehr willkommen.',
       notphoto: 'Das sieht nach einer Grafik oder Zeichnung aus, nicht nach einem Foto, deshalb kann ich es nicht aufnehmen. Ein Foto vom Echten — auch ein Scan eines alten Abzugs — wäre perfekt.',
@@ -337,6 +343,7 @@ const S: Record<Lang, Strings> = {
     more: '\n\n¿Tiene más de ese año, o de otro? Envíelas cuando quiera.',
     dupe: 'Esa ya la tenemos — ¡gracias de todos modos! ¿Tiene otra?',
     unclear: 'No lo he entendido del todo. ',
+    whichField: 'Perdón — no estoy seguro de a qué se refiere. ¿Es quién aparece en la foto, cuál fue la ocasión, o la comunidad y el año? Dígame cuál y lo pondré en el lugar correcto.',
     refuse: {
       nopeople: 'Gracias por enviarla. Este álbum trata de las personas — las comunidades, los shlijim, las familias — así que solo podemos aceptar fotografías con personas. Cualquier foto con rostros es muy bienvenida.',
       notphoto: 'Eso parece un gráfico o un dibujo más que una fotografía, así que no puedo añadirlo. Una foto de lo real — incluso un escaneo de una copia antigua — sería perfecta.',
