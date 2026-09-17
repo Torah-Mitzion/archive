@@ -170,7 +170,42 @@ h1,h2,h3 { margin: 0; font-weight: 400; }
              border-radius: 50%; pointer-events: none;
              transition: opacity 700ms ease, left 900ms cubic-bezier(.22,.61,.36,1), top 900ms cubic-bezier(.22,.61,.36,1);
              background: var(--zion-bg); }
-.markers { position: absolute; inset: 0; pointer-events: none; }
+/* Two fingers scale and carry the map; one finger scrolls the page until
+   there is somewhere on the map to go, and then it carries the map instead.
+   app.js swaps touch-action between pan-y and none on that line. */
+.stage { touch-action: pan-y; }
+.stage.pannable { cursor: grab; }
+/* A gesture moves what is drawn rather than drawing it again, so the long
+   flight the transitions are there for must not follow the fingers. */
+.map-wrap.gesturing .stage.pannable { cursor: grabbing; }
+.map-wrap.gesturing .map-svg g,
+.map-wrap.gesturing .mk,
+.map-wrap.gesturing .zion-glow { transition: none; }
+
+/* The way back out, over the map at its foot. It was a line of grey words in
+   the row below and nobody found it. */
+.zoom-out { position: absolute; left: 16px; bottom: 16px; z-index: 24;
+            width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center;
+            color: var(--gold-hi); background: rgba(var(--ink-rgb),.92);
+            border: 1.5px solid var(--gold);
+            box-shadow: 0 0 0 6px rgba(var(--gold-rgb),.09), 0 8px 22px rgba(0,0,0,.45);
+            backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+            transition: color .18s, background .18s, border-color .18s, transform .18s;
+            animation: zoom-out-in 300ms cubic-bezier(.22,.61,.36,1); }
+.zoom-out:hover { color: var(--ink); background: var(--gold); border-color: var(--gold);
+                  transform: scale(1.06); }
+.zoom-out:active { transform: scale(.96); }
+.zoom-out:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 3px; }
+.zoom-out svg { width: 26px; height: 26px; fill: none; stroke: currentColor;
+                stroke-width: 2; stroke-linecap: round; }
+@keyframes zoom-out-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .zoom-out { animation: none; } }
+
+/* Clipped to the map box. The stage overflows on purpose — the glow around
+   Jerusalem is wider than the map — but a dot is not allowed to: zoomed in,
+   the ones that have left the map were being drawn over the hero at the top of
+   the page, gold dots floating in the text with nothing under them. */
+.markers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .markers .hit, .markers .clus, .markers a.lbl { pointer-events: auto; }
 /* arcs: faint, lit under the pointer, the selected one brightest */
 .arc { stroke: var(--gold); fill: none; opacity: var(--arc-op); stroke-linecap: round; transition: opacity .15s; }
@@ -263,7 +298,6 @@ a.lbl:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; borde
        color: var(--muted); border: 1px solid transparent; text-shadow: 0 0 8px rgba(var(--ink-rgb),.9); }
 .rgn:hover { color: var(--gold-lo); }
 .rgn.on { color: var(--ivory); border-color: rgba(var(--gold-rgb),.35); background: rgba(var(--ink-rgb),.7); }
-.rgn.out { color: var(--gold); }
 .legend-mini { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 14px; font-size: 12px;
                color: var(--dim2); text-shadow: 0 0 8px rgba(var(--ink-rgb),.9); }
 .legend-mini .s { width: 6px; height: 6px; border-radius: 50%; }
@@ -525,10 +559,16 @@ a.gal-name:hover { color: var(--gold-hi); }
 .site-banner.demo a { color: var(--warn); }
 .site-banner.err { color: var(--err); background: rgba(var(--err-rgb),.08);
                    border-bottom-color: rgba(var(--err-rgb),.3); }
-/* the banner sits above the map, so the full-height map must give up its space */
-body[data-route="map"]:has(.site-banner) .map-wrap {
-  height: calc(100vh - var(--mast) - 40px);
-  height: calc(100dvh - var(--mast) - 40px);
+/* The banner sits above the map, so the full-height map must give up its space.
+   Only where the map IS full height: on a telephone the wrap is a column that
+   runs as long as it needs to, and forcing a height on it there cut the
+   gallery off below the fold with overflow:hidden over it — the photographs
+   simply could not be reached whenever a banner was up. */
+@media (min-width: 901px) {
+  body[data-route="map"]:has(.site-banner) .map-wrap {
+    height: calc(100vh - var(--mast) - 40px);
+    height: calc(100dvh - var(--mast) - 40px);
+  }
 }
 .band-span { margin: 4px 0 0; font-size: 14px; }
 .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -37,15 +37,23 @@ const findCommunity = id => STATE.communities.find(c => c.id === id);
 const yearSpan = c => `${c.f}\u2013${c.c || t('yr.present')}`;
 
 /* Every view change remembers where it came from, so zooming out walks back the
-   way you came in instead of dumping you at the world. */
+   way you came in instead of dumping you at the world. The scale it was left at
+   is remembered with it — see zoomOut. */
 function setView(next) {
-  view.history.push({ zoom: view.zoom, custom: view.custom });
+  view.history.push({ zoom: view.zoom, custom: view.custom, s: laid.s });
   Object.assign(view, next);
 }
+/* The way back never goes closer in. Now that the map can be pinched, the way
+   you came can run deeper than where you are: fly to a region from a pinched-in
+   view and the step behind you is that pinch. A button with a minus in it that
+   zoomed IN would be a lie, so a step that is not further out is dropped and
+   the walk continues; when nothing is left, the world. */
 function zoomOut() {
-  const prev = view.history.pop();
-  if (prev) { view.zoom = prev.zoom; view.custom = prev.custom; }
-  else { view.zoom = 'world'; view.custom = null; }
+  while (view.history.length) {
+    const prev = view.history.pop();
+    if ((prev.s ?? 1) < laid.s - 0.01) { view.zoom = prev.zoom; view.custom = prev.custom; return; }
+  }
+  view.zoom = 'world'; view.custom = null;
 }
 let resizeTimer = null;
 
@@ -161,6 +169,17 @@ function mapView() {
       <div class="zion-glow" id="zionGlow"></div>
       <svg class="map-svg" id="mapSvg"></svg>
       <div class="markers" id="markers"></div>
+      <!-- The way back out. It was a line of grey words in the row at the foot
+           of the map, and nobody found it; it is now a glass with a minus in
+           it, over the map, where a hand that has just pinched the map is
+           already looking. The words stay as its label, for a screen reader
+           and for the tooltip. -->
+      <button class="zoom-out" id="zoomOut" type="button" hidden
+              aria-label="${esc(t('fly.out'))}" title="${esc(t('fly.out'))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="10.2" cy="10.2" r="6.7"/><path d="M6.8 10.2h6.8"/><path d="M15.1 15.1 20.6 20.6"/>
+        </svg>
+      </button>
     </div>
 
     <div class="hero" id="hero">
@@ -184,18 +203,13 @@ function mapView() {
    It sits on the ocean, below every continent, which is the one place a
    panel never covered anything. */
 function drawRegions(views) {
-  const zoomed = view.zoom !== 'world' || view.custom;
   const rows = ['world', ...STATE.regions.map(r => r.id)].filter(k => views[k]).map(k =>
     `<button class="rgn${view.zoom === k ? ' on' : ''}" data-view="${k}">${esc(t(views[k].key))}</button>`).join('');
-  $('#regions').innerHTML = `
-    ${zoomed ? `<button class="rgn out" id="zoomOut">&larr; ${esc(t('fly.out'))}</button>` : ''}
-    ${rows}
+  $('#regions').innerHTML = `${rows}
     <span class="legend-mini"><span class="s open"></span><span class="s alum"></span>${esc(t('legend.short'))}</span>`;
   $('#regions').querySelectorAll('[data-view]').forEach(b => {
     b.onclick = () => { setView({ zoom: b.dataset.view, custom: null }); drawMap(); };
   });
-  const zo = $('#zoomOut');
-  if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
 }
 
 /* ---- the gallery beside the map ------------------------------------------ */
@@ -345,13 +359,27 @@ function drawMap(attempt = 0) {
   zg.style.opacity = zoomed ? 0.3 : 1;
   $('#ambient').style.opacity = zoomed ? 0.75 : 0;
 
+  /* The way out shows only when there is something to come out of. */
+  const zo = $('#zoomOut');
+  if (zo) zo.hidden = !zoomed;
+  /* At the world the map is exactly the size of its box and cannot be dragged
+     anywhere, so a finger dragged across it belongs to the page and scrolls
+     it. Zoomed in there is somewhere to go, and the map takes the drag. Two
+     fingers are the map's either way — see wireMapZoom. */
+  stage.style.touchAction = zoomed ? 'none' : 'pan-y';
+  stage.classList.toggle('pannable', zoomed);
+  /* What a gesture moves, so it need not redraw: a redraw re-samples the land
+     and re-places every label, which is 10-16ms on a desktop — a dropped frame
+     at 60Hz, and worse on a telephone. */
+  Object.assign(laid, { s, tx, ty, W, H, jx, jy });
+
   /* the chrome a label must not slide underneath, measured from the real DOM */
   const sr = stage.getBoundingClientRect();
   /* .hero is a full-width flex row with a gap in the middle; blocking it whole
      walls off the entire top strip and starves Europe of labels. Measure the two
      halves it actually occupies. */
   /* The floating AI button sits over the Pacific corner, right where Sydney is. */
-  const blocked = ['.hero-l', '.hero-stats', '#regions', '.chat'].map(sel => {
+  const blocked = ['.hero-l', '.hero-stats', '#regions', '.chat', '#zoomOut'].map(sel => {
     const e = $(sel); if (!e || e.hidden) return null;
     const r = e.getBoundingClientRect();
     return [r.left - sr.left - 6, r.top - sr.top - 6, r.right - sr.left + 6, r.bottom - sr.top + 6];
@@ -361,7 +389,7 @@ function drawMap(attempt = 0) {
   blocked.push([jx * s + tx - 60, jy * s + ty + 22, jx * s + tx + 60, jy * s + ty + 44]);
   const groups = clusterPoints(pts, view.sel);
   const markers = groups.map(g => ({
-    x: g[0].x, y: g[0].y, count: g.length, members: g,
+    x: g[0].x, y: g[0].y, mx: g[0].mx, my: g[0].my, count: g.length, members: g,
     c: g[0].c, name: tf(g[0].c.name), sel: g[0].c.id === view.sel
   }));
   /* At world view only what is alive gets a name: open communities, the
@@ -371,7 +399,7 @@ function drawMap(attempt = 0) {
   placeLabels(named, blocked, W, H, isRTL());
 
   $('#markers').innerHTML =
-    `<div class="jeru" style="left:${jx * s + tx}px; top:${jy * s + ty}px">
+    `<div class="jeru" data-mx="${jx}" data-my="${jy}" style="left:${jx * s + tx}px; top:${jy * s + ty}px">
        <svg viewBox="0 0 44 44" width="44" height="44">
          <circle class="jeru-ring" cx="22" cy="22" r="18" stroke-width=".6"/>
          <path class="jeru-star" d="M22 5 L24.6 19.4 L39 22 L24.6 24.6 L22 39 L19.4 24.6 L5 22 L19.4 19.4 Z"/>
@@ -379,7 +407,7 @@ function drawMap(attempt = 0) {
      </div>` +
     markers.map((m, i) => {
       if (m.count > 1) {
-        return `<div class="mk" data-members="${esc(m.members.map(p => p.c.id).join(','))}" style="left:${m.x}px; top:${m.y}px">
+        return `<div class="mk" data-members="${esc(m.members.map(p => p.c.id).join(','))}" data-mx="${m.mx}" data-my="${m.my}" style="left:${m.x}px; top:${m.y}px">
                   <button class="clus" data-cluster="${i}">${m.count}</button></div>`;
       }
       const cls = m.sel ? 'is-sel' : (m.c.c ? 'is-alumni' : 'is-active');
@@ -392,7 +420,7 @@ function drawMap(attempt = 0) {
         ? `<a class="lbl" href="#/c/${esc(m.c.id)}" data-lbl="${esc(m.c.id)}" title="${esc(t('cta.fly'))}" style="left:${m.label[0]}px; top:${m.label[1]}px; transform:${
             m.label[2] === 'e' ? 'translate(-100%,-50%)' : m.label[2] === 'm' ? 'translate(-50%,-50%)' : 'translateY(-50%)'
           }">${esc(m.name)}</a>` : '';
-      return `<div class="mk ${cls}" data-id="${esc(m.c.id)}" data-name="${esc(m.name)}" style="left:${m.x}px; top:${m.y}px">
+      return `<div class="mk ${cls}" data-id="${esc(m.c.id)}" data-name="${esc(m.name)}" data-mx="${m.mx}" data-my="${m.my}" style="left:${m.x}px; top:${m.y}px">
                 <button class="hit" data-pick="${m.c.id}" aria-label="${esc(m.name)}"></button>
                 <span class="dot"></span>${lab}</div>`;
     }).join('');
@@ -443,6 +471,211 @@ function drawMap(attempt = 0) {
       drawMap();
     };
   });
+}
+
+/* ---- zoom by hand ---------------------------------------------------------
+   Flying to a named region is how this map was navigated, and on a telephone
+   that is not enough: the thing on the screen is a map, and a map is pinched.
+   Two fingers scale it and carry it; a mouse does the same with the wheel and
+   a drag.
+
+   A gesture moves what drawMap already laid down and redraws once, when the
+   hands come off. A redraw re-samples the land and re-places every label —
+   measured at 10-16ms on a desktop, which is a dropped frame at 60Hz and
+   worse on a telephone, so it cannot happen sixty times a second. */
+
+const MAX_S = 16;
+/* What is on the screen now, in the geometry drawMap works in. */
+const laid = { s: 1, tx: 0, ty: 0, W: 0, H: 0, jx: 0, jy: 0 };
+const grip = { pts: new Map(), from: null, pinch: null, drag: null, moved: false, wheel: null };
+
+/* The world is exactly the size of its box at scale 1, so the window onto it
+   is kept inside it. At scale 1 that pins the centre to the middle, which is
+   why the world view cannot be dragged off its own edge.
+
+   `was` is where the window is now. A view fitted to a region may already hang
+   over the world's edge — Oceania does, by a sixth of the stage, because its
+   communities sit on the bottom line of the map — and being yanked back the
+   instant a finger touches it would be a jolt out of nowhere. So a window that
+   is already outside is never pushed further out, and never pulled in either:
+   zooming out tightens the fence on its own, because the window grows, and
+   the view is drawn back a frame at a time. */
+function fence(s, cx, cy, W, H, was) {
+  const lim = (v, lo, hi, prev) => {
+    if (prev != null) { lo = Math.min(lo, prev); hi = Math.max(hi, prev); }
+    return Math.min(Math.max(v, lo), hi);
+  };
+  return { s, cx: lim(cx, W / (2 * s), W - W / (2 * s), was?.cx),
+              cy: lim(cy, H / (2 * s), H - H / (2 * s), was?.cy) };
+}
+
+/* Move what is drawn, without drawing it again. Every marker carries the
+   coordinates it was placed from, so this is one multiplication each. */
+function placeLive(v) {
+  const s = v.s, tx = laid.W / 2 - s * v.cx, ty = laid.H / 2 - s * v.cy;
+  laid.s = s; laid.tx = tx; laid.ty = ty;
+  const g = $('#mapSvg')?.firstElementChild;
+  if (g) g.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(4)})`;
+  $('#markers').querySelectorAll('[data-mx]').forEach(el => {
+    el.style.left = (+el.dataset.mx * s + tx).toFixed(1) + 'px';
+    el.style.top = (+el.dataset.my * s + ty).toFixed(1) + 'px';
+  });
+  const zg = $('#zionGlow');
+  if (zg) { zg.style.left = (laid.jx * s + tx).toFixed(1) + 'px'; zg.style.top = (laid.jy * s + ty).toFixed(1) + 'px'; }
+  const zo = $('#zoomOut');
+  if (zo) zo.hidden = s <= 1.01;
+}
+
+/* Scale about a point on the stage, keeping whatever is under that point under
+   it. Holding the scale still and moving the point is a pan; the same line
+   does both, which is what two fingers do at once anyway. */
+function zoomAbout(s, px, py, wx, wy) {
+  s = Math.min(MAX_S, Math.max(1, s));
+  /* Where the window is at this instant, whatever named view put it there. */
+  const was = { cx: (laid.W / 2 - laid.tx) / laid.s, cy: (laid.H / 2 - laid.ty) / laid.s };
+  const tx = px - wx * s, ty = py - wy * s;
+  view.custom = fence(s, (laid.W / 2 - tx) / s, (laid.H / 2 - ty) / s, laid.W, laid.H, was);
+  view.zoom = 'custom';
+  placeLive(view.custom);
+}
+
+function gripOn() {
+  if (grip.from) return;
+  grip.from = { zoom: view.zoom, custom: view.custom, s: laid.s };
+  $('.map-wrap')?.classList.add('gesturing');
+}
+
+function gripOff() {
+  if (!grip.from) return;
+  const was = grip.from, wrap = $('.map-wrap');
+  grip.from = null;
+  if (!view.custom || view.custom.s <= 1.01) {
+    /* Back at the world it IS the world view: the way out goes away, and the
+       way back is not a stack of undone pinches. */
+    view.zoom = 'world'; view.custom = null; view.history.length = 0;
+  } else if (was.zoom !== 'custom') {
+    /* One step back per excursion, not per pinch. A pinch that starts from a
+       view the fingers already made is refining it, not setting out again. */
+    view.history.push(was);
+  }
+  drawMap();
+  requestAnimationFrame(() => wrap?.classList.remove('gesturing'));
+}
+
+/* Where a pointer is on the map, and what lies under it. Read fresh every
+   time: the stage is a new element after every render, and the page can
+   scroll under it between one event and the next. */
+const stageAt = e => {
+  const st = $('#stage'); if (!st) return null;
+  const r = st.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+};
+const underneath = p => ({ x: (p.x - laid.tx) / laid.s, y: (p.y - laid.ty) / laid.s });
+
+function gripMove(e) {
+  if (!grip.pts.has(e.pointerId)) return;
+  const p = stageAt(e); if (!p) return;
+  grip.pts.set(e.pointerId, p);
+  if (grip.pinch && grip.pts.size >= 2) {
+    const [a, b] = [...grip.pts.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    zoomAbout(grip.pinch.s * (d / grip.pinch.d), (a.x + b.x) / 2, (a.y + b.y) / 2,
+              grip.pinch.w.x, grip.pinch.w.y);
+  } else if (grip.drag) {
+    if (!grip.moved) {
+      if (Math.hypot(p.x - grip.drag.p.x, p.y - grip.drag.p.y) < 6) return;
+      grip.moved = true; gripOn();
+    }
+    zoomAbout(laid.s, p.x, p.y, grip.drag.w.x, grip.drag.w.y);
+  }
+}
+
+function gripRelease(e) {
+  if (!grip.pts.delete(e.pointerId)) return;
+  if (grip.pinch && grip.pts.size === 1) {
+    /* One finger lifted out of a pinch: the other goes on carrying the map
+       rather than ending the gesture under it. */
+    grip.pinch = null;
+    const p = [...grip.pts.values()][0];
+    grip.drag = { p, w: underneath(p) };
+  }
+  if (grip.pts.size) return;
+  grip.pinch = null; grip.drag = null;
+  gripOff();
+  /* After the click this release is about to produce, not before it. */
+  setTimeout(() => { grip.moved = false; }, 0);
+}
+
+/* The moves and the releases are on the window, not the stage: a finger that
+   leaves the map mid-pinch must still be followed, and pointer capture is not
+   the way — it retargets the click that follows, which would put every dot out
+   of reach. They are wired once for the page; the stage's own are wired per
+   render, because the stage is a new element every time. */
+let gripWired = false;
+
+function wireMapZoom() {
+  const stage = $('#stage');
+  if (!stage) return;
+
+  stage.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (!laid.W) return;                 // nothing drawn yet
+    const p = stageAt(e); if (!p) return;
+    grip.pts.set(e.pointerId, p);
+    if (grip.pts.size === 2) {
+      const [a, b] = [...grip.pts.values()];
+      grip.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, s: laid.s,
+                     w: underneath({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) };
+      grip.drag = null;
+      grip.moved = true;                 // two fingers are never a tap
+      gripOn();
+    } else if (grip.pts.size === 1 && laid.s > 1.01) {
+      /* A drag on a map that has somewhere to go. It is not a drag until it
+         has moved, so a tap on a dot is still a tap. */
+      grip.drag = { p, w: underneath(p) };
+      grip.moved = false;
+    }
+  });
+
+  /* A drag that happened to start on a dot chose no community. */
+  stage.addEventListener('click', e => {
+    if (!grip.moved) return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+
+  /* Two fingers belong to the map even where one finger belongs to the page.
+     touch-action is settled when the FIRST finger lands, so at the world view
+     — where it is pan-y, so that a thumb still scrolls the page — the second
+     finger has to say for itself that this one is a pinch. */
+  stage.addEventListener('touchmove', e => {
+    if (e.touches.length > 1 && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  stage.addEventListener('wheel', e => {
+    /* On a desktop the map fills the screen and the page behind it does not
+       scroll, so the wheel is the map's. On a telephone-width layout the page
+       does scroll, and only a trackpad pinch — which arrives here as a wheel
+       with ctrlKey — may take it. */
+    if (window.matchMedia('(max-width: 900px)').matches && !e.ctrlKey) return;
+    if (!laid.W) return;
+    e.preventDefault();
+    const p = stageAt(e); if (!p) return;
+    const w = underneath(p);
+    const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? laid.H : 1);
+    gripOn();
+    zoomAbout(laid.s * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0022)), p.x, p.y, w.x, w.y);
+    clearTimeout(grip.wheel);
+    grip.wheel = setTimeout(gripOff, 220);
+  }, { passive: false });
+
+  const zo = $('#zoomOut');
+  if (zo) zo.onclick = () => { zoomOut(); drawMap(); };
+
+  if (gripWired) return;
+  gripWired = true;
+  window.addEventListener('pointermove', gripMove);
+  window.addEventListener('pointerup', gripRelease);
+  window.addEventListener('pointercancel', gripRelease);
 }
 
 function drawStats() {
@@ -989,6 +1222,7 @@ async function render() {
     clearTimeout(gal.timer); gal.hover = null;
     root.innerHTML = shell() + banner() + mapView();
     wireShell();
+    wireMapZoom();
     drawStats();
     requestAnimationFrame(() => drawMap());
     drawGallery();
