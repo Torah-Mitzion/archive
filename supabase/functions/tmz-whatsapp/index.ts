@@ -31,6 +31,7 @@ import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
 import { captionDecision } from '../_shared/caption.ts';
 import { absorb, introComplete, answersPortraitOffer } from '../_shared/intro.ts';
+import { placeDecision } from '../_shared/place.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -292,7 +293,14 @@ Message: """${text}"""
 Return ONLY JSON:
 {"community_slug":string|null,"year":number|null,"people":string|null,
  "event_note":string|null,"language":string,"is_answer":boolean,
- "self_portrait":boolean,"person_name":string|null}
+ "self_portrait":boolean,"person_name":string|null,"place_said":string|null}
+
+place_said is the words they used for a PLACE, exactly as they wrote them,
+whenever the message names one — even, and especially, when it is not one of
+the slugs above ("saint louisa", "the kollel in Lyon"). null when the message
+names no place at all. A place we cannot match is asked about; a place nobody
+mentioned is inherited from their last photograph, and the two must not be
+confused.
 
 self_portrait is true when the message says the photograph is of the sender
 themselves, meant as their own picture ("this is me", "זו תמונה שלי", "my
@@ -349,6 +357,31 @@ async function photoQuotedBy(ref: string, providerMsgId: string | null) {
       `&provider_msg_id=eq.${encodeURIComponent(providerMsgId)}&photo_id=not.is.null&limit=1`);
     return rows?.[0]?.photo_id ?? null;
   } catch { return null; }
+}
+
+/* Everything they have sent lately, complete or not, newest first — the set a
+   correction can point at. `candidates` above is the narrower question "what is
+   still unanswered"; this is "what have they given us", which is what "move
+   this one to 2005" is about. Their own only: the ownership that lets the
+   agent make the change rather than open a request starts here. */
+async function theirPhotos(ref: string, n = 10) {
+  try {
+    const rows = await pg(`/tmz_photo?select=id,community_id,year,people_text,occasion_text,agent_decision,status,` +
+      `public_path,ai_description,portrait_of,portrait_name,created_at,submitter_ref` +
+      `&submitter_ref=eq.${encodeURIComponent(ref)}&status=neq.rejected&order=created_at.desc&limit=${n}`);
+    return rows ?? [];
+  } catch { return []; }
+}
+
+/* "4 minutes ago", for a list the model reads. Rough on purpose: it is there so
+   "the last one" and "the ones from yesterday" have referents. */
+function agoInWords(iso: string) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 /* Every photograph of theirs still missing something. More than one means a
@@ -1047,6 +1080,12 @@ async function handle(body: any, ch: Channel) {
             shows, and either picks one from the wording or asks which.
        And whatever was last refused, so "why?" has a referent. */
     const candidates = await openPhotos(waId);
+    /* Everything they have sent lately, whether or not anything is missing from
+       it. A correction needs a referent: "move this one to 2005" is about a
+       photograph that is complete and already on the site, which is exactly
+       what `candidates` leaves out. Their own, by submitter_ref, and no wider —
+       the numbers the model is shown can only ever name their own pictures. */
+    const theirs = await theirPhotos(waId);
     const quotedPhotoId = await photoQuotedBy(waId, msg.context?.id ?? null);
     let openLive: any = null;
     if (quotedPhotoId) {
@@ -1074,6 +1113,9 @@ async function handle(body: any, ch: Channel) {
     const ambiguous = !quotedPhotoId && candidates.length > 1;
     /* The whole batch, when the answer was for all of them. */
     let batch: any[] | null = null;
+    /* This message is correcting photographs they already sent, rather than
+       answering a question about one. */
+    let fixing = false;
     const past = await history(waId);
     const lastRefusal = [...past].reverse().find(h => h.kind === 'refusal');
 
@@ -1097,8 +1139,13 @@ async function handle(body: any, ch: Channel) {
           lastRefusal: lastRefusal ? { reason: String(lastRefusal.meta?.reason ?? ''), at: lastRefusal.created_at } : null,
           photosSent: contact.photos_sent ?? 0,
           sender: senderFor(contact, comms),
+          theirs: theirs.map((p: any, i: number) => ({
+            index: i + 1, description: p.ai_description ?? 'no description',
+            community: nameOf(p.community_id), year: p.year,
+            onSite: Boolean(p.public_path), when: agoInWords(p.created_at)
+          })),
           message: text
-        }));
+        }), theirs.length);
         ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
                                 people: out.people, occasion: out.occasion, target: out.target_photo,
                                 /* What the message is FOR, which decides whether the whole of it
@@ -1113,6 +1160,22 @@ async function handle(body: any, ch: Channel) {
           if (out.target_photo === 'all') { openLive = candidates[0]; batch = candidates; }
           else openLive = out.target_photo ? (candidates[out.target_photo - 1] ?? null) : null;
           ch.trace(openLive ? (batch ? 'batch' : 'disambiguated') : 'asking which photograph', { target: out.target_photo, n: batch?.length });
+        }
+        /* A correction to photographs of their own. Whoever sent a photograph
+           may change it: it is their picture, and waiting for the office to
+           retype what they just said is how "move this one to 2005" became
+           four open requests and a photograph still in the wrong year.
+           The numbers came from a list built from their own submitter_ref, and
+           the identity is checked again here — a number is the model's, an
+           owner is not. */
+        const mine = out.fix_target
+          .map(n => theirs[n - 1])
+          .filter((p: any) => p && p.submitter_ref === waId);
+        if (mine.length) {
+          openLive = mine[0];
+          batch = mine.length > 1 ? mine : null;
+          fixing = true;
+          ch.trace('correcting their own', { ids: mine.map((p: any) => p.id) });
         }
       } catch (e) { ch.trace('converse failed', { error: String(e).slice(0, 160) }); }
     }
@@ -1155,15 +1218,28 @@ async function handle(body: any, ch: Channel) {
       const c = await pg(`/tmz_community?select=id&slug=eq.${encodeURIComponent(det.community_slug)}`);
       communityId = c?.[0]?.id ?? null;
     }
+    /* Where THEY served is not where the next photograph goes. The
+       introduction asks "where and when were you?" and the answer names a
+       community and a year; carrying that into the placement default would
+       file everything they send afterwards under their own tenure. When the
+       model put the same value under `sender`, the message was answering the
+       introduction, and the placement memory is left alone. */
+    const aboutThem = (what: 'community' | 'year') => Boolean(out) && (what === 'community'
+      ? Boolean(out!.sender.community_slug) && out!.sender.community_slug === det.community_slug
+      : Boolean(out!.sender.year) && out!.sender.year === det.year);
     await remember(waId, {
       lang: spoken, is_test: ch.isTest,
-      ...(communityId ? { community_id: communityId } : {}),
-      ...(det.year ? { year: det.year } : {})
+      ...(communityId && !aboutThem('community') ? { community_id: communityId } : {}),
+      ...(det.year && !aboutThem('year') ? { year: det.year } : {})
     });
 
     /* A request is opened for the team and confirmed to the sender, in
        addition to whatever else the message did. */
-    if (out?.request && (out.intent === 'request' || out.request.kind === 'takedown')) {
+    /* `fixing` means the message named photographs of their own to change, and
+       the change is about to be made. Passing it to the office as well would
+       have them retype what the agent just did. A takedown is still theirs to
+       ask for and nobody else's to grant, so that one always goes through. */
+    if (out?.request && (out.request.kind === 'takedown' || (out.intent === 'request' && !fixing))) {
       const r = out.request;
       let personId: string | null = null;
       if (r.kind === 'fix_name' && r.proposed?.from) {
@@ -1194,6 +1270,10 @@ async function handle(body: any, ch: Channel) {
 
     if (openLive) {
       const targets: any[] = batch ?? [openLive];
+      /* A photograph that moves keeps its picture and loses its address: the
+         page is #/c/<community>/<year>/<id>, so a correction to either sends
+         whoever has the old link nowhere. They get the new one. */
+      const moved: any[] = [];
       /* The renderings and the screening are done once for the message, not
          once per photograph — the text is the same. */
       const rendered: Record<string, unknown> = {};
@@ -1265,6 +1345,7 @@ async function handle(body: any, ch: Channel) {
         }
       }
       merged = { ...openLive, ...patch };
+      if (openLive.public_path && (patch.community_id || patch.year)) moved.push(merged);
 
       /* The state machine still decides what is missing and whether the
          photograph publishes; the model only chose the words. */
@@ -1311,7 +1392,14 @@ async function handle(body: any, ch: Channel) {
            still missing its place or its year is the more urgent question, and
            two questions in one message is how people stop answering either. */
         const offer = missing ? null : await portraitOffer(waId, contact, spoken, ch);
-        const said = out.reply + (offer ? '\n\n' + offer : '');
+        const links = await Promise.all(moved.map(async m => {
+          const slug = (await pg(`/tmz_community?select=slug&id=eq.${m.community_id}`))?.[0]?.slug;
+          return slug && m.year
+            ? (await phrase(spoken, x => x.seeIt)).replace('{url}', `${SITE_URL}/#/c/${slug}/${m.year}/${m.id}`)
+            : null;
+        }));
+        const where = links.filter(Boolean).join('\n');
+        const said = out.reply + (where ? '\n\n' + where : '') + (offer ? '\n\n' + offer : '');
         const sentId = await ch.reply(from, said, quote);
         await log(waId, 'out', missing || offer ? 'question' : 'text', said, merged.id,
                   missing ? { field: missing } : offer ? { field: 'portrait' } : {}, sentId);
@@ -1441,7 +1529,11 @@ async function handle(body: any, ch: Channel) {
   const [submission] = await pg('/tmz_submission', {
     method: 'POST', prefer: 'return=representation',
     body: JSON.stringify([{
-      contributor_name: displayName, contributor_note: caption || null,
+      /* Who sent it, by name where we have one. The phone is on the photograph
+         itself (submitter_ref) and is the way back to them; this is the name to
+         put in a letter. The introduction asks for it, so it is usually theirs
+         rather than whatever WhatsApp reports as a profile name. */
+      contributor_name: contact?.person_name ?? displayName, contributor_note: caption || null,
       source: 'whatsapp', ip_hash: waId, consented: true, is_test: ch.isTest, lang
     }])
   });
@@ -1502,7 +1594,14 @@ async function handle(body: any, ch: Channel) {
     }])
   });
 
-  await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null });
+  /* What the NEXT photograph inherits is where THIS one went — not the last
+     place they happened to type. "Same location and year" means the same as
+     the photograph before it, and until this line the agent had no memory of
+     where that was: only text messages ever wrote these two, so a caption that
+     placed a photograph correctly was forgotten the moment it was answered. */
+  await remember(waId, { photos_sent: (contact?.photos_sent ?? 0) + 1, last_error: null,
+                         ...(photo.community_id ? { community_id: photo.community_id } : {}),
+                         ...(photo.year ? { year: photo.year } : {}) });
   await log(waId, 'in', 'photo', caption || null, photo.id, {}, msg.id ?? null);
 
   /* The answer goes out now. */
@@ -1659,6 +1758,10 @@ async function absorbSender(waId: string, contact: any, s: Extracted['sender'] |
   if (!now.intro_done_at && introComplete(now)) { patch.intro_done_at = new Date().toISOString(); }
 
   await remember(waId, patch);
+  /* A name given now names everything they have already sent. Photographs
+     arrive before anyone asks who is sending them, and a nameless submission is
+     a photograph nobody can write to about. */
+  if (patch.person_name) await nameWhatTheySent(waId, String(patch.person_name), ch);
   ch.trace('sender', patch);
   return { ...contact, ...patch };
 }
@@ -1677,6 +1780,20 @@ async function portraitOffer(waId: string, contact: any, lang: string, ch: Chann
   await remember(waId, { portrait_offered_at: new Date().toISOString(), asking: 'portrait', asking_for: null });
   ch.trace('portrait offered', { person: contact.person_id });
   return (await phrase(lang, x => x.portraitOffer)).replace('{name}', name ?? '');
+}
+
+/* Fills their name in on the submissions behind the photographs they have
+   already sent — only where none was recorded, so a name typed by a person is
+   never overwritten by one inferred later. */
+async function nameWhatTheySent(ref: string, name: string, ch: Channel) {
+  try {
+    const rows = await pg(`/tmz_photo?select=submission_id&submitter_ref=eq.${encodeURIComponent(ref)}`);
+    const ids = [...new Set((rows ?? []).map((r: any) => r.submission_id).filter(Boolean))];
+    if (!ids.length) return;
+    await pg(`/tmz_submission?id=in.(${ids.join(',')})&contributor_name=is.null`,
+             { method: 'PATCH', body: JSON.stringify({ contributor_name: name }) });
+    ch.trace('named what they sent', { submissions: ids.length, name });
+  } catch (e) { ch.trace('naming failed', { error: String(e).slice(0, 120) }); }
 }
 
 async function personDisplay(personId: string, lang: string): Promise<string | null> {
@@ -1902,15 +2019,18 @@ const extrasWanted = (photo: any) => !photo.portrait_of && (!photo.people_text |
 
 /* ---- placement ----------------------------------------------------------- */
 
-/* `fromCaption` says whether THIS caption placed the photograph, as opposed to
-   the place and year carried over from the sender's last one. The difference
-   matters when a picture arrives with nothing to say about itself: a caption
-   that placed it is a caption about a photograph, and never a portrait. */
+/* Where this photograph goes. The caption is read first and on its own; what
+   the sender's LAST photograph was filed as fills only what the caption did
+   not say. The precedence is in _shared/place.ts, with the story of how a
+   photograph ended up in St. Louis 2016 because of a message from the day
+   before.
+
+   `fromCaption` says whether this caption placed the photograph itself, which
+   is also how a picture with nothing to say about itself is told from one that
+   is about a place and a year — see answersPortraitOffer. */
 async function placeFrom(caption: string, contact: any, ch: Channel) {
-  let community_id = contact?.community_id ?? null;
-  let year = contact?.year ?? null;
-  let fromCaption = false;
-  if (!caption) return { community_id, year, fromCaption };
+  const carried = { carriedCommunityId: contact?.community_id ?? null, carriedYear: contact?.year ?? null };
+  if (!caption) return placeDecision({ captionCommunityId: null, captionYear: null, ...carried });
 
   const comms = await communityList();
   const slugToId = async (slug: string) => {
@@ -1919,23 +2039,30 @@ async function placeFrom(caption: string, contact: any, ch: Channel) {
   };
 
   const local = parseLocally(caption, comms);
-  if (local.year) { year = local.year; fromCaption = true; }
-  if (local.community_slug) { community_id = (await slugToId(local.community_slug)) ?? community_id; fromCaption = true; }
+  let captionCommunityId = local.community_slug ? await slugToId(local.community_slug) : null;
+  let captionYear = local.year ?? null;
+  let placeSaid: string | null = null;
   ch.trace('caption read locally', local);
 
-  /* The model is only asked about what plain matching could not settle, which
-     keeps a photograph placeable when the quota is gone. */
-  if (GEMINI_KEY && (!year || !community_id)) {
+  /* The model is asked whenever the CAPTION left a gap — not whenever the
+     RESULT has one. Judging it by the result meant that a carried-over place
+     and year silenced the caption completely: "same location and year" was
+     never read by anything, because both fields were already full. */
+  if (GEMINI_KEY && (!captionYear || !captionCommunityId)) {
     try {
       const det = await parseDetails(caption, comms);
       ch.trace('caption', det);
-      if (!year && det.year) { year = det.year; fromCaption = true; }
-      if (!community_id && det.community_slug) {
-        community_id = (await slugToId(det.community_slug)) ?? community_id; fromCaption = true;
-      }
+      if (!captionYear && det.year) captionYear = det.year;
+      if (!captionCommunityId && det.community_slug) captionCommunityId = await slugToId(det.community_slug);
+      /* The words they used for a place, whether or not we could place them.
+         "saint louisa 2011" names somewhere; inheriting Munich from yesterday
+         is worse than asking. */
+      if (!captionCommunityId && det.place_said) placeSaid = String(det.place_said).slice(0, 80);
     } catch (e) { ch.trace('caption parse failed', { error: String(e).slice(0, 200) }); }
   }
-  return { community_id, year, fromCaption };
+  const out = placeDecision({ captionCommunityId, captionYear, placeSaid, ...carried });
+  if (out.unknownPlace) ch.trace('place named but not known', { said: out.unknownPlace });
+  return out;
 }
 
 async function communityList() {

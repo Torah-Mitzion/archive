@@ -12,9 +12,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-for (const line of readFileSync(join(ROOT, '.env.supabase'), 'utf8').split('\n')) {
-  const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+/* A convenience, not a requirement: the same variables may already be in the
+   environment, and on a machine that has them there is no file to keep. */
+if (existsSync(join(ROOT, '.env.supabase'))) {
+  for (const line of readFileSync(join(ROOT, '.env.supabase'), 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  }
 }
 const U = process.env.SUPABASE_URL, K = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rows = await (await fetch(`${U}/rest/v1/tmz_photo?select=id&status=eq.approved&public_path=not.is.null&year=not.is.null&community_id=not.is.null`,

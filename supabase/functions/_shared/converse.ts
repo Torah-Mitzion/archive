@@ -64,6 +64,10 @@ export interface Extracted {
              summary: string; proposed?: Record<string, string> } | null;
   person_name: string | null;  // when the photograph is a portrait of the sender (or of one named person)
   target_photo: number | 'all' | null; // which candidate the message was about, when there were several
+  /* Which of THEIR OWN photographs a correction is about, by the numbers in
+     the list the prompt showed them. Their own are theirs to change: the
+     handler applies it rather than opening a request for the office. */
+  fix_target: number[];
   community_slug: string | null;
   year: number | null;
   people: string | null;
@@ -74,6 +78,16 @@ export interface Extracted {
 const LANG_NAME: Record<string, string> = {
   en: 'English', he: 'Hebrew', ru: 'Russian', fr: 'French', de: 'German', es: 'Spanish'
 };
+
+/* One of the sender's own photographs, offered to a correction by number. */
+export interface Theirs {
+  index: number;                   // 1-based, what fix_target refers to
+  description: string;
+  community: string | null;
+  year: number | null;
+  onSite: boolean;
+  when: string;                    // when they sent it, so "the last one" has a referent
+}
 
 /* Who the agent is talking to, as far as it knows so far. */
 export interface Sender {
@@ -93,10 +107,12 @@ export function buildPrompt(opts: {
   lastRefusal: { reason: string; at: string } | null;
   photosSent: number;
   sender?: Sender | null;
+  theirs?: Theirs[];
   message: string;
 }) {
   const { lang, history, open, communities, lastRefusal, photosSent, message } = opts;
   const sender = opts.sender ?? null;
+  const theirs = opts.theirs ?? [];
   const candidates = opts.candidates ?? [];
   const missing = open
     ? (['community', 'year', 'people', 'occasion'] as const).filter(k =>
@@ -147,9 +163,16 @@ may have such photographs. Your whole purpose:
    corrected value in the matching field and confirm the change in the reply —
    even for a photograph that is already complete or already on the site. When
    several photographs were listed and they did not say which, ask which.
-   This rule reaches only the photograph under discussion. A correction aimed at
-   OTHER photographs — an earlier batch, ones already filed somewhere — is a
-   request under rule 7, never a value for the one in hand.
+   A correction aimed at OTHER photographs is not a value for the one in hand —
+   but if those photographs are THEIRS, listed under THEIR PHOTOGRAPHS below,
+   they are still theirs to change. Name them in "fix_target" by their numbers
+   and put the new value in the matching field: "the ones you put in Washington
+   belong in Munich 2016" is fix_target for those pictures with community_slug
+   "munich" and year 2016; "move this one to 2005" is fix_target for that one
+   with year 2005; "both Johannesburg photos are from 2005" is fix_target for
+   both. Say in the reply that you have changed it — it is done, not passed on.
+   Only when the photographs are NOT in that list — someone else's, or older
+   than it reaches — is it a request under rule 7.
 7. REQUESTS for the people who run the album — things you must not do yourself:
    - they want a photograph TAKEN DOWN or removed ("delete it", "I don't want it
      on the site", "that's my child, take it off") → kind "takedown";
@@ -157,10 +180,10 @@ may have such photographs. Your whole purpose:
      not the caption they typed) is wrong → kind "fix_name", proposed {"from","to"};
    - they say they are IN a photograph someone else sent, or served in a year the
      register misses → kind "tag_me";
-   - they want photographs MOVED or RE-FILED: a different community or year for
-     ones already sent ("the ones you put in Washington belong in Munich 2016",
-     "those are from Melbourne, not Sydney") → kind "fix_details", with
-     "proposed" naming what moves where;
+   - they want photographs MOVED or RE-FILED that are NOT in the list of their
+     own below — someone else's, or older than that list reaches → kind
+     "fix_details", with "proposed" naming what moves where. Their own, in the
+     list, are rule 6: change them, do not pass them on;
    - anything else about the site you cannot settle → kind "question"/"other".
    Set intent "request", fill "request" with a one-line English summary of what
    they want (and "proposed" when a concrete change was named), and in the reply
@@ -197,6 +220,13 @@ register — if they write "היי", do not write a paragraph.
 
 Known communities (slug=name): ${communities.map(c => `${c.slug}=${c.name}`).join(', ')}
 
+${theirs.length ? `THEIR PHOTOGRAPHS — sent by this person, and theirs to correct:
+${theirs.map(t => `  [${t.index}] ${t.description} — ${t.community ?? 'no community'}, ${t.year ?? 'no year'}${t.onSite ? ', on the site' : ''} (sent ${t.when})`).join('\n')}
+  Use these numbers in "fix_target" when they correct one. "This one", "the last
+  one" and "it" mean the most recently sent unless they say otherwise; when you
+  genuinely cannot tell which they mean, leave fix_target empty and ask, naming
+  them by what they show rather than by number.
+` : ''}
 GETTING TO KNOW THEM
 ${sender?.introDone
   ? `Already done — they are ${sender.name ?? 'someone whose name was never given'}${
@@ -252,6 +282,7 @@ Return ONLY JSON:
  "person_name": string | null,     // only with intent "portrait": whose picture it is
  "request": {"kind": "takedown"|"fix_name"|"fix_details"|"tag_me"|"question"|"other", "summary": string, "proposed": object} | null,
  "target_photo": number | "all" | null,    // only when several were listed above
+ "fix_target": number[],            // numbers from THEIR PHOTOGRAPHS that a correction applies to; [] otherwise
  "community_slug": string | null,   // one of the slugs above, if their message names a community
  "year": number | null,             // 1990-2030, if their message gives a year
  "people": string | null,           // names, if their message says who is in the photograph
@@ -273,7 +304,11 @@ your reply automatically, so never say "soon" or "shortly" — and invite more).
 missing and they send a list of names, that list IS the people answer.`;
 }
 
-export async function converse(model: string, key: string, prompt: string): Promise<Extracted> {
+/* `offered` is how many photographs the prompt listed under THEIR PHOTOGRAPHS.
+   A number the sender was never shown cannot name one of their photographs, so
+   anything outside that range is dropped rather than resolved. */
+export async function converse(model: string, key: string, prompt: string,
+                               offered = 0): Promise<Extracted> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -298,6 +333,11 @@ export async function converse(model: string, key: string, prompt: string): Prom
           ['community', 'year', 'people', 'occasion'].includes(String(f))) as Extracted['provides']
       : [],
     unsure: out.unsure === true,
+    fix_target: Array.isArray(out.fix_target)
+      ? [...new Set(out.fix_target
+          .map((n: unknown) => Math.trunc(Number(n)))
+          .filter((n: number) => Number.isFinite(n) && n >= 1 && n <= offered))] as number[]
+      : [],
     /* Silence is not an answer: anything the message did not say comes back
        null and never overwrites what is already known. "was_shaliach" is the
        exception — false IS an answer, and has to survive the journey. */

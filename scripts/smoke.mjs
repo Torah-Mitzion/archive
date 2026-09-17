@@ -10,11 +10,15 @@
  *
  * Cleans up everything it creates. */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
-for (const l of readFileSync('.env.supabase', 'utf8').split('\n')) {
-  const m = l.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+/* A convenience, not a requirement: the same variables may already be in the
+   environment, and on a machine that has them there is no file to keep. */
+if (existsSync('.env.supabase')) {
+  for (const l of readFileSync('.env.supabase', 'utf8').split('\n')) {
+    const m = l.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  }
 }
 const U = process.env.SUPABASE_URL;
 const K = process.env.SUPABASE_SERVICE_ROLE_KEY;
