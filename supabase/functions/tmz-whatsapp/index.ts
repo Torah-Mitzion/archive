@@ -1098,7 +1098,12 @@ async function handle(body: any, ch: Channel) {
           message: text
         }));
         ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
-                                people: out.people, occasion: out.occasion, target: out.target_photo, request: out.request?.kind ?? null });
+                                people: out.people, occasion: out.occasion, target: out.target_photo,
+                                /* What the message is FOR, which decides whether the whole of it
+                                   may stand in for an answer. Traced because a caption filed under
+                                   the wrong heading is invisible until someone reads the site. */
+                                provides: out.provides, unsure: out.unsure,
+                                request: out.request?.kind ?? null });
         /* When several photographs are open and the model could tell which one
            the answer meant, that one is the target. When it could not, the
            reply it wrote asks — and nothing is written to any of them. */
