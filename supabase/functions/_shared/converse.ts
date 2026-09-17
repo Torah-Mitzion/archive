@@ -49,6 +49,15 @@ export interface Extracted {
      under a heading that is not named here. */
   provides: Array<'community' | 'year' | 'people' | 'occasion'>;
   unsure: boolean;
+  /* What the message says about the SENDER, as opposed to about a photograph.
+     Anything not given stays null, and null never overwrites what is known. */
+  sender: {
+    name: string | null;
+    was_shaliach: boolean | null;   // false is an answer; null is silence
+    year: number | null;            // the year THEY served
+    community_slug: string | null;  // the community THEY served in
+    wants_portrait: boolean;        // they agreed to send a picture of themselves
+  };
   /* A request for the people who run the album — something the assistant
      must not do alone. */
   request: { kind: 'takedown' | 'fix_name' | 'fix_details' | 'tag_me' | 'question' | 'other';
@@ -66,6 +75,15 @@ const LANG_NAME: Record<string, string> = {
   en: 'English', he: 'Hebrew', ru: 'Russian', fr: 'French', de: 'German', es: 'Spanish'
 };
 
+/* Who the agent is talking to, as far as it knows so far. */
+export interface Sender {
+  name: string | null;
+  was_shaliach: boolean | null;
+  year: number | null;
+  community: string | null;        // resolved name, for the model to see
+  introDone: boolean;              // the getting-to-know-you is over, once and for all
+}
+
 export function buildPrompt(opts: {
   lang: string;
   history: HistoryRow[];
@@ -74,9 +92,11 @@ export function buildPrompt(opts: {
   communities: { slug: string; name: string }[];
   lastRefusal: { reason: string; at: string } | null;
   photosSent: number;
+  sender?: Sender | null;
   message: string;
 }) {
   const { lang, history, open, communities, lastRefusal, photosSent, message } = opts;
+  const sender = opts.sender ?? null;
   const candidates = opts.candidates ?? [];
   const missing = open
     ? (['community', 'year', 'people', 'occasion'] as const).filter(k =>
@@ -100,17 +120,21 @@ communities worldwide; the album gathers photographs from thirty years of that,
 NEVER "the archive", in any language. You are talking to someone who
 may have such photographs. Your whole purpose:
 
-1. Get them to send photographs, and keep sending.
-2. For each photograph, learn which COMMUNITY and which YEAR — those two put it
+1. Get to know who you are talking to — see GETTING TO KNOW THEM below. Most of
+   the people who write here are IN the album: shlichim who served in one of
+   these communities. Knowing which one they are is what lets their own picture
+   go beside their name on the site.
+2. Get them to send photographs, and keep sending.
+3. For each photograph, learn which COMMUNITY and which YEAR — those two put it
    on the site, and it goes up the moment both are known. Ask for ONE missing
    thing at a time, community first. WHO is in it and what the OCCASION was are
    welcome extras: record them whenever they are given, but never insist, never
    hold a photograph for them, and do not ask for them again if they were asked
    once.
-3. When a photograph was refused, explain WHY plainly if they ask, using the
+4. When a photograph was refused, explain WHY plainly if they ask, using the
    recorded reason, and say what would work instead. Never say "did not pass our
    check" without the reason.
-4. A PORTRAIT: if they say a photograph is of THEMSELVES (or of one named
+5. A PORTRAIT: if they say a photograph is of THEMSELVES (or of one named
    shaliach) and they want it as their picture on the site — "this is me",
    "זו תמונה שלי", "that's my picture for the site" — set intent "portrait" and
    person_name to the name they give (their own name, as they wrote it). If they
@@ -118,15 +142,15 @@ may have such photographs. Your whole purpose:
    separate step matches the name against the register and answers about that;
    your reply should acknowledge and, if a name was given, say nothing about
    whether it was found.
-5. CORRECTIONS: if they say something recorded was wrong ("not 2006, 2005", "the
+6. CORRECTIONS: if they say something recorded was wrong ("not 2006, 2005", "the
    name is Cohen not Kohn", "it was a farewell party, not a class"), put the
    corrected value in the matching field and confirm the change in the reply —
    even for a photograph that is already complete or already on the site. When
    several photographs were listed and they did not say which, ask which.
    This rule reaches only the photograph under discussion. A correction aimed at
    OTHER photographs — an earlier batch, ones already filed somewhere — is a
-   request under rule 6, never a value for the one in hand.
-6. REQUESTS for the people who run the album — things you must not do yourself:
+   request under rule 7, never a value for the one in hand.
+7. REQUESTS for the people who run the album — things you must not do yourself:
    - they want a photograph TAKEN DOWN or removed ("delete it", "I don't want it
      on the site", "that's my child, take it off") → kind "takedown";
    - the spelling of a person's name IN THE REGISTER (a shaliach's listed name,
@@ -143,8 +167,8 @@ may have such photographs. Your whole purpose:
    say plainly that the Torah MiTzion team will see it and answer here — never
    promise it is done. A takedown of THEIR OWN photograph: also say it will be
    taken off as soon as a person confirms. Caption corrections to their own
-   photograph are NOT requests — rule 5 handles those yourself.
-7. WHAT THE MESSAGE IS FOR. "provides" lists only the fields this message
+   photograph are NOT requests — rule 6 handles those yourself.
+8. WHAT THE MESSAGE IS FOR. "provides" lists only the fields this message
    genuinely gives a value for. A correction gives one: "no, it was Melbourne"
    is ["community"], "wait, that one is from 2019" is ["year"]. A list of names
    in answer to who is in it is ["people"]. Covering words ("here they are",
@@ -156,7 +180,7 @@ may have such photographs. Your whole purpose:
    Set "unsure" true when the message is plainly about a photograph but you
    cannot tell which of the four it means. Leave "provides" empty and ask in
    the reply which of them it is, rather than guessing.
-8. Be warm, brief and specific. Two or three sentences at most. Answer what they
+9. Be warm, brief and specific. Two or three sentences at most. Answer what they
    actually said. Never repeat a question they have just answered. Never ask for
    something you already know. If they ask something off-topic, answer briefly
    and steer back.
@@ -172,6 +196,34 @@ ${LANG_NAME[lang] ?? lang}, the language of the conversation so far. Match their
 register — if they write "היי", do not write a paragraph.
 
 Known communities (slug=name): ${communities.map(c => `${c.slug}=${c.name}`).join(', ')}
+
+GETTING TO KNOW THEM
+${sender?.introDone
+  ? `Already done — they are ${sender.name ?? 'someone whose name was never given'}${
+      sender.was_shaliach === false ? ', not a shaliach' :
+      sender.was_shaliach ? `, a shaliach in ${sender.community ?? 'a community they did not name'}${sender.year ? ` in ${sender.year}` : ''}` : ''}.
+  Do NOT ask any of it again. Use their name when it is natural to.`
+  : `Ask for these, ONE AT A TIME, in this order, and only what is still unknown.
+  Never more than one question in a message, and never a question they have
+  already answered. If they would rather not say, accept it at once and move on
+  — this is a conversation, not a form.
+  a. THEIR NAME${sender?.name ? ` — known: ${sender.name}. Do not ask again.` : ' — what should I call you? Put it in sender.name, spelled as they wrote it.'}
+  b. WERE THEY A SHALIACH (or shlicha) with Torah MiTzion${
+      sender?.was_shaliach === true ? ' — yes, already answered. Do not ask again.' :
+      sender?.was_shaliach === false ? ' — no, already answered. Do not ask again, and skip c and d entirely.' :
+      ' — set sender.was_shaliach true or false the moment they say. If no, that is the end of these questions; say something warm and get on with photographs.'}
+  ${sender?.was_shaliach === false ? '' : `c. IF THEY SERVED: WHICH COMMUNITY and WHICH YEAR${
+      sender?.community && sender?.year ? ` — known: ${sender.community}, ${sender.year}. Do not ask again.` :
+      ' — one question covering both ("where and when were you?"). Put them in sender.community_slug (a slug from the list) and sender.year. A range or a first year is fine: take the first year.'}
+  d. THEN OFFER THEIR OWN PICTURE: a photograph of themselves goes beside their
+     name on the site, on the page of the community they served in. Offer it
+     once, warmly, as something only they can give. If they say yes — "sure",
+     "sending", "בטח" — set sender.wants_portrait true. When the picture then
+     arrives it is handled automatically; do not ask them to caption it.`}
+  This runs alongside everything else, never instead of it. A photograph that is
+  missing its community or year is always the more urgent question: answer that
+  first and let the introduction wait for a quiet turn. Never open with an
+  interrogation — one question, in among the conversation.`}
 
 CONVERSATION SO FAR (oldest first):
 ${transcript || '(nothing yet — this is their first message)'}
@@ -206,6 +258,12 @@ Return ONLY JSON:
  "occasion": string | null,         // if their message says what was happening
  "provides": string[],              // of "community","year","people","occasion": those this message actually gives
  "unsure": boolean,                 // plainly about a photograph, but which field it means cannot be told
+ "sender": {                        // about the PERSON, not the photograph. Omit or null what they did not say.
+   "name": string | null,           //   what to call them
+   "was_shaliach": true|false|null, //   false is an answer; null means they have not said
+   "year": number | null,           //   the year THEY served
+   "community_slug": string | null, //   the community THEY served in, a slug from the list
+   "wants_portrait": boolean},      //   they agreed to send a picture of themselves
  "language": string}                // ISO code of the language THEY wrote in
 
 When the message answers the open question, put the answer in the matching field
@@ -240,6 +298,18 @@ export async function converse(model: string, key: string, prompt: string): Prom
           ['community', 'year', 'people', 'occasion'].includes(String(f))) as Extracted['provides']
       : [],
     unsure: out.unsure === true,
+    /* Silence is not an answer: anything the message did not say comes back
+       null and never overwrites what is already known. "was_shaliach" is the
+       exception — false IS an answer, and has to survive the journey. */
+    sender: {
+      name: out.sender?.name ? String(out.sender.name).slice(0, 120).trim() || null : null,
+      was_shaliach: out.sender?.was_shaliach === true ? true
+                  : out.sender?.was_shaliach === false ? false : null,
+      year: Number.isFinite(out.sender?.year) && out.sender.year >= 1990 && out.sender.year <= 2030
+            ? Math.trunc(out.sender.year) : null,
+      community_slug: out.sender?.community_slug ? String(out.sender.community_slug).slice(0, 80) : null,
+      wants_portrait: out.sender?.wants_portrait === true
+    },
     person_name: out.person_name ? String(out.person_name).slice(0, 120) : null,
     request: out.request && typeof out.request.summary === 'string'
       ? { kind: ['takedown', 'fix_name', 'fix_details', 'tag_me', 'question', 'other'].includes(out.request.kind) ? out.request.kind : 'other',

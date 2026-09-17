@@ -26,10 +26,11 @@
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
-import { buildPrompt, converse, type HistoryRow } from '../_shared/converse.ts';
+import { buildPrompt, converse, type HistoryRow, type Sender, type Extracted } from '../_shared/converse.ts';
 import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
 import { captionDecision } from '../_shared/caption.ts';
+import { absorb, introComplete, answersPortraitOffer } from '../_shared/intro.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -977,7 +978,7 @@ async function handle(body: any, ch: Channel) {
   const waId = `wa:${from}`;
   ch.trace('received', { type: msg.type, from });
 
-  const contact = await contactOf(waId);
+  let contact = await contactOf(waId);
   const displayName = value?.contacts?.[0]?.profile?.name ?? null;
   if (contact?.blocked_until && new Date(contact.blocked_until) > new Date()) {
     ch.trace('blocked', { until: contact.blocked_until, strikes: contact.strikes });
@@ -1095,6 +1096,7 @@ async function handle(body: any, ch: Channel) {
           communities: comms,
           lastRefusal: lastRefusal ? { reason: String(lastRefusal.meta?.reason ?? ''), at: lastRefusal.created_at } : null,
           photosSent: contact.photos_sent ?? 0,
+          sender: senderFor(contact, comms),
           message: text
         }));
         ch.trace('conversed', { intent: out.intent, community: out.community_slug, year: out.year,
@@ -1113,6 +1115,15 @@ async function handle(body: any, ch: Channel) {
           ch.trace(openLive ? (batch ? 'batch' : 'disambiguated') : 'asking which photograph', { target: out.target_photo, n: batch?.length });
         }
       } catch (e) { ch.trace('converse failed', { error: String(e).slice(0, 160) }); }
+    }
+
+    /* What the message said about the PERSON, recorded before anything is
+       decided: the register match it enables is what makes their own picture
+       possible. Its own try — a database hiccup here must not be reported as
+       the model failing, nor cost the answer its photograph. */
+    if (out) {
+      try { contact = await absorbSender(waId, contact, out.sender, comms, ch) ?? contact; }
+      catch (e) { ch.trace('sender failed', { error: String(e).slice(0, 160) }); }
     }
 
     /* No model, several waiting, a plain community or year typed: it is for
@@ -1296,8 +1307,14 @@ async function handle(body: any, ch: Channel) {
       }
 
       if (out) {
-        const sentId = await ch.reply(from, out.reply, quote);
-        await log(waId, 'out', missing ? 'question' : 'text', out.reply, merged.id, missing ? { field: missing } : {}, sentId);
+        /* Their own picture is asked for only in a quiet moment: a photograph
+           still missing its place or its year is the more urgent question, and
+           two questions in one message is how people stop answering either. */
+        const offer = missing ? null : await portraitOffer(waId, contact, spoken, ch);
+        const said = out.reply + (offer ? '\n\n' + offer : '');
+        const sentId = await ch.reply(from, said, quote);
+        await log(waId, 'out', missing || offer ? 'question' : 'text', said, merged.id,
+                  missing ? { field: missing } : offer ? { field: 'portrait' } : {}, sentId);
       } else {
         await continueConversation(waId, from, merged, spoken, ch, !patchedAny, '', quote);
       }
@@ -1307,9 +1324,11 @@ async function handle(body: any, ch: Channel) {
     /* Nothing waiting. The model answers in context — a "why?" after a refusal
        gets the reason; a hello gets a hello. Without the model, a nudge. */
     if (out) {
-      const sentId = await ch.reply(from, out.reply, ambiguous ? null : null);
-      await log(waId, 'out', ambiguous ? 'question' : 'text', out.reply, null,
-                ambiguous ? { field: 'which' } : {}, sentId);
+      const offer = ambiguous ? null : await portraitOffer(waId, contact, spoken, ch);
+      const said = out.reply + (offer ? '\n\n' + offer : '');
+      const sentId = await ch.reply(from, said, null);
+      await log(waId, 'out', ambiguous || offer ? 'question' : 'text', said, null,
+                ambiguous ? { field: 'which' } : offer ? { field: 'portrait' } : {}, sentId);
       return;
     }
     const greeting = /^(hi|hello|hey|shalom|שלום|היי|הי|привет|здравствуйте|bonjour|salut|hallo|hola)\b/i.test(text)
@@ -1448,6 +1467,25 @@ async function handle(body: any, ch: Channel) {
     } catch { /* the questions will ask */ }
   }
 
+  /* We asked them for a picture of themselves, and here is a photograph with
+     nothing else to say about it. That is the answer.
+
+     "Nothing else to say" is the whole guard, and it is deliberately strict:
+     a caption that names anyone, describes an occasion, or places the picture
+     in a community or a year is an ordinary photograph from their shoebox,
+     however soon after the offer it arrives. A portrait skips the questions
+     and goes straight onto a person's entry, so reading a group photograph as
+     one would put the wrong face beside a name. */
+  const answersOffer = answersPortraitOffer({
+    offered: Boolean(contact?.portrait_offered_at), name: contact?.person_name ?? null,
+    saysItIsThem: selfPortrait, captionPeople, captionOccasion, captionPlacedIt: placed.fromCaption
+  });
+  if (answersOffer) {
+    selfPortrait = true;
+    portraitName = contact.person_name;
+    ch.trace('portrait expected', { person: contact.person_id ?? null });
+  }
+
   const [photo] = await pg('/tmz_photo', {
     method: 'POST', prefer: 'return=representation',
     body: JSON.stringify([{
@@ -1476,7 +1514,11 @@ async function handle(body: any, ch: Channel) {
     : '';
   const got = await phrase(lang, x => x.got);
   if (selfPortrait) {
-    const line = await linkPortrait(photo, portraitName, waId, from, lang, ch, true);
+    const slug = contact?.shaliach_community_id
+      ? (await pg(`/tmz_community?select=slug&id=eq.${contact.shaliach_community_id}`))?.[0]?.slug ?? null : null;
+    if (answersOffer) prefix += await phrase(lang, x => x.portraitGot) + '\n\n';
+    const line = await linkPortrait(photo, portraitName, waId, from, lang, ch, true,
+                                    { slug, personId: answersOffer ? contact?.person_id ?? null : null });
     if (line) prefix += line;
   }
   await continueConversation(waId, from, photo, lang, ch, false, prefix + got + ' ', msg.id ?? null);
@@ -1567,6 +1609,86 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
   }
 }
 
+/* ---- getting to know the sender -------------------------------------------
+   Most of the people who write here are IN the album. The register holds 1,634
+   shlichim by name, community and year, and someone who says "I was in Munich
+   in 2016" has just told us which row of it they are. That is worth asking for
+   on its own account — it is how their own picture gets beside their name —
+   and it is asked the way everything else here is asked: by the model, one
+   question at a time, in among the conversation rather than as a form.
+
+   This file's part is the memory and the register: it records what the model
+   heard, works out who that makes them, and decides when there is nothing left
+   to ask. The words are the model's. */
+
+/* Who they are, as far as we know, in the shape the prompt wants. */
+function senderFor(contact: any, comms: { id: string; slug: string; name: string }[]): Sender {
+  const c = comms.find(x => x.id === contact?.shaliach_community_id);
+  return {
+    name: contact?.person_name ?? null,
+    was_shaliach: contact?.was_shaliach ?? null,
+    year: contact?.shaliach_year ?? null,
+    community: c?.name ?? null,
+    introDone: Boolean(contact?.intro_done_at)
+  };
+}
+
+/* Records what the message said about the person, finds them in the register
+   when it can, and returns the contact as it now stands. What may be written
+   is decided in _shared/intro.ts; this is the part that touches the world. */
+async function absorbSender(waId: string, contact: any, s: Extracted['sender'] | undefined,
+                            comms: { id: string; slug: string; name: string }[], ch: Channel) {
+  if (!s) return contact;
+  const patch: Record<string, unknown> = absorb(
+    contact ?? {}, s, s.community_slug ? comms.find(c => c.slug === s.community_slug)?.id ?? null : null);
+  if (!Object.keys(patch).length) return contact;
+
+  const now = { ...contact, ...patch };
+
+  /* Which row of the register they are. The community narrows it, which is the
+     whole reason for asking where they served: three people share a name and
+     one of them was in Cape Town. */
+  if (!now.person_id && now.person_name && now.was_shaliach !== false) {
+    const slug = comms.find(c => c.id === now.shaliach_community_id)?.slug ?? null;
+    const hits = await rpc('tmz_person_search',
+      { q: now.person_name, want: 'en', lim: 8, community_slug: slug }).catch(() => []);
+    ch.trace('sender in register', { name: now.person_name, community: slug, matches: hits.length });
+    if (hits.length === 1) { patch.person_id = hits[0].id; now.person_id = hits[0].id; }
+  }
+
+  if (!now.intro_done_at && introComplete(now)) { patch.intro_done_at = new Date().toISOString(); }
+
+  await remember(waId, patch);
+  ch.trace('sender', patch);
+  return { ...contact, ...patch };
+}
+
+/* The one thing only they can give. Offered once, after the introduction is
+   over, to someone the register knows and has no picture of. Deterministic
+   rather than left to the model: an offer that is sometimes forgotten is not
+   an offer, and this one has to be remembered afterwards so that the next
+   photograph they send is read as the answer to it. */
+async function portraitOffer(waId: string, contact: any, lang: string, ch: Channel): Promise<string | null> {
+  if (!contact?.intro_done_at || contact.portrait_offered_at) return null;
+  if (!contact.was_shaliach || !contact.person_id) return null;
+  const person = (await pg(`/tmz_person?select=id,portrait_path&id=eq.${contact.person_id}`))?.[0];
+  if (!person || person.portrait_path) return null;     // someone already stands there
+  const name = await personDisplay(contact.person_id, lang) ?? contact.person_name;
+  await remember(waId, { portrait_offered_at: new Date().toISOString(), asking: 'portrait', asking_for: null });
+  ch.trace('portrait offered', { person: contact.person_id });
+  return (await phrase(lang, x => x.portraitOffer)).replace('{name}', name ?? '');
+}
+
+async function personDisplay(personId: string, lang: string): Promise<string | null> {
+  try {
+    const rows = await pg(`/tmz_person_tr?select=display_name&person_id=eq.${personId}&lang=eq.${lang}&limit=1`);
+    if (rows?.[0]?.display_name) return rows[0].display_name;
+    const en = await pg(`/tmz_person_tr?select=display_name&person_id=eq.${personId}&lang=eq.en&limit=1`);
+    return en?.[0]?.display_name ?? null;
+  } catch { return null; }
+}
+
+
 /* ---- portraits ------------------------------------------------------------ */
 
 /* "This is me." Matches the name they gave against the register and links
@@ -1576,22 +1698,39 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
    sentence to say, or null when there was nothing to say (quiet = true lets
    the caller fold it into a longer message). */
 async function linkPortrait(photo: any, name: string | null, waId: string, from: string,
-                            lang: string, ch: Channel, quiet = false): Promise<string | null> {
+                            lang: string, ch: Channel, quiet = false,
+                            hint: { slug?: string | null; personId?: string | null } = {}
+                           ): Promise<string | null> {
   const wanted = (name ?? '').trim();
-  if (!wanted) return null;
-  const slug = photo.community_id
-    ? (await pg(`/tmz_community?select=slug&id=eq.${photo.community_id}`))?.[0]?.slug ?? null : null;
-  let hits: any[] = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8, community_slug: slug }).catch(() => []);
-  if (!hits.length && slug) hits = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8 }).catch(() => []);
-  ch.trace('portrait', { name: wanted, matches: hits.length, community: slug });
+  if (!wanted && !hint.personId) return null;
+  let hits: any[];
+  if (hint.personId) {
+    /* The introduction already settled who they are: no name to match, no
+       ambiguity to resolve. */
+    const row = (await pg(`/tmz_person?select=id,portrait_path&id=eq.${hint.personId}`))?.[0];
+    if (!row) return null;
+    hits = [{ id: row.id, portrait: row.portrait_path,
+              name: await personDisplay(row.id, lang) ?? wanted, tenures: [] }];
+    ch.trace('portrait', { person: row.id, known: true });
+  } else {
+    /* The community the photograph sits in, or — for a picture of themselves,
+       which sits in no community at all — the one they told us they served in. */
+    const slug = hint.slug ?? (photo.community_id
+      ? (await pg(`/tmz_community?select=slug&id=eq.${photo.community_id}`))?.[0]?.slug ?? null : null);
+    hits = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8, community_slug: slug }).catch(() => []);
+    if (!hits.length && slug) hits = await rpc('tmz_person_search', { q: wanted, want: 'en', lim: 8 }).catch(() => []);
+    ch.trace('portrait', { name: wanted, matches: hits.length, community: slug });
+  }
 
   if (hits.length === 1 && hits[0].portrait && !photo.portrait_of) {
     /* Someone already stands there. A second picture for the same name is
        not taken on a stranger's word — the office can swap it. */
     ch.trace('portrait exists', { person: hits[0].id });
+    await remember(waId, { portrait_offered_at: null, asking: null });
     return (await phrase(lang, x => x.portraitTaken)).replace('{name}', hits[0].name);
   }
   if (hits.length === 1) {
+    await remember(waId, { portrait_offered_at: null, asking: null });
     await pg(`/tmz_photo?id=eq.${photo.id}`, { method: 'PATCH',
       body: JSON.stringify({ portrait_of: hits[0].id, portrait_name: wanted, people_text: photo.people_text ?? wanted,
                              ...(photo.people_text ? {} : { people_tr: await renderNames(GEMINI_MODEL, GEMINI_KEY, wanted, 'people') }) }) });
@@ -1763,10 +1902,15 @@ const extrasWanted = (photo: any) => !photo.portrait_of && (!photo.people_text |
 
 /* ---- placement ----------------------------------------------------------- */
 
+/* `fromCaption` says whether THIS caption placed the photograph, as opposed to
+   the place and year carried over from the sender's last one. The difference
+   matters when a picture arrives with nothing to say about itself: a caption
+   that placed it is a caption about a photograph, and never a portrait. */
 async function placeFrom(caption: string, contact: any, ch: Channel) {
   let community_id = contact?.community_id ?? null;
   let year = contact?.year ?? null;
-  if (!caption) return { community_id, year };
+  let fromCaption = false;
+  if (!caption) return { community_id, year, fromCaption };
 
   const comms = await communityList();
   const slugToId = async (slug: string) => {
@@ -1775,8 +1919,8 @@ async function placeFrom(caption: string, contact: any, ch: Channel) {
   };
 
   const local = parseLocally(caption, comms);
-  if (local.year) year = local.year;
-  if (local.community_slug) community_id = (await slugToId(local.community_slug)) ?? community_id;
+  if (local.year) { year = local.year; fromCaption = true; }
+  if (local.community_slug) { community_id = (await slugToId(local.community_slug)) ?? community_id; fromCaption = true; }
   ch.trace('caption read locally', local);
 
   /* The model is only asked about what plain matching could not settle, which
@@ -1785,13 +1929,13 @@ async function placeFrom(caption: string, contact: any, ch: Channel) {
     try {
       const det = await parseDetails(caption, comms);
       ch.trace('caption', det);
-      if (!year && det.year) year = det.year;
+      if (!year && det.year) { year = det.year; fromCaption = true; }
       if (!community_id && det.community_slug) {
-        community_id = (await slugToId(det.community_slug)) ?? community_id;
+        community_id = (await slugToId(det.community_slug)) ?? community_id; fromCaption = true;
       }
     } catch (e) { ch.trace('caption parse failed', { error: String(e).slice(0, 200) }); }
   }
-  return { community_id, year };
+  return { community_id, year, fromCaption };
 }
 
 async function communityList() {
