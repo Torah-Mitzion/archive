@@ -1170,7 +1170,10 @@ async function handle(body: any, ch: Channel) {
            owner is not. */
         const mine = out.fix_target
           .map(n => theirs[n - 1])
-          .filter((p: any) => p && p.submitter_ref === waId);
+          /* Belt and braces on an identity: it must be this conversation's
+             number, and it must be a number — never a string some other door
+             into the archive wrote into the same column. */
+          .filter((p: any) => p && p.submitter_ref === waId && waId.startsWith('wa:'));
         if (mine.length) {
           openLive = mine[0];
           batch = mine.length > 1 ? mine : null;

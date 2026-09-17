@@ -206,7 +206,15 @@ Deno.serve(async req => {
         needs_rescreen: verdict.decision === 'hold',
         source: 'web',
         submission_id: submission.id,
-        submitter_ref: [contributor_name, people, event_note].filter(Boolean).join(' · ') || null,
+        /* WHO SENT IT, not a label for it. This column is an identity: the
+           WhatsApp agent writes 'wa:<phone>' from the signed webhook envelope,
+           and decides from it whether the person writing may correct a
+           photograph. It used to hold whatever was typed into the contribute
+           form's name field, which meant anyone could upload a photograph as
+           "wa:<someone else's number>" and have it appear in that person's
+           conversation as one of theirs. The name still lives on the
+           submission, where it is a name and not a claim. */
+        submitter_ref: `web:${submission.id}`,
         /* The names and the occasion the form asked for, kept as given and
            rendered in the site's scripts, so they show under the photograph
            and the guide can find them. */
