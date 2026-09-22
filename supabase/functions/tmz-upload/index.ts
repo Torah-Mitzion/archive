@@ -298,6 +298,29 @@ function toBase64(bytes: Uint8Array) {
   return btoa(out);
 }
 
+/* The web-sized copy exists once.
+ *
+ * Every photograph was stored three times: the archive master, a re-encoded
+ * web-sized derivative in the private bucket, and — the moment it went up — a
+ * COPY of that derivative in the public one. The last two are the same bytes
+ * under two names, and nothing reads the private one once a photograph is
+ * published: the site reads public_path, and the back office already prefers
+ * the public copy for anything that has one. So it goes. A third of the
+ * archive's storage, for a file nobody opens.
+ *
+ * The master stays. It is the archive — the thing worth keeping when the site
+ * is gone — and it is what a re-screening reads. */
+async function dropDerived(photoId: string, derivedPath: string | null) {
+  if (!derivedPath) return;
+  await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${derivedPath}`,
+              { method: 'DELETE', headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } })
+    .catch(() => {});
+  /* Nulled as well as deleted: a path that points at nothing is worse than no
+     path, and publishIfReady falls back to the master on its own. */
+  await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ derived_path: null }) })
+    .catch(() => {});
+}
+
 /* The same single door to the public bucket the WhatsApp agent uses, and the
    same conditions: screening said publish, the photograph has somewhere to
    appear, and it is not already up. */
@@ -339,6 +362,7 @@ async function publishIfReady(photoId: string) {
       verdict: 'approved', reasons: ['published automatically']
     }])
   });
+  await dropDerived(photoId, p.derived_path);
   /* The share page, when a token allows it; otherwise the watchdog's turn. */
   const token = Deno.env.get('GITHUB_TOKEN') ?? '';
   if (token) {
