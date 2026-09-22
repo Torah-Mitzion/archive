@@ -35,6 +35,14 @@ export const MAX_PIXELS = 12_500_000;
    is the price of not serving anyone else's bytes. */
 export const PUBLIC_EDGE = 1600;
 export const PUBLIC_QUALITY = 80;
+/* The grids show a photograph in a box 151px wide on a desktop and 356px on a
+   telephone. Sending the 1600px copy into either was measured at 23x more
+   bytes than the screen can show, and bandwidth is the first thing this
+   archive will run out of — not disk. 700px covers the telephone at its own
+   pixel density and the desktop with room to spare, in about a quarter of the
+   bytes. The full copy is still what the viewer opens. */
+export const THUMB_EDGE = 700;
+export const THUMB_QUALITY = 74;
 
 /* The master kept in the private bucket. Full resolution at quality 92 costs
    3-4 MB a photograph, and three objects per photograph — master, derivative,
@@ -132,6 +140,8 @@ export interface Clean {
   kind: Sniffed;
   /** 64-bit dHash as hex, for spotting the same photograph arriving twice. */
   phash: string;
+  /** The grid-sized copy, THUMB_EDGE on its longest side. */
+  thumbBytes: Uint8Array;
   /** True when the picture had to be shrunk to fit PUBLIC_EDGE. */
   resized: boolean;
 }
@@ -192,8 +202,16 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
     : img;
   const publicBytes = await pub.encodeJPEG(PUBLIC_QUALITY);
 
+  /* Derived from the public copy, which is already small: the big bitmap is
+     long gone by here, and this clone is at most 1600px on its longest side. */
+  const tScale = Math.min(1, THUMB_EDGE / Math.max(pub.width, pub.height));
+  const thumbBytes = tScale < 1
+    ? await pub.clone().resize(Math.round(pub.width * tScale), Math.round(pub.height * tScale))
+             .encodeJPEG(THUMB_QUALITY)
+    : publicBytes;
+
   return {
-    publicBytes, archiveBytes,
+    publicBytes, archiveBytes, thumbBytes,
     width: pub.width, height: pub.height,
     kind, phash, resized: scale < 1 || shrunk
   };

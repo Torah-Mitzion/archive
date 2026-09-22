@@ -33,6 +33,18 @@ async function rpc(fn, args) {
 const photoUrl = path =>
   path ? `${TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/${path}` : null;
 
+/* The same photograph at 700px, which is what a grid tile actually shows. It
+   lives beside the full copy under thumb/, written before the photograph is
+   published, so anything on the site has one. Sending the 1600px copy into a
+   151px box was measured at 23x more bytes than the screen can use, and
+   bandwidth is the first thing this archive runs out of. */
+const thumbUrl = path => (path ? photoUrl(`thumb/${path}`) : null);
+
+/* For an <img> in a grid: let the browser take the small one and keep the full
+   one for the viewer. `sizes` is what the tile really measures. */
+const photoSrcset = path => path
+  ? `${thumbUrl(path)} 700w, ${photoUrl(path)} 1600w` : '';
+
 /* ---- map ----------------------------------------------------------------- */
 
 /* Adapts the payload to the shape the map already speaks: a flat name string
@@ -187,4 +199,4 @@ async function loadOverview(slug, lang) {
   return { roshei: (o?.roshei || []), people: o?.people || 0 };
 }
 
-window.TMZApi = { loadMap, loadYear, loadTeaser, loadGallery, loadOverview, searchPeople, searchPhotoPeople, historyFrom, photoUrl, DEMO };
+window.TMZApi = { photoUrl, thumbUrl, photoSrcset, loadMap, loadYear, loadTeaser, loadGallery, loadOverview, searchPeople, searchPhotoPeople, historyFrom, DEMO };

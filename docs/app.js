@@ -239,7 +239,9 @@ function galleryItem(p, showCommunity) {
   const what = showCommunity ? p.community_name : (p.event_name || p.occasion_text || p.people_text || '');
   return `<a class="gal-it" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}"
      title="${esc(p.community_name)} · ${p.year}${p.event_name ? ' · ' + esc(p.event_name) : ''}">
-    <img src="${esc(p.url)}" alt="${esc(p.event_name || p.community_name || '')}" loading="lazy">
+    <img src="${esc(TMZApi.thumbUrl(p.path) || p.url)}" srcset="${esc(TMZApi.photoSrcset(p.path))}"
+         sizes="(max-width: 900px) 46vw, 210px"
+         alt="${esc(p.event_name || p.community_name || '')}" loading="lazy">
     <span class="gal-cap"><b>${p.year}</b>${esc(what || '')}</span></a>`;
 }
 
@@ -711,7 +713,9 @@ function photoFigure(p, i, lead = '') {
               p.event_name && p.occasion_text ? esc(p.occasion_text) : ''].filter(Boolean).join(' &middot; ');
   return `
     <figure class="photo" data-photo="${i}" data-photo-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(t('lb.open'))}">
-      <img src="${esc(p.url)}" alt="${esc(title)}" loading="lazy">
+      <img src="${esc(TMZApi.thumbUrl(p.path) || p.url)}" srcset="${esc(TMZApi.photoSrcset(p.path))}"
+           sizes="(max-width: 900px) 46vw, 170px"
+           alt="${esc(title)}" loading="lazy">
       <figcaption><span class="ev">${esc(title)}</span>
         ${p.people_text ? `<span class="names" dir="auto">${esc(p.people_text)}</span>` : ''}
         <span class="mt">${mt}</span>
@@ -742,7 +746,9 @@ async function overviewView(c) {
   const cover = Object.fromEntries(g.covers.map(k => [String(k.year), k]));
   const tiles = h.rows.map(o => o.n ? `
     <a class="ytile has" href="#/c/${esc(c.id)}/${o.year}" title="${o.year} · ${o.n}">
-      ${cover[o.year] ? `<img src="${esc(cover[o.year].url)}" alt="" loading="lazy">` : ''}
+      ${cover[o.year] ? `<img src="${esc(TMZApi.thumbUrl(cover[o.year].path) || cover[o.year].url)}"
+           srcset="${esc(TMZApi.photoSrcset(cover[o.year].path))}" sizes="(max-width: 900px) 46vw, 170px"
+           alt="" loading="lazy">` : ''}
       <span class="ytile-cap"><b>${o.year}</b><i>${num(o.n)}</i></span></a>` : `
     <a class="ytile none" href="#/c/${esc(c.id)}/${o.year}" title="${o.year}">
       <em>${o.year}</em><b>+</b><i>${esc(t('ov.wereYou'))}</i></a>`).join('');
@@ -1120,7 +1126,8 @@ function wireShlichim() {
       <h2 class="eyebrow gold sh-h2">${esc(t('sh.inPhotos'))} <span class="dim">${num(photos.length)}</span></h2>
       <div class="sh-photos">${photos.map(p => `
         <a class="sh-photo" href="#/c/${esc(p.community)}/${p.year}/${esc(p.id)}">
-          <img src="${esc(TMZApi.photoUrl(p.path))}" alt="" loading="lazy">
+          <img src="${esc(TMZApi.thumbUrl(p.path))}" srcset="${esc(TMZApi.photoSrcset(p.path))}"
+               sizes="(max-width: 900px) 46vw, 200px" alt="" loading="lazy">
           <span class="sh-photo-txt"><b dir="auto">${esc(p.people || '')}</b>
             <span>${esc(p.community_name)} · <span dir="ltr">${p.year}</span>${p.occasion ? ' · ' + esc(p.occasion) : ''}</span></span>
         </a>`).join('')}</div>` : '';

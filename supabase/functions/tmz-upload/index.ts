@@ -183,6 +183,7 @@ Deno.serve(async req => {
     const derivedKey = `derived/${key}`;
     await putObject(key, clean.archiveBytes);
     await putObject(derivedKey, clean.publicBytes);
+    await putObject(`thumb/${key}`, clean.thumbBytes);
 
     const guess = verdict.facts ?? {};
     /* The form's free text goes on a public page; refused text is dropped. */
@@ -312,9 +313,11 @@ function toBase64(bytes: Uint8Array) {
  * is gone — and it is what a re-screening reads. */
 async function dropDerived(photoId: string, derivedPath: string | null) {
   if (!derivedPath) return;
-  await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${derivedPath}`,
-              { method: 'DELETE', headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } })
-    .catch(() => {});
+  for (const key of [derivedPath, `thumb/${derivedPath.replace(/^derived\//, '')}`]) {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/tmz-photo-originals/${key}`,
+                { method: 'DELETE', headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } })
+      .catch(() => {});
+  }
   /* Nulled as well as deleted: a path that points at nothing is worse than no
      path, and publishIfReady falls back to the master on its own. */
   await pg(`/tmz_photo?id=eq.${photoId}`, { method: 'PATCH', body: JSON.stringify({ derived_path: null }) })
@@ -337,16 +340,23 @@ async function publishIfReady(photoId: string) {
 
   const source = p.derived_path ?? p.storage_path;
   const dest = source.replace(/^derived\//, '');
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/copy`, {
-    method: 'POST',
-    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
-               'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      bucketId: 'tmz-photo-originals', sourceKey: source,
-      destinationBucket: 'tmz-photo-public', destinationKey: dest
-    })
-  });
-  if (!res.ok) { console.error('publish failed', res.status, await res.text()); return false; }
+
+  /* The grid copy first: the site asks for thumb/<path> by convention, so a
+     photograph on the site without one shows a broken tile to everybody. */
+  const copy = async (from: string, to: string) => {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/copy`, {
+      method: 'POST',
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`,
+                 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucketId: 'tmz-photo-originals', sourceKey: from,
+                             destinationBucket: 'tmz-photo-public', destinationKey: to })
+    });
+    if (res.ok) return true;
+    console.error('publish copy failed', from, res.status, (await res.text()).slice(0, 160));
+    return false;
+  };
+  if (!await copy(`thumb/${dest}`, `thumb/${dest}`)) return false;
+  if (!await copy(source, dest)) return false;
 
   await pg(`/tmz_photo?id=eq.${photoId}`, {
     method: 'PATCH',
