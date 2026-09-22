@@ -1,0 +1,37 @@
+# A free Supabase project is paused after a week without traffic, and every
+# word on this site — the map, the years, the names — is read from it at page
+# load. A quiet week after the campaign settles would take the album down
+# with it.
+#
+# So: one request a day. It goes to tmz-share, which looks a photograph up in
+# Postgres to build a link preview, so the database really is touched rather
+# than just the edge. It needs no key: that endpoint is public because
+# messengers fetch it when somebody shares a photograph.
+name: Keep the album awake
+
+on:
+  schedule:
+    - cron: '17 6 * * *'        # 06:17 UTC daily — off the hour, where the queue is shorter
+  workflow_dispatch:            # and by hand, to prove it works
+
+# Nothing is written; nothing is checked out.
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the database
+        run: |
+          set -euo pipefail
+          URL="https://difiipnhpujbwhpyownr.supabase.co/functions/v1/tmz-share?p=${PHOTO}"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 3 --retry-delay 20 "$URL")
+          echo "tmz-share answered $code"
+          # 200 is a live database. Anything else is worth an eye: a paused
+          # project answers 503 or times out, and that is the whole point of
+          # this file noticing rather than a visitor doing it for us.
+          test "$code" = "200"
+        env:
+          # Any published photograph. If this one is ever taken down the step
+          # fails loudly, which is the correct way to find out.
+          PHOTO: 0e802daf-86ef-4c54-bab6-c484ea34203e
