@@ -163,8 +163,15 @@ table.tbl td.actions .del:hover { color: var(--danger); }
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: rgba(232,200,125,.6); }
 .field.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.tr-block { border: 1px solid var(--line); border-radius: 3px; padding: 14px; margin-top: 10px; }
-.tr-block h4 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+/* .panel is the same box without the meaning: the translations are collected
+   by walking .tr-block, so anything else that merely wants a border must not
+   claim to be one. */
+/* Why a photograph was refused: the screener's own words, one to a line. */
+.why { margin: 0; padding-inline-start: 18px; font-size: 13px; line-height: 1.6; max-width: 46ch; }
+.why li { margin: 0; }
+
+.tr-block, .panel { border: 1px solid var(--line); border-radius: 3px; padding: 14px; margin-top: 10px; }
+.tr-block h4, .panel h4 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
                color: var(--dim2); margin-bottom: 10px; display: flex; justify-content: space-between; }
 .tr-block h4 .missing { color: var(--warn); text-transform: none; letter-spacing: 0; font-size: 13px; }
 

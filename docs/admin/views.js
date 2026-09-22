@@ -272,11 +272,16 @@ async function saveCommunity(orig, el) {
     }
     const trs = [];
     el.querySelectorAll('.tr-block').forEach(block => {
-      const lang = block.querySelector('[data-tr-field="name"]').dataset.tr;
-      const name = block.querySelector('[data-tr-field="name"]').value.trim();
-      const country = block.querySelector('[data-tr-field="country"]').value.trim() || null;
-      const blurb = block.querySelector('[data-tr-field="blurb"]').value.trim() || null;
-      if (name) trs.push({ community_id: row.id, lang, name, country, blurb });
+      /* Three fields belong together here, so this one does need the block —
+         but a box that holds no name is not a translation, and walking past it
+         is the difference between a saved record and a thrown null. */
+      const nameInput = block.querySelector('[data-tr-field="name"]');
+      if (!nameInput) return;
+      const val = sel => block.querySelector(sel)?.value.trim() || null;
+      const name = nameInput.value.trim();
+      if (name) trs.push({ community_id: row.id, lang: nameInput.dataset.tr, name,
+                           country: val('[data-tr-field="country"]'),
+                           blurb: val('[data-tr-field="blurb"]') });
     });
     if (trs.length) {
       await sb.from('tmz_community_tr').upsert(trs, { onConflict: 'community_id,lang' });
@@ -421,7 +426,7 @@ async function personDrawer(row) {
       <thead><tr><th>Community</th><th>Role</th><th>Years</th><th></th></tr></thead>
       <tbody id="tenureBody">${tenureRows}</tbody>
     </table></div>
-    <div class="tr-block">
+    <div class="panel">
       <h4>Add a tenure</h4>
       <div class="field row2">
         <div><label>Community</label><select id="t_comm">
@@ -527,8 +532,12 @@ async function savePerson(orig, el) {
       [row] = await sb.from('tmz_person').insert(patch);
     }
     const trs = [];
-    el.querySelectorAll('.tr-block').forEach(block => {
-      const inp = block.querySelector('[data-tr]');
+    /* The inputs themselves, not the boxes around them. Reading a name out of
+       every `.tr-block` meant the "Add a tenure" panel — which wore the same
+       class for its border — was searched for a translation it never had, and
+       every attempt to rename an existing person died on the null it returned.
+       A person's name is one input per language; ask for the inputs. */
+    el.querySelectorAll('[data-tr]').forEach(inp => {
       const name = inp.value.trim();
       if (name) trs.push({ person_id: row.id, lang: inp.dataset.tr, display_name: name });
     });
@@ -730,7 +739,7 @@ function quickTranslate(kind, id, lang, entities) {
    queue: everything in it is waiting on the machine, not on a person, and the
    agent comes back to it by itself. */
 
-const PHOTO_TABS = { agent: 'On the site', pending: 'Unsettled', all: 'Everything' };
+const PHOTO_TABS = { agent: 'On the site', pending: 'Unsettled', rejected: 'Refused', all: 'Everything' };
 let photoTab = 'agent';
 
 const PUBLIC_BASE = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
@@ -765,6 +774,7 @@ export async function photos() {
   ]);
 
   const by = s => counts.filter(c => c.status === s).length;
+  if (photoTab === 'rejected') return refusedTab(by);
   const rows = photoTab === 'pending' ? pending
              : photoTab === 'agent' ? agentUp
              : await sb.from('tmz_photo', {}).select(
@@ -811,6 +821,86 @@ export async function photos() {
     const row = rows.find(r => r.id === tr.dataset.id);
     tr.querySelector('.edit').onclick = () => photoDrawer(row);
     tr.querySelector('.del')?.addEventListener('click', () => takeDown(tr.dataset.id));
+  });
+}
+
+/* ---- refused ---------------------------------------------------------------
+   The one thing in this album that happens TO somebody. A photograph is turned
+   away by a screener with no human in the loop, and the sender is told the
+   reason and nothing else — so the only place anyone can look at what is being
+   refused, and to whom, is here.
+
+   Three refusals buys a sender a day of silence (see `strike` in the agent), so
+   the count is next to the name: a person on two is worth a second look before
+   the third one shuts the door on them. */
+async function refusedTab(by) {
+  const [rows, contacts] = await Promise.all([
+    sb.from('tmz_photo', {}).select(
+      'id,year,storage_path,derived_path,public_path,source,status,created_at,submitter_ref,' +
+      'tmz_community(slug,tmz_community_tr(lang,name)),' +
+      'tmz_submission(contributor_name,contributor_email),' +
+      'tmz_moderation(pass,decision,reasons,decided_at)',
+      { filter: { status: 'eq.rejected' }, order: 'created_at.desc', limit: 200 }),
+    /* Names and refusal counts, for the senders who came through WhatsApp. */
+    sb.from('tmz_wa_contact', {}).select('ref,person_name,display_name,lang,strikes,blocked_until')
+      .catch(() => [])
+  ]);
+  const who = new Map((contacts || []).map(c => [c.ref, c]));
+
+  /* The screener speaks twice about a photograph — it assesses, then it
+     challenges itself — and the refusal is the last word. The reasons read the
+     same on both passes, but the decision only appears on the final one. */
+  const whyOf = p => {
+    const mods = (p.tmz_moderation || []).slice()
+      .sort((a, b) => String(a.decided_at).localeCompare(String(b.decided_at)));
+    const last = mods.reverse().find(m => m.decision === 'reject') || mods[0];
+    const reasons = (last?.reasons || []).filter(Boolean);
+    return reasons.length ? reasons : null;
+  };
+
+  $('#page').innerHTML = `
+    <div class="page-head">
+      <div><h1>Photographs</h1>
+        <p>${by('approved')} on the site · ${by('rejected')} refused · ${by('pending')} unsettled.
+           The agent decides all of it; nothing here waits for you.</p></div>
+    </div>
+    <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
+      `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
+    <p class="dim" style="font-size:13px;margin:0 0 14px">
+      Refused automatically, by the screener. Whoever sent it was told the reason
+      at the time. Nothing here is on the site.</p>
+    ${rows.length === 0 ? `<div class="empty">Nothing has been refused.</div>` : `
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th></th><th>Sent</th><th>Who sent it</th><th>Source</th><th>Why it was refused</th><th></th></tr></thead>
+      <tbody>${rows.map(p => {
+        const c = who.get(p.submitter_ref);
+        const phone = (p.submitter_ref || '').startsWith('wa:') ? p.submitter_ref.slice(3) : null;
+        const name = c?.person_name || p.tmz_submission?.contributor_name || c?.display_name || null;
+        const why = whyOf(p);
+        return `<tr data-id="${p.id}">
+        <td>${thumb(p)}</td>
+        <td class="mono dim">${esc(new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' '))}</td>
+        <td>
+          ${name ? `<b>${esc(name)}</b>` : '<span class="dim">name not given</span>'}
+          ${phone ? `<br><a class="mono" href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">+${esc(phone)}</a>`
+                  : `<br><span class="dim mono">${esc(p.tmz_submission?.contributor_email || 'from the website')}</span>`}
+          ${c && c.strikes ? `<br><span class="pill ${c.blocked_until && new Date(c.blocked_until) > new Date() ? 'rejected' : 'pending'}">${
+            c.blocked_until && new Date(c.blocked_until) > new Date() ? 'paused · ' : ''}${c.strikes} refused</span>` : ''}
+        </td>
+        <td>${esc(p.source)}</td>
+        <td>${why ? `<ul class="why">${why.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
+                  : '<span class="dim">no reason was recorded</span>'}</td>
+        <td class="actions"><button class="edit">Open</button></td>
+      </tr>`; }).join('')}</tbody>
+    </table></div>`}`;
+  loadPrivateThumbs($('#page'));
+
+  document.querySelectorAll('#page .tab').forEach(b => {
+    b.onclick = () => { photoTab = b.dataset.tab; photos(); };
+  });
+  document.querySelectorAll('#page tbody tr').forEach(tr => {
+    const row = rows.find(r => r.id === tr.dataset.id);
+    tr.querySelector('.edit').onclick = () => photoDrawer(row);
   });
 }
 
