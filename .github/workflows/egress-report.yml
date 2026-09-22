@@ -1,0 +1,55 @@
+# An hourly reading of what the album's photographs cost in bandwidth, to
+# WhatsApp. Egress is the first thing this archive runs out of — 5 GB a month
+# on the free tier — and the dashboard shows only a monthly total, after the
+# fact. This reads the request logs, which carry every response with its size
+# and whether the CDN served it.
+#
+# 08:22 to 23:22 Israel time. GitHub schedules in UTC and Israel is UTC+3 in
+# September, so that is 05:22 to 20:22 — and the schedule is left alone when
+# the clocks change, because this is meant to run for three days.
+#
+# STOP_AFTER ends it. GitHub cron has no end date, so the job checks the date
+# and does nothing past it; delete the file, or turn the workflow off in the
+# Actions tab, once the three days are up.
+name: Egress to WhatsApp
+
+on:
+  schedule:
+    - cron: '22 5-20 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    env:
+      STOP_AFTER: '2026-09-25'          # three days
+      REPORT_TO: '+972523114977'
+    steps:
+      - name: Are we still within the three days?
+        id: window
+        run: |
+          today=$(date -u +%F)
+          if [[ "$today" > "$STOP_AFTER" ]]; then
+            echo "past $STOP_AFTER — nothing to do"
+            echo "go=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.window.outputs.go == 'yes'
+
+      - uses: actions/setup-node@v4
+        if: steps.window.outputs.go == 'yes'
+        with:
+          node-version: '22'
+
+      - name: Read the logs and send it
+        if: steps.window.outputs.go == 'yes'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          HEYY_API_TOKEN: ${{ secrets.HEYY_API_TOKEN }}
+          HEYY_CHANNEL_ID: ${{ secrets.HEYY_CHANNEL_ID }}
+        run: node scripts/egress-report.mjs "$REPORT_TO"
