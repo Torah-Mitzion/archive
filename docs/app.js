@@ -1150,7 +1150,9 @@ function aboutView() {
     <p class="verse">${VERSE}</p>
     <p>${esc(t('ab.p1'))}</p>
     <p>${esc(t('ab.p2'))}</p>
-    <p>${esc(t('ab.p3'))}</p>
+    <p class="about-ask">${esc(t('ab.p3'))}</p>
+    <p>${esc(t('ab.p4'))}</p>
+    <p>${esc(t('ab.p5'))}</p>
     <p class="about-cta"><a class="btn-gold" href="#/contribute">${esc(t('cta.send'))}</a>
       ${WHATSAPP_NUMBER ? `<a class="btn-ghost" dir="ltr" href="https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}">WhatsApp ${esc(WHATSAPP_NUMBER)}</a>` : ''}</p>
   </div>`;

@@ -737,6 +737,10 @@ body.lb-open { overflow: hidden; }
 .sh-form select { flex: 0 1 220px; padding: 12px 14px; border-radius: 3px; border: 1px solid var(--line2);
                   background: var(--raise); color: var(--ivory); font: inherit; font-size: 17px; }
 .ini-img { object-fit: cover; border-color: rgba(var(--gold-rgb),.45); }
+/* The one line that asks. It is a sentence, not a heading, so it is lifted by
+   a shade of gold and a little air rather than by size. */
+.about-ask { color: var(--gold); margin-top: 26px; }
+
 .about-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .about-cta .btn-ghost { display: inline-flex; align-items: center; padding: 11px 16px; border: 1px solid rgba(var(--gold-rgb),.4);
                         border-radius: 2px; font-size: 15.5px; }
