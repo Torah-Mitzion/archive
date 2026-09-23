@@ -1,5 +1,6 @@
 /* Router, shell and the three views. Hash routing so GitHub Pages needs no
-   rewrite rules: #/ , #/c/<community> , #/c/<community>/<year> , #/contribute */
+   rewrite rules: #/ , #/c/<community> , #/c/<community>/<year> , #/contribute ,
+   #/contribute/<community> , #/contribute/<community>/<year> */
 
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
@@ -29,6 +30,20 @@ function setTheme(next) {
    rather than reading a global. */
 const STATE = { communities: [], regions: [], loaded: false, error: null };
 const findCommunity = id => STATE.communities.find(c => c.id === id);
+
+/* The year the site treats as the present: a kollel with no closing year runs
+   to here, and api.js draws its year rails to the same bound. */
+const THIS_YEAR = 2026;
+
+/* The span the upload form accepts a year in. The anniversary is thirty years,
+   but five kollelim opened before 1996 — Cape Town's year tiles start at 1994
+   — so the bound is read off the communities themselves rather than written
+   down, and 1996 is only the fallback for a page whose list never loaded. */
+function albumSpan() {
+  const cs = STATE.communities;
+  if (!cs.length) return [1996, THIS_YEAR];
+  return [Math.min(...cs.map(c => c.f)), Math.max(THIS_YEAR, ...cs.map(c => c.c || 0))];
+}
 
 /* The years a kollel ran, and all that is said about it. A community that
    closed is not announced as closed anywhere on the site — the span ends, and
@@ -296,7 +311,7 @@ async function drawGallery() {
        yet, or the whole album is still waiting for its first photograph. */
     grid.className = 'gal-empty';
     grid.innerHTML = c
-      ? `<p>${esc(t('gal.none').replace('{name}', tf(c.name)))}</p><a class="btn-gold sm" href="#/contribute">${esc(t('yr.emptyAsk'))}</a>`
+      ? `<p>${esc(t('gal.none').replace('{name}', tf(c.name)))}</p><a class="btn-gold sm" href="#/contribute/${esc(c.id)}">${esc(t('yr.emptyAsk'))}</a>`
       : `<p>${esc(t('banner.empty'))}</p><a class="btn-gold sm" href="#/contribute">${esc(t('cta.send'))}</a>`;
   }
   foot.innerHTML = `
@@ -858,7 +873,7 @@ async function communityView(id, year) {
     <section class="empty-year">
       <h3>${esc(t('yr.emptyBig')).replace('{year}', yr)}</h3>
       <p>${esc(rosh || cohort.length ? t('yr.emptySub') : t('yr.emptyNothing'))}</p>
-      <a class="btn-gold" href="#/contribute">${esc(t('yr.emptyAsk'))}</a>
+      <a class="btn-gold" href="#/contribute/${esc(c.id)}/${yr}">${esc(t('yr.emptyAsk'))}</a>
     </section>` : `
     <section class="sec">
       <div class="sec-head"><span>${esc(t('yr.photos'))}</span>
@@ -879,7 +894,7 @@ async function communityView(id, year) {
         <span class="yhead-meta">${num((rosh ? 1 : 0) + household.length + cohort.length)} ${esc(t('u.shlichim')).toLowerCase()}
           &middot; ${num(photos.length)} ${esc(t('u.photographs')).toLowerCase()}</span>
       </div>
-      <a class="btn-gold sm" href="#/contribute">${esc(t('cta.addYear'))}</a>
+      <a class="btn-gold sm" href="#/contribute/${esc(c.id)}/${yr}">${esc(t('cta.addYear'))}</a>
     </div>
     <div class="rail" id="rail">${rail}</div>
 
@@ -899,9 +914,18 @@ const WHATSAPP_NUMBER = '+972 76-530-0609';
 
 /* ---- contribute ---------------------------------------------------------- */
 
-function contributeView() {
+/* Coming from a year page, the two fields this form cannot do without are
+   already known: the visitor was looking at that community, in that year, and
+   pressed add. Asking them to type it back is asking them to repeat the site
+   to itself. Both stay editable — arriving on the wrong year and correcting
+   it has to stay possible — and an unknown community or a year outside the
+   album's span simply prefills nothing. */
+function contributeView(from) {
+  const [firstYear, lastYear] = albumSpan();
+  const pickC = from && from.id && findCommunity(from.id) ? from.id : '';
+  const pickY = from && from.year >= firstYear && from.year <= lastYear ? String(from.year) : '';
   const opts = STATE.communities.slice().sort((a, b) => tf(a.name).localeCompare(tf(b.name)))
-    .map(c => `<option value="${esc(c.id)}">${esc(tf(c.name))}</option>`).join('');
+    .map(c => `<option value="${esc(c.id)}"${c.id === pickC ? ' selected' : ''}>${esc(tf(c.name))}</option>`).join('');
   return `
   <div class="cn">
     <div class="cn-head">
@@ -929,7 +953,7 @@ function contributeView() {
       <label><span>${esc(t('con.f1'))}</span>
         <select id="u_comm"><option value="">—</option>${opts}</select></label>
       <label><span>${esc(t('con.f2'))}</span>
-        <input id="u_year" type="number" min="1996" max="2026" placeholder="2007"></label>
+        <input id="u_year" type="number" min="${firstYear}" max="${lastYear}" placeholder="2007" value="${esc(pickY)}"></label>
       <label><span>${esc(t('con.f3'))} <em>${esc(t('con.opt'))}</em></span>
         <input id="u_people" placeholder="&mdash;"></label>
       <label><span>${esc(t('con.f4'))} <em>${esc(t('con.opt'))}</em></span>
@@ -1171,7 +1195,7 @@ function parseRoute() {
   const h = (location.hash || '#/').replace(/^#\/?/, '');
   const parts = h.split('/').filter(Boolean);
   if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null, photo: parts[3] || null };
-  if (parts[0] === 'contribute') return { name: 'contribute' };
+  if (parts[0] === 'contribute') return { name: 'contribute', id: parts[1] || null, year: parts[2] ? +parts[2] : null };
   if (parts[0] === 'communities') return { name: 'communities' };
   if (parts[0] === 'shlichim') return { name: 'shlichim' };
   if (parts[0] === 'about') return { name: 'about' };
@@ -1266,7 +1290,7 @@ async function render() {
     root.innerHTML = shell() + aboutView() + footer();
     wireShell();
   } else {
-    root.innerHTML = shell() + contributeView() + footer();
+    root.innerHTML = shell() + contributeView(r) + footer();
     wireShell();
     wireContribute();
   }
