@@ -11,11 +11,20 @@
 # STOP_AFTER ends it. GitHub cron has no end date, so the job checks the date
 # and does nothing past it; delete the file, or turn the workflow off in the
 # Actions tab, once the three days are up.
+#
+# OFF for now. The three secrets below are not set on the repository yet, so
+# every scheduled run failed and mailed a failure notice. The schedule is
+# commented out rather than deleted; to switch it back on, add the secrets
+# (SUPABASE_ACCESS_TOKEN, HEYY_API_TOKEN, HEYY_CHANNEL_ID) under
+# Settings -> Secrets and variables -> Actions, uncomment the two cron lines,
+# and move STOP_AFTER three days past whatever that day is. Until then the
+# workflow can still be run by hand from the Actions tab, which is the way to
+# check the secrets took.
 name: Egress to WhatsApp
 
 on:
-  schedule:
-    - cron: '22 5-20 * * *'
+  # schedule:
+  #   - cron: '22 5-20 * * *'
   workflow_dispatch:
 
 permissions: {}
