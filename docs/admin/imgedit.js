@@ -16,8 +16,8 @@
  * the rotated frame — the frame the person drawing the rectangle was looking
  * at.
  */
-import { sb } from './sb.js?v=cca84419s8';
-import { esc, openModal, closeModal, toast } from './ui.js?v=cca84419s8';
+import { sb } from './sb.js?v=e2ec93bp9m';
+import { esc, openModal, closeModal, toast } from './ui.js?v=e2ec93bp9m';
 
 /* The same numbers the edge functions use. A copy edited here and a copy
    published by the agent have to come out the same size and weight, or the
