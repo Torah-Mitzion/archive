@@ -1680,16 +1680,27 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
      can undo it from the back office. */
   let reframedRow: Record<string, unknown> = {};
   if (reframed?.rendered && reframed.edit) {
-    const rows = await pg(`/tmz_photo?select=storage_path,derived_path&id=eq.${photoId}`);
-    const p0 = rows?.[0];
-    if (p0?.derived_path) {
-      const dest = String(p0.derived_path).replace(/^derived\//, '');
-      await putObject('tmz-photo-originals', p0.derived_path, reframed.rendered.publicBytes);
-      await putObject('tmz-photo-originals', `thumb/${dest}`, reframed.rendered.thumbBytes);
-      reframedRow = {
-        edit: reframed.edit,
-        width: reframed.rendered.width, height: reframed.rendered.height
-      };
+    /* Contained on purpose. The verdict below is the part that must be written
+       whatever else happens — it is what the sender is told and what the
+       screening record is made of. A storage error while re-cutting the
+       derivative leaves the photograph framed as it arrived, which is a worse
+       picture and not a lost one. */
+    try {
+      const rows = await pg(`/tmz_photo?select=storage_path,derived_path&id=eq.${photoId}`);
+      const p0 = rows?.[0];
+      if (p0?.derived_path) {
+        const dest = String(p0.derived_path).replace(/^derived\//, '');
+        await putObject('tmz-photo-originals', p0.derived_path, reframed.rendered.publicBytes);
+        await putObject('tmz-photo-originals', `thumb/${dest}`, reframed.rendered.thumbBytes);
+        reframedRow = {
+          edit: reframed.edit,
+          width: reframed.rendered.width, height: reframed.rendered.height
+        };
+      } else {
+        ch.trace('reframe skipped: no derivative to replace', { photo_id: photoId });
+      }
+    } catch (e) {
+      ch.trace('reframe could not be written', { error: String(e).slice(0, 200) });
     }
   }
 
