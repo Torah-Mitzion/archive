@@ -1,8 +1,8 @@
-import { sb } from './sb.js?v=e2ec93bp9m';
+import { sb } from './sb.js?v=2880df4ewb';
 import { openImageEditor, personPictures, personPicturesMarkup,
-         publishFromMaster, useAsPortrait } from './imgedit.js?v=e2ec93bp9m';
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=2880df4ewb';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=e2ec93bp9m';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=2880df4ewb';
 
 /* ---- dashboard ----------------------------------------------------------- */
 
@@ -966,9 +966,12 @@ async function photoDrawer(row) {
         : 'The whole picture, as it arrived.'}</span>
     </p>
     ${p.portrait_of
-      ? `<p class="dim" style="margin:8px 0 0">A portrait of
-           <b>${esc(portraitPerson || 'someone in the register')}</b> — it is shown beside their name
-           and never in the gallery, so <b>Use as portrait</b> is what putting it up means here.</p>`
+      ? `<p class="dim" style="margin:8px 0 0">Sent as a portrait of
+           <b>${esc(portraitPerson || 'someone in the register')}</b>. A portrait is shown beside
+           their name and never in the gallery, so <b>Use as portrait</b> is what putting it up
+           means here. If it is really a photograph of the community rather than a picture of them,
+           <b>Publish to community</b> puts it in the album instead — it stops being a portrait
+           and needs a community and a year like any other photograph.</p>`
       : p.portrait_name
         ? `<p class="warn" style="margin:8px 0 0">Sent as a portrait of
              &ldquo;${esc(p.portrait_name)}&rdquo;, but that name has not been matched to anyone in the
@@ -1031,7 +1034,8 @@ async function photoDrawer(row) {
     [
       { label: 'Save', kind: 'solid', onClick: save },
       ...(p.portrait_of
-        ? [{ label: 'Use as portrait', kind: 'solid', onClick: () => save({ portrait: true }) }]
+        ? [{ label: 'Use as portrait', kind: 'solid', onClick: () => save({ portrait: true }) },
+           ...(p.public_path ? [] : [{ label: 'Publish to community', onClick: () => save({ publish: true }) }])]
         : !p.public_path && !p.portrait_name
           ? [{ label: p.status === 'rejected' ? 'Publish anyway' : 'Publish', kind: 'solid',
                onClick: () => save({ publish: true }) }]
@@ -1128,13 +1132,21 @@ async function photoDrawer(row) {
           published_by: 'staff', published_at: new Date().toISOString(),
           agent_decision: 'publish', needs_rescreen: false,
           width: up.width, height: up.height, bytes: up.bytes,
-          share_page_at: null
+          share_page_at: null,
+          /* Every public RPC — the gallery, the year pages, the map counts,
+             the teaser, the name search — filters portraits out. A portrait
+             published to a community with the mark still on it would be
+             approved, have a public path, and appear nowhere at all. Putting
+             it in the album means it is no longer a picture OF someone. */
+          ...(p.portrait_of || p.portrait_name ? { portrait_of: null, portrait_name: null } : {})
         }, { id: `eq.${p.id}` });
         await sb.from('tmz_moderation').insert({
           photo_id: p.id, model: 'staff', pass: 'final', verdict: 'publish', decision: 'publish',
-          scores: {}, reasons: [p.status === 'rejected'
-            ? 'a refusal overturned by staff from the back office'
-            : 'published by staff from the back office']
+          scores: {}, reasons: [p.portrait_of
+            ? 'moved from a portrait into the community album by staff'
+            : p.status === 'rejected'
+              ? 'a refusal overturned by staff from the back office'
+              : 'published by staff from the back office']
         }, { return: 'minimal' });
       }
 
