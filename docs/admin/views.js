@@ -1,7 +1,8 @@
-import { sb } from './sb.js';
-import { openImageEditor, personPictures, personPicturesMarkup } from './imgedit.js';
+import { sb } from './sb.js?v=c5592b0n3s';
+import { openImageEditor, personPictures, personPicturesMarkup,
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=c5592b0n3s';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=c5592b0n3s';
 
 /* ---- dashboard ----------------------------------------------------------- */
 
@@ -746,8 +747,8 @@ function quickTranslate(kind, id, lang, entities) {
    queue: everything in it is waiting on the machine, not on a person, and the
    agent comes back to it by itself. */
 
-const PHOTO_TABS = { agent: 'On the site', pending: 'Unsettled', rejected: 'Refused', all: 'Everything' };
-let photoTab = 'agent';
+const PHOTO_TABS = { live: 'On the site', pending: 'Unsettled', rejected: 'Refused', all: 'Everything' };
+let photoTab = 'live';
 
 const PUBLIC_BASE = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public/`;
 /* Published: the public copy. Not yet: the private derivative, through a
@@ -773,17 +774,21 @@ export async function photos() {
       'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
       'tmz_community(slug,tmz_community_tr(lang,name))',
       { filter: { status: 'eq.pending' }, order: 'created_at.desc', limit: 200 }),
+    /* What is ON THE SITE, which is what the tab says — not what the agent
+       published. It used to filter on published_by=agent, so anything a
+       curator put up from here was approved, live, and invisible on the one
+       tab that claims to list the album. */
     sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,published_at,' +
+      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,published_at,published_by,' +
       'tmz_community(slug,tmz_community_tr(lang,name))',
-      { filter: { published_by: 'eq.agent' }, order: 'published_at.desc', limit: 200 }),
+      { filter: { status: 'eq.approved' }, order: 'published_at.desc.nullslast', limit: 200 }),
     sb.from('tmz_photo', {}).select('id,status', { limit: 2000 })
   ]);
 
   const by = s => counts.filter(c => c.status === s).length;
   if (photoTab === 'rejected') return refusedTab(by);
   const rows = photoTab === 'pending' ? pending
-             : photoTab === 'agent' ? agentUp
+             : photoTab === 'live' ? agentUp
              : await sb.from('tmz_photo', {}).select(
                  'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
                  'tmz_community(slug,tmz_community_tr(lang,name))',
@@ -798,8 +803,8 @@ export async function photos() {
     <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
       `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
     ${rows.length === 0 ? `<div class="empty">${
-      photoTab === 'agent'
-        ? 'The agent has not published anything yet.'
+      photoTab === 'live'
+        ? 'Nothing is on the site yet.'
         : photoTab === 'pending'
           ? 'Nothing unsettled. Every photograph that arrived has been decided.'
           : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
@@ -810,7 +815,7 @@ export async function photos() {
         <td>${thumb(p)}</td>
         <td>${esc(pickName((p.tmz_community || {}).tmz_community_tr) || (p.tmz_community || {}).slug || '—')}</td>
         <td>${p.year || '<span class="dim">not placed</span>'}</td>
-        <td>${esc(p.source)}</td>
+        <td>${esc(p.source)}${p.published_by === 'staff' ? '<br><span class="dim" style="font-size:12px">put up here</span>' : ''}</td>
         <td><span class="pill ${p.status}">${esc(p.status)}</span></td>
         <td>${p.agent_decision ? `<span class="pill ${p.agent_decision}">${esc(p.agent_decision)}</span>` : '<span class="dim">—</span>'}</td>
         <td class="actions">
@@ -916,6 +921,7 @@ async function refusedTab(by) {
    it. The screening record sits underneath, because for anything the agent
    published that record is the only account of why it is on the site. */
 async function photoDrawer(row) {
+  let portraitPerson = null;
   const [full] = await sb.from('tmz_photo', {}).select(
     'id,community_id,year,taken_on,venue,event_type_id,status,source,storage_path,derived_path,' +
     'public_path,published_by,published_at,width,height,bytes,phash,submitter_ref,agent_decision,' +
@@ -923,6 +929,12 @@ async function photoDrawer(row) {
     'tmz_photo_tr(lang,caption),tmz_photo_person(person_id,tmz_person(tmz_person_tr(lang,display_name)))',
     { filter: { id: `eq.${row.id}` } });
   const p = full || row;
+
+  if (p.portrait_of) {
+    const [who] = await sb.from('tmz_person', {}).select(
+      'id,slug,tmz_person_tr(lang,display_name)', { filter: { id: `eq.${p.portrait_of}` } });
+    portraitPerson = who ? (pickName(who.tmz_person_tr) || who.slug) : null;
+  }
 
   const [{ communities }, events, mods] = await Promise.all([
     lookups(),
@@ -953,7 +965,15 @@ async function photoDrawer(row) {
         ? `Cut down from the original${p.edit.rot ? `, turned ${p.edit.rot}°` : ''}.`
         : 'The whole picture, as it arrived.'}</span>
     </p>
-    ${p.portrait_of ? `<p class="dim" style="margin:8px 0 0">A portrait — shown beside the person's name, never in the gallery.</p>` : ''}
+    ${p.portrait_of
+      ? `<p class="dim" style="margin:8px 0 0">A portrait of
+           <b>${esc(portraitPerson || 'someone in the register')}</b> — it is shown beside their name
+           and never in the gallery, so <b>Use as portrait</b> is what putting it up means here.</p>`
+      : p.portrait_name
+        ? `<p class="warn" style="margin:8px 0 0">Sent as a portrait of
+             &ldquo;${esc(p.portrait_name)}&rdquo;, but that name has not been matched to anyone in the
+             register — so there is nobody to attach it to yet. Match them on the People page first.</p>`
+        : ''}
     ${p.ai_description ? `<p class="dim" style="margin:8px 0 0">Screener saw: ${esc(p.ai_description)}</p>` : ''}
 
     <div class="grid2">
@@ -1010,9 +1030,12 @@ async function photoDrawer(row) {
     </p>`,
     [
       { label: 'Save', kind: 'solid', onClick: save },
-      ...(p.status !== 'approved' && !p.portrait_of
-        ? [{ label: 'Publish', kind: 'solid', onClick: () => save({ publish: true }) }]
-        : []),
+      ...(p.portrait_of
+        ? [{ label: 'Use as portrait', kind: 'solid', onClick: () => save({ portrait: true }) }]
+        : !p.public_path && !p.portrait_name
+          ? [{ label: p.status === 'rejected' ? 'Publish anyway' : 'Publish', kind: 'solid',
+               onClick: () => save({ publish: true }) }]
+          : []),
       ...(p.status === 'approved'
         ? [{ label: 'Take down', kind: 'danger',
              onClick: () => { closeDrawer(); takeDown(p.id); } }]
@@ -1051,11 +1074,20 @@ async function photoDrawer(row) {
     el.querySelector('#f_person').value = '';
   };
 
-  /* Publish: a staff verdict in place of the screener's. The row is marked
-     cleared and the watchdog puts it on the site within two minutes, tells
-     the sender, and writes the share page - the same path every photograph
-     takes, so nothing is skipped. */
-  async function save({ publish = false } = {}) {
+  /* Publish: a staff verdict in place of the screener's, carried out here
+     rather than left as a note for the watchdog.
+     
+     It used to set agent_decision and wait for the sweep to copy the private
+     derivative into the public bucket. That works for a photograph that has
+     just arrived, and fails for the two the back office exists for: one the
+     screener refused, and one that was published and taken down. Both have had
+     their derivative and thumbnail deleted, so there was nothing left to copy
+     and the photograph stayed where it was with no error anywhere a person
+     would see it. The pair is rendered from the master instead.
+
+     The sender is not told. The agent announces what IT publishes; a staff
+     decision to overturn a refusal is a conversation for a person to have. */
+  async function save({ publish = false, portrait = false } = {}) {
     try {
       const year = el.querySelector('#f_year').value;
       if (publish && (!el.querySelector('#f_comm').value || !year)) {
@@ -1073,13 +1105,36 @@ async function photoDrawer(row) {
         /* A changed line is rendered afresh by the watchdog; an unchanged one keeps its renderings. */
         ...(people_text !== (p.people_text ?? null) ? { people_tr: {} } : {}),
         ...(occasion_text !== (p.occasion_text ?? null) ? { occasion_tr: {} } : {}),
-        ...(p.public_path ? { share_page_at: null } : {}),
-        ...(publish ? { status: 'pending', agent_decision: 'publish', needs_rescreen: false } : {})
+        ...(p.public_path ? { share_page_at: null } : {})
       }, { id: `eq.${p.id}` });
+
+      /* A portrait replaces whatever picture that person had. It is not
+         published to the gallery and never gets a public_path of its own —
+         the person's portrait_path is where it lives. */
+      if (portrait) {
+        await useAsPortrait(p, p.portrait_of);
+        await sb.from('tmz_photo').update({
+          status: 'approved', published_by: 'staff', published_at: new Date().toISOString(),
+          agent_decision: 'publish', needs_rescreen: false
+        }, { id: `eq.${p.id}` });
+      }
+
+      /* The placement above lands first, so the photograph is rendered into a
+         community and a year that are already correct. */
       if (publish) {
+        const up = await publishFromMaster(p);
+        await sb.from('tmz_photo').update({
+          status: 'approved', public_path: up.dest,
+          published_by: 'staff', published_at: new Date().toISOString(),
+          agent_decision: 'publish', needs_rescreen: false,
+          width: up.width, height: up.height, bytes: up.bytes,
+          share_page_at: null
+        }, { id: `eq.${p.id}` });
         await sb.from('tmz_moderation').insert({
-          photo_id: p.id, model: 'staff', pass: 'final', verdict: 'pending', decision: 'publish',
-          scores: {}, reasons: ['published by staff from the back office']
+          photo_id: p.id, model: 'staff', pass: 'final', verdict: 'publish', decision: 'publish',
+          scores: {}, reasons: [p.status === 'rejected'
+            ? 'a refusal overturned by staff from the back office'
+            : 'published by staff from the back office']
         }, { return: 'minimal' });
       }
 
@@ -1107,7 +1162,10 @@ async function photoDrawer(row) {
       }
 
       closeDrawer();
-      toast(publish ? 'Cleared. It goes on the site within two minutes, and the sender is told.' : 'Saved.');
+      toast(publish ? 'On the site now.'
+          : portrait ? `Now the portrait of ${portraitPerson || 'them'}.`
+          : 'Saved.');
+      if (publish) photoTab = 'live';
       photos();
     } catch (e) { alert(e.message); }
   }

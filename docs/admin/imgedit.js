@@ -16,8 +16,8 @@
  * the rotated frame — the frame the person drawing the rectangle was looking
  * at.
  */
-import { sb } from './sb.js';
-import { esc, openModal, closeModal, toast } from './ui.js';
+import { sb } from './sb.js?v=c5592b0n3s';
+import { esc, openModal, closeModal, toast } from './ui.js?v=c5592b0n3s';
 
 /* The same numbers the edge functions use. A copy edited here and a copy
    published by the agent have to come out the same size and weight, or the
@@ -296,6 +296,58 @@ export async function openImageEditor(photo, { kind = 'photo', portraitPath = nu
       saving = false;
     }
   }
+}
+
+/* ---- putting a photograph on the site -------------------------------------- */
+
+/* Publishing used to be a note to the watchdog: mark the row cleared, and two
+   minutes later the agent copies the private derivative into the public
+   bucket. That works for a photograph that has just arrived and fails for the
+   two cases the back office is actually for — one the agent refused, and one
+   it published and something later took down. Both have had their derivative
+   and thumbnail deleted, so the copy the watchdog makes has nothing to copy
+   and the photograph silently stays where it was.
+ *
+ * So this renders the pair here, from the master, honouring whatever crop and
+ * turn the photograph carries. It depends on nothing but the master, and the
+ * photograph is on the site by the time the button stops spinning. */
+export async function publishFromMaster(photo) {
+  if (!photo.storage_path) throw new Error('this photograph has no stored master to publish from');
+  const [url] = await sb.signedUrls('tmz-photo-originals', [photo.storage_path]);
+  if (!url) throw new Error('could not read the master');
+  const img = await load(url);
+  const edit = clean(photo.edit);
+
+  const big = render(img, edit.rot, edit.crop, PUBLIC_EDGE);
+  const small = render(img, edit.rot, edit.crop, THUMB_EDGE);
+  const [bigBlob, smallBlob] = await Promise.all([
+    toBlob(big, PUBLIC_QUALITY), toBlob(small, THUMB_QUALITY)
+  ]);
+
+  const dest = (photo.derived_path || photo.storage_path).replace(/^derived\//, '');
+  /* The grid copy first, exactly as the agent does it: every grid on the site
+     asks for thumb/<path>, so a photograph that appeared without one would
+     show a broken tile to everybody until the second upload landed. */
+  await sb.storageUpload('tmz-photo-public', `thumb/${dest}`, smallBlob);
+  await sb.storageUpload('tmz-photo-public', dest, bigBlob);
+
+  return { dest, width: big.width, height: big.height, bytes: bigBlob.size };
+}
+
+/* A portrait's equivalent of publishing. It never goes in the gallery — it
+   goes beside a person's name — so "put it on the site" means "make this the
+   picture of them", and that is the button a portrait should offer. */
+export async function useAsPortrait(photo, personId) {
+  if (!photo.storage_path) throw new Error('this picture has no stored master');
+  const [url] = await sb.signedUrls('tmz-photo-originals', [photo.storage_path]);
+  if (!url) throw new Error('could not read the master');
+  const img = await load(url);
+  const edit = clean(photo.edit);
+  const face = render(img, edit.rot, edit.crop, PORTRAIT_EDGE);
+  const path = `portraits/${personId}.jpg`;
+  await sb.storageUpload('tmz-photo-public', path, await toBlob(face, PORTRAIT_QUALITY));
+  await sb.from('tmz_person').update({ portrait_path: path }, { id: `eq.${personId}` });
+  return { path, width: face.width, height: face.height };
 }
 
 /* ---- replacing a picture outright ------------------------------------------ */

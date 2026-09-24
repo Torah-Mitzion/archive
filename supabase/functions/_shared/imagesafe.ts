@@ -10,6 +10,21 @@
  */
 
 import { decode, Image } from 'https://deno.land/x/imagescript@1.2.17/mod.ts';
+import { exifQuarterTurns, findMargins, type Crop, type Px } from './orient.ts';
+
+/* imagescript counts pixels from one, not from zero, and turns ANTI-clockwise
+   for a positive angle. Both are the opposite of what the rest of this project
+   assumes — the back office's crop tool records a clockwise turn — and getting
+   either wrong is silent: the picture comes out, just wrong. Wrapped here once
+   so no caller has to remember. */
+const turnClockwise = (img: Image, deg: number) => { if (deg % 360) img.rotate(360 - (deg % 360)); };
+const pixels = (img: Image): Px => ({
+  w: img.width, h: img.height,
+  at: (x, y) => {
+    const c = img.getPixelAt(x + 1, y + 1);
+    return [(c >> 24) & 255, (c >> 16) & 255, (c >> 8) & 255];
+  }
+});
 
 /* Roughly a phone photograph at full resolution. Anything larger is either a
    mistake or an attempt, and neither is worth decoding. */
@@ -144,6 +159,11 @@ export interface Clean {
   thumbBytes: Uint8Array;
   /** True when the picture had to be shrunk to fit PUBLIC_EDGE. */
   resized: boolean;
+  /** The quarter-turn read out of the file's own Exif tag, ALREADY applied. */
+  exifTurn: number;
+  /** A flat margin measured on the result and NOT applied — a suggestion for
+      whoever decides whether this picture is worth rescuing. */
+  trim: Crop | null;
 }
 
 /* The whole defence in one call. Throws UnsafeFile with a plain reason if the
@@ -190,11 +210,28 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   const shrunk = aScale < 1;
   if (shrunk) img.resize(Math.round(img.width * aScale), Math.round(img.height * aScale));
 
+  /* Every phone writes the turn into Exif instead of turning the pixels, and
+     this decoder ignores the tag — so a photograph taken in portrait decoded
+     landscape and was published on its side, with the tag stripped by the
+     re-encode below so nothing downstream could ever put it right. Applied
+     here, before the master is written, so the stored copy is upright and
+     every later decision is about the picture rather than about the file.
+
+     After the shrink on purpose: turning allocates a second bitmap, and doing
+     it at full size is how this function used to run out of memory. */
+  const exifTurn = exifQuarterTurns(bytes);
+  turnClockwise(img, exifTurn);
+
   /* Re-encoded from the decoded pixels. This is the step that makes the file
      safe: whatever was hiding in the container is not in the bitmap, and the
      bitmap is all that survives. */
   const archiveBytes = await img.encodeJPEG(ARCHIVE_QUALITY);
   const phash = dhash(img);
+
+  /* Measured, not applied. A screenshot's bars and a photocopy's white margin
+     are the same thing to this, and whether cutting them is the right answer
+     is a decision for the screener, not for a geometry routine. */
+  const trim = findMargins(pixels(img));
 
   const scale = Math.min(1, PUBLIC_EDGE / Math.max(img.width, img.height));
   const pub = scale < 1
@@ -213,8 +250,53 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   return {
     publicBytes, archiveBytes, thumbBytes,
     width: pub.width, height: pub.height,
-    kind, phash, resized: scale < 1 || shrunk
+    kind, phash, resized: scale < 1 || shrunk,
+    exifTurn, trim
   };
+}
+
+/* The served copies, cut afresh from a master that is never touched.
+ *
+ * This is the other half of the back office's crop tool and of the automatic
+ * trim: both record a decision rather than applying one, and both come back
+ * here to have it carried out. The master is already at ARCHIVE_EDGE, so this
+ * decodes something small and can run on a request without the memory dance
+ * sanitize has to do.
+ *
+ * Rotation first, then the rectangle in fractions of the rotated frame — the
+ * same order and the same meaning as the column it is stored in. */
+export async function rerender(
+  masterBytes: Uint8Array,
+  edit: { rot?: number; crop?: Crop | null }
+): Promise<{ publicBytes: Uint8Array; thumbBytes: Uint8Array; width: number; height: number }> {
+  const decoded = await decode(masterBytes);
+  let img = decoded instanceof Image ? decoded : (decoded as unknown as Image[])[0];
+  if (!img?.width) throw new UnsafeFile('the master decoded to nothing');
+
+  turnClockwise(img, edit.rot ?? 0);
+
+  const c = edit.crop;
+  if (c && (c.x > 0.001 || c.y > 0.001 || c.w < 0.999 || c.h < 0.999)) {
+    const x = Math.max(0, Math.round(c.x * img.width));
+    const y = Math.max(0, Math.round(c.y * img.height));
+    const w = Math.max(1, Math.min(img.width - x, Math.round(c.w * img.width)));
+    const h = Math.max(1, Math.min(img.height - y, Math.round(c.h * img.height)));
+    img = img.crop(x, y, w, h);
+  }
+
+  const scale = Math.min(1, PUBLIC_EDGE / Math.max(img.width, img.height));
+  const pub = scale < 1
+    ? img.clone().resize(Math.round(img.width * scale), Math.round(img.height * scale))
+    : img;
+  const publicBytes = await pub.encodeJPEG(PUBLIC_QUALITY);
+
+  const tScale = Math.min(1, THUMB_EDGE / Math.max(pub.width, pub.height));
+  const thumbBytes = tScale < 1
+    ? await pub.clone().resize(Math.round(pub.width * tScale), Math.round(pub.height * tScale))
+             .encodeJPEG(THUMB_QUALITY)
+    : publicBytes;
+
+  return { publicBytes, thumbBytes, width: pub.width, height: pub.height };
 }
 
 /* dHash: shrink to 9x8 greyscale and record whether each pixel is brighter
