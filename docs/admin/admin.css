@@ -428,3 +428,92 @@ table.tbl td.actions .del:hover { color: var(--danger); }
   .vz-heat .hcells { gap: 2px; }
   .vz-pages .spark { display: none; }
 }
+
+/* ---- a layer above the drawer ---------------------------------------------- */
+
+/* Centred rather than at the edge, and above the drawer's own z-index, so the
+   record you came from is still there behind it when you close the tool. */
+.modal-scrim { position: fixed; inset: 0; background: rgba(3,6,14,.7); z-index: 60; }
+.modal { position: fixed; inset-block-start: 50%; inset-inline-start: 50%;
+         transform: translate(-50%, -50%); z-index: 70;
+         inline-size: min(680px, 94vw); max-block-size: 92vh;
+         background: var(--raise); border: 1px solid var(--line2); border-radius: 5px;
+         box-shadow: 0 24px 70px rgba(0,0,0,.6);
+         display: flex; flex-direction: column; }
+/* The head, body and foot are the drawer's, so the two surfaces read as one
+   system rather than two designs. */
+.modal .drawer-body { overflow-y: auto; }
+
+/* ---- cropping and turning -------------------------------------------------- */
+
+.ie-stage { display: grid; place-items: center; min-block-size: 160px;
+            padding: 10px 0 14px; }
+.ie-frame { position: relative; line-height: 0; touch-action: none; user-select: none;
+            cursor: move; max-inline-size: 100%; }
+.ie-frame canvas { display: block; max-inline-size: 100%; border-radius: 3px; }
+
+/* The part being cut away stays visible and dimmed. Judging a crop means
+   seeing what it loses, so the canvas always shows the whole picture and the
+   rectangle floats over it. */
+.ie-shade { position: absolute; inset: 0; pointer-events: none; }
+.ie-shade::before, .ie-shade::after,
+.ie-box { position: absolute; }
+.ie-shade::before {
+  content: ''; inset: 0;
+  background:
+    linear-gradient(to right, rgba(7,11,22,.62) var(--x), transparent var(--x)),
+    linear-gradient(to left,  rgba(7,11,22,.62) var(--r), transparent var(--r)),
+    linear-gradient(to bottom, rgba(7,11,22,.62) var(--y), transparent var(--y)),
+    linear-gradient(to top,    rgba(7,11,22,.62) var(--b), transparent var(--b));
+}
+.ie-box { box-shadow: 0 0 0 1px var(--gold); pointer-events: none; }
+/* A thirds grid inside the rectangle — the one guide that helps place a face
+   and costs nothing to ignore. */
+.ie-box::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to right, transparent 33.2%, rgba(240,237,228,.22) 33.2% 33.5%, transparent 33.5%,
+                    transparent 66.4%, rgba(240,237,228,.22) 66.4% 66.7%, transparent 66.7%),
+    linear-gradient(to bottom, transparent 33.2%, rgba(240,237,228,.22) 33.2% 33.5%, transparent 33.5%,
+                    transparent 66.4%, rgba(240,237,228,.22) 66.4% 66.7%, transparent 66.7%);
+}
+.ie-box .h { position: absolute; inline-size: 16px; block-size: 16px; pointer-events: auto;
+             background: var(--gold); border-radius: 2px; border: 2px solid var(--ink); }
+.ie-box .nw { inset-block-start: -8px; inset-inline-start: -8px; cursor: nwse-resize; }
+.ie-box .ne { inset-block-start: -8px; inset-inline-end: -8px; cursor: nesw-resize; }
+.ie-box .sw { inset-block-end: -8px; inset-inline-start: -8px; cursor: nesw-resize; }
+.ie-box .se { inset-block-end: -8px; inset-inline-end: -8px; cursor: nwse-resize; }
+.ie-box .n  { inset-block-start: -8px; inset-inline-start: calc(50% - 8px); cursor: ns-resize; }
+.ie-box .s  { inset-block-end: -8px; inset-inline-start: calc(50% - 8px); cursor: ns-resize; }
+.ie-box .w  { inset-inline-start: -8px; inset-block-start: calc(50% - 8px); cursor: ew-resize; }
+.ie-box .e  { inset-inline-end: -8px; inset-block-start: calc(50% - 8px); cursor: ew-resize; }
+
+.ie-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ie-sep { inline-size: 1px; block-size: 20px; background: var(--line2); margin: 0 4px; }
+.ie-size { font-variant-numeric: tabular-nums; font-size: 13px; margin-inline-start: auto; }
+.ie-note { font-size: 13px; margin: 12px 0 0; line-height: 1.55; }
+
+/* ---- a person's pictures --------------------------------------------------- */
+
+.pp-portrait { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 8px; }
+.pp-face { inline-size: 104px; block-size: 104px; flex: none; border-radius: 3px; overflow: hidden;
+           background: var(--card); display: grid; place-items: center; }
+.pp-face img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.pp-face .none { font-size: 12px; color: var(--dim); text-align: center; }
+.pp-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.pp-acts p { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+
+.pp-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px; }
+.pp-wall figure { margin: 0; position: relative; background: var(--card);
+                  border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.pp-wall img { display: block; inline-size: 100%; aspect-ratio: 4/3; object-fit: cover; background: var(--ink); }
+.pp-wall figcaption { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+                      padding: 6px 8px; font-size: 12px; }
+.pp-wall .pp-edit { position: absolute; inset-block-start: 6px; inset-inline-end: 6px;
+                    padding: 4px 8px; font-size: 12px; border-radius: 3px;
+                    background: rgba(7,11,22,.82); color: var(--gold);
+                    border: 1px solid var(--line2); opacity: 0; transition: opacity .12s; }
+.pp-wall figure:hover .pp-edit,
+.pp-wall .pp-edit:focus-visible { opacity: 1; }
+/* Touch has no hover, so the control is simply always there. */
+@media (hover: none) { .pp-wall .pp-edit { opacity: 1; } }

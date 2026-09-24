@@ -1,4 +1,5 @@
 import { sb } from './sb.js';
+import { openImageEditor, personPictures, personPicturesMarkup } from './imgedit.js';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
          pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js';
 
@@ -420,6 +421,8 @@ async function personDrawer(row) {
     <h3 style="font-family:var(--serif); font-size:18px; margin:22px 0 10px">Translations</h3>
     ${LANGS.map(trBlock).join('')}
 
+    ${isNew ? '' : personPicturesMarkup()}
+
     <h3 style="font-family:var(--serif); font-size:18px; margin:24px 0 10px">Tenures</h3>
     ${isNew ? `<p class="dim" style="font-size:12.5px">Save the person first, then add tenures.</p>` : `
     <div class="tbl-wrap" style="margin-bottom:14px"><table class="tbl">
@@ -457,6 +460,10 @@ async function personDrawer(row) {
   ].filter(Boolean));
 
   if (isNew) return;
+
+  /* Pictures load after the drawer is on screen: the portrait and a person's
+     uploads are two more round trips, and neither should hold up the form. */
+  personPictures(el, p, { onChanged: () => {} }).catch(e => console.error('person pictures', e));
 
   /* household_of only makes sense for a spouse or child, and only against a
      Rosh Kollel serving at the same community. Load those on demand. */
@@ -912,7 +919,7 @@ async function photoDrawer(row) {
   const [full] = await sb.from('tmz_photo', {}).select(
     'id,community_id,year,taken_on,venue,event_type_id,status,source,storage_path,derived_path,' +
     'public_path,published_by,published_at,width,height,bytes,phash,submitter_ref,agent_decision,' +
-    'people_text,people_tr,occasion_text,occasion_tr,portrait_of,ai_description,' +
+    'people_text,people_tr,occasion_text,occasion_tr,portrait_of,ai_description,edit,' +
     'tmz_photo_tr(lang,caption),tmz_photo_person(person_id,tmz_person(tmz_person_tr(lang,display_name)))',
     { filter: { id: `eq.${row.id}` } });
   const p = full || row;
@@ -940,6 +947,12 @@ async function photoDrawer(row) {
           : 'Cleared by the screener. It goes on the site as soon as it has a community and a year — set them here or let the sender answer.'}</p>`
       : p.status === 'pending' && p.agent_decision === 'hold'
       ? `<p class="dim" style="margin:8px 0 0">Held: the screener could not reach a verdict; it is retried automatically.</p>` : ''}
+    <p class="row-inline" style="margin:8px 0 0">
+      <button class="btn" id="cropIt">Crop &amp; turn</button>
+      <span class="dim">${p.edit && (p.edit.rot || (p.edit.crop && p.edit.crop.w < 0.999))
+        ? `Cut down from the original${p.edit.rot ? `, turned ${p.edit.rot}°` : ''}.`
+        : 'The whole picture, as it arrived.'}</span>
+    </p>
     ${p.portrait_of ? `<p class="dim" style="margin:8px 0 0">A portrait — shown beside the person's name, never in the gallery.</p>` : ''}
     ${p.ai_description ? `<p class="dim" style="margin:8px 0 0">Screener saw: ${esc(p.ai_description)}</p>` : ''}
 
@@ -1007,6 +1020,9 @@ async function photoDrawer(row) {
     ]);
 
   loadPrivateThumbs(el);
+
+  el.querySelector('#cropIt').onclick = () =>
+    openImageEditor(p, { onSaved: () => photos() });
 
   /* The name list is only fetched when the drawer opens — 231 people is small,
      but the photographs list is not the place to carry it. */
@@ -1110,7 +1126,13 @@ async function takeDown(id) {
   try {
     const [row] = await sb.from('tmz_photo', {})
       .select('public_path', { filter: { id: `eq.${id}` } });
-    if (row?.public_path) await sb.storageRemove('tmz-photo-public', row.public_path);
+    /* Both copies. The site asks for thumb/<path> in every grid, so removing
+       only the full one leaves the photograph off the page but still answering
+       200 at a URL anyone who has it can open — which is not a takedown. */
+    if (row?.public_path) {
+      await sb.storageRemove('tmz-photo-public', row.public_path);
+      await sb.storageRemove('tmz-photo-public', `thumb/${row.public_path}`).catch(() => {});
+    }
     await sb.from('tmz_photo').update({
       status: 'rejected', public_path: null,
       published_by: null, published_at: null

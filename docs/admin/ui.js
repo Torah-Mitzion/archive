@@ -78,3 +78,52 @@ export function toast(msg, kind = 'success') {
   document.body.append(el);
   setTimeout(() => el.remove(), 4200);
 }
+
+/* A surface that sits ON TOP of a drawer instead of replacing it.
+ *
+ * openDrawer closes whatever drawer is open before it opens its own, which is
+ * right for records — you edit one person, not two. It is wrong for a tool you
+ * reach FROM a record: cropping a photograph from inside a person's drawer
+ * destroyed that drawer, and closing the crop tool left the curator looking at
+ * the list, having lost their place and whatever they had typed.
+ *
+ * So this is its own layer with its own scrim, and closing it puts the drawer
+ * underneath back in front. Page scroll is only released when nothing is left
+ * on top of it. */
+let modalOpen = false;
+export function openModal(title, bodyHtml, buttons) {
+  closeModal();
+  const scrim = document.createElement('div');
+  scrim.className = 'modal-scrim';
+  scrim.onclick = closeModal;
+  const el = document.createElement('div');
+  el.className = 'modal';
+  el.innerHTML = `
+    <div class="drawer-head">
+      <h2>${esc(title)}</h2>
+      <button class="btn ghost" id="modalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-body" id="modalBody">${bodyHtml}</div>
+    <div class="drawer-foot" id="modalFoot"></div>`;
+  document.body.append(scrim, el);
+  document.body.style.overflow = 'hidden';
+  modalOpen = true;
+  el.querySelector('#modalClose').onclick = closeModal;
+  const foot = el.querySelector('#modalFoot');
+  for (const b of buttons || []) {
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.kind || 'ghost');
+    btn.textContent = b.label;
+    btn.onclick = () => b.onClick(el);
+    foot.append(btn);
+  }
+  return el;
+}
+
+export function closeModal() {
+  if (!modalOpen) return;
+  document.querySelectorAll('.modal, .modal-scrim').forEach(el => el.remove());
+  modalOpen = false;
+  /* The drawer beneath is still open and still wants the page held still. */
+  if (!document.querySelector('.drawer')) document.body.style.overflow = '';
+}

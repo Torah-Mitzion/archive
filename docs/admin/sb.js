@@ -245,6 +245,22 @@ export const sb = {
     return out.map(o => o.signedURL ? `${window.TMZ_SUPABASE_URL}/storage/v1${o.signedURL}` : null);
   },
 
+  /* Put bytes in a bucket, replacing what is there. Storage is not PostgREST,
+     so it does not go through pg(); upsert is a header rather than a verb, and
+     without it a second save of the same photograph answers 409. The cache
+     header matches what the edge functions write, so an edited copy is
+     revalidated rather than served from yesterday. */
+  async storageUpload(bucket, key, blob, { contentType = 'image/jpeg' } = {}) {
+    const s = await ensureSession();
+    const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
+      method: 'POST',
+      headers: { ...authHeaders(s), 'Content-Type': contentType, 'x-upsert': 'true', 'Cache-Control': 'no-cache' },
+      body: blob
+    });
+    if (!res.ok) throw new Error(`upload ${bucket}/${key} → ${res.status} ${(await res.text()).slice(0, 200)}`);
+    return res.json().catch(() => ({}));
+  },
+
   async storageRemove(bucket, key) {
     const s = await ensureSession();
     const res = await fetch(`${window.TMZ_SUPABASE_URL}/storage/v1/object/${bucket}/${key}`, {
