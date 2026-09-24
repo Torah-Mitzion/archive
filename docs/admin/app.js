@@ -1,6 +1,7 @@
 import { sb, captureRedirect, ensureSession, signInWithPassword, signOut } from './sb.js';
 import { $, esc, REGION_NAMES } from './ui.js';
 import { dashboard, campaign, communities, people, photos, translations, requests, openRequestCount } from './views.js';
+import { visits } from './visits.js';
 
 /* A token arriving in the URL fragment is captured and cleared BEFORE we ask
    the DB who we are — otherwise the first request goes out anonymous and the
@@ -94,6 +95,7 @@ function renderShell(user, profile) {
         <nav class="nav" id="nav">
           <a href="#/" data-route="dashboard">Dashboard</a>
           <a href="#/campaign" data-route="campaign">Campaign</a>
+          <a href="#/visits" data-route="visits">Visits</a>
           <a href="#/communities" data-route="communities">Communities</a>
           <a href="#/people" data-route="people">People</a>
           <a href="#/translations" data-route="translations">Translations</a>
@@ -129,7 +131,7 @@ function renderShell(user, profile) {
 /* ---- routing ------------------------------------------------------------ */
 
 const routes = {
-  dashboard, campaign, communities, people, photos, translations, requests
+  dashboard, campaign, visits, communities, people, photos, translations, requests
 };
 
 async function handleRoute() {

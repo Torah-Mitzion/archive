@@ -12,6 +12,20 @@
  * Log retention on the free tier is one day, so a month-to-date figure is not
  * available here: what this reports is the last hour and the last day, and
  * what those imply if they kept up.
+ *
+ * BROKEN, and not by anything in this file. Supabase retired the
+ * analytics/endpoints/logs.all endpoint this script reads on 23 September 2026
+ * — it now answers only with a pointer to its replacement — and the
+ * replacement, analytics/endpoints/logs, returns "Backend error!" for every
+ * query on this project, `SELECT 1` included. There is no request log left to
+ * read here, so this cannot be repaired from this side; it would need the new
+ * endpoint to start answering, or a paid plan.
+ *
+ * What replaced it, for the question this was actually asked to answer: the
+ * album counts its own readers now (supabase/migrations/…_visits.sql, and the
+ * Visits tab in the back office). That counts people rather than bytes, so it
+ * is not the same reading — but bandwidth on this site is page views times
+ * image size, and the back office now shows the first of those.
  */
 const REF = process.env.SUPABASE_PROJECT_REF || 'difiipnhpujbwhpyownr';
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;

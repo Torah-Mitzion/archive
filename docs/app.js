@@ -1296,6 +1296,12 @@ async function render() {
   }
   window.scrollTo(0, 0);
   if (window.TMZChat) TMZChat.relabel();
+
+  /* The site says what it just drew and stops caring. Whether anything counts
+     it is visits.js's business, and a page with no counter behaves the same. */
+  document.dispatchEvent(new CustomEvent('tmz:view', { detail: {
+    route: r.name === 'community' && r.year ? 'year' : r.name,
+    community: r.id || null, year: r.year || null, lang: LANG } }));
 }
 
 /* Switching language changes the resolved names, so the payload is refetched

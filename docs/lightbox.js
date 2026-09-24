@@ -266,6 +266,10 @@
     root.querySelector('.lb-prev').hidden = root.querySelector('.lb-next').hidden = items.length < 2;
     togglePop(false);
     relabel();
+    /* Every photograph that reaches the screen, whether it was opened or
+       swiped to. The viewer is the only place a photograph is really looked
+       at, so it is the only honest place to count one. */
+    document.dispatchEvent(new CustomEvent('tmz:photo', { detail: { id: it.id || '' } }));
   }
 
   const escape = s => String(s).replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));

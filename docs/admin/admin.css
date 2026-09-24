@@ -281,3 +281,150 @@ table.tbl td.actions .del:hover { color: var(--danger); }
 
 .thumb, .preview { background: var(--card); }
 .thumb[data-private]:not([src]), .preview[data-private]:not([src]) { min-height: 40px; }
+
+/* ---- visits --------------------------------------------------------------- */
+
+/* One sequential ramp, one hue: the console's gold held at its own hue while
+   only lightness moves, from a step that still clears the card surface up to
+   the accent itself. Generated in OKLab and checked for lightness
+   monotonicity, adjacent step gaps and light-end contrast — a heatmap is the
+   one place on this page where colour carries a number, so it is the one place
+   that has to be right by measurement rather than by eye. */
+:root {
+  --seq-1: #5d4b1e; --seq-2: #725e2d; --seq-3: #88723c; --seq-4: #9f874c;
+  --seq-5: #b79c5c; --seq-6: #cfb26c; --seq-7: #e8c87d;
+}
+
+.stat-tile .sub { display: block; margin-top: 5px; font-size: 13px; color: var(--dim); }
+
+/* Eight readings in two rows of four rather than six and a gap, and every
+   number on one baseline: a label that wraps to two lines used to push its own
+   value down, so the row read as though the tiles were different sizes. The
+   label holds two lines' worth of space whether it needs them or not, and the
+   note is pinned to the bottom. */
+.vz-kpi { grid-template-columns: repeat(4, 1fr); }
+.vz-kpi .stat-tile { display: flex; flex-direction: column; }
+.vz-kpi .stat-tile .k { min-block-size: 2.6em; }
+.vz-kpi .stat-tile .v { margin-top: 0; }
+.vz-kpi .stat-tile .sub { margin-top: auto; padding-top: 5px; }
+@media (max-width: 1180px) { .vz-kpi { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px)  { .vz-kpi { grid-template-columns: 1fr; }
+                             .vz-kpi .stat-tile .k { min-block-size: 0; } }
+.vz-range { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.sm { padding: 6px 11px; font-size: 14px; }
+.vz-foot { margin: 22px 0 40px; font-size: 14px; }
+
+/* Six tracks, so a panel can be a third, a half or the whole width and every
+   row still ends flush. auto-fit would tile them evenly and leave the last row
+   of any odd group short. */
+.vz-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-top: 14px; }
+.vz-panel { padding: 16px 18px 18px; background: var(--raise);
+            border: 1px solid var(--line); border-radius: 4px; min-inline-size: 0;
+            grid-column: span 2; }
+.vz-panel.half { grid-column: span 3; }
+.vz-panel.wide { grid-column: 1 / -1; }
+@media (max-width: 1180px) { .vz-panel, .vz-panel.half { grid-column: span 3; } }
+@media (max-width: 760px)  { .vz-panel, .vz-panel.half { grid-column: 1 / -1; } }
+.vz-head { display: flex; align-items: baseline; justify-content: space-between;
+           gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.vz-head h2 { font-family: var(--serif); font-size: 19px; }
+.vz-head .dim { font-size: 13.5px; }
+
+/* ---- area over time ---- */
+.vz { margin: 0; position: relative; }
+.vz svg { display: block; inline-size: 100%; block-size: 150px; overflow: visible; }
+.vz-grid-line, .vz-grid { stroke: var(--line); stroke-width: 1; }
+.vz-ytick { fill: var(--dim); font-size: 10px; text-anchor: end; font-family: var(--sans); }
+.vz-fill { fill: rgba(232, 200, 125, .13); }
+.vz-line { fill: none; stroke: var(--gold); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.vz-cross { stroke: var(--line2); stroke-width: 1; }
+.vz-dot { fill: var(--gold); stroke: var(--raise); stroke-width: 2; }
+.vz-cross, .vz-dot { opacity: 0; transition: opacity .09s; }
+.vz svg.live .vz-cross, .vz svg.live .vz-dot { opacity: 1; }
+.vz-hit { fill: transparent; }
+.vz figcaption { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+.vz-tip { position: absolute; inset-block-start: 4px; z-index: 5; pointer-events: none;
+          min-inline-size: 110px; padding: 6px 9px; border-radius: 3px; font-size: 13px;
+          background: var(--card); border: 1px solid var(--line2); color: var(--ivory);
+          box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+.vz-tip b { display: block; font-weight: 500; }
+.vz-tip span { color: var(--muted); }
+
+/* ---- ranked bars ---- */
+.vz-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.vz-bars li { display: grid; grid-template-columns: minmax(0, 8.5em) 1fr auto; align-items: center; gap: 10px; font-size: 15px; }
+.vz-bars .lbl { display: flex; align-items: center; gap: 6px; color: var(--muted);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vz-bars .ic { font-style: normal; font-size: 15px; }
+.vz-bars .track, .vz-pages .track { display: block; block-size: 9px; background: rgba(255,255,255,.05); border-radius: 2px; }
+.vz-bars .track i, .vz-pages .track i { display: block; block-size: 100%; background: var(--gold);
+                                        border-start-end-radius: 4px; border-end-end-radius: 4px; }
+.vz-bars .num { font-variant-numeric: tabular-nums; color: var(--ivory); font-size: 14px; }
+.vz-bars .num em { color: var(--dim); font-style: normal; margin-inline-start: 6px; }
+
+/* ---- share of a whole ---- */
+.vz-split .bar { display: flex; block-size: 12px; border-radius: 2px; overflow: hidden; gap: 2px; }
+.vz-split .bar i { display: block; block-size: 100%; }
+.vz-split .bar .a { background: var(--gold); }
+.vz-split .bar .b { background: rgba(255,255,255,.1); flex: 1; }
+.vz-split .keys { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+.vz-split .sw { display: inline-block; inline-size: 9px; block-size: 9px; border-radius: 2px; margin-inline-end: 7px; }
+.vz-split .sw.a { background: var(--gold); }
+.vz-split .sw.b { background: rgba(255,255,255,.18); }
+.vz-split b { color: var(--ivory); font-weight: 500; margin-inline-start: 3px; }
+.vz-split em { color: var(--dim); font-style: normal; margin-inline-start: 4px; }
+
+/* ---- hour by weekday ---- */
+.vz-heat { position: relative; display: flex; flex-direction: column; gap: 3px; }
+.vz-heat .hrow, .vz-heat .hhead { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 8px; }
+.vz-heat .hlbl { font-size: 12px; color: var(--dim2); }
+.vz-heat .hcells { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+.vz-heat .htick { font-size: 10px; color: var(--dim); text-align: center; }
+/* A band rather than a chessboard: square cells at this width make the panel
+   400 pixels tall and the shape of a week harder to see, not easier. */
+.vz-heat .hc { display: block; block-size: clamp(13px, 2vw, 26px); border-radius: 2px; background: var(--seq-4); }
+.vz-heat .hc.s0 { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.vz-heat .hc.s1 { background: var(--seq-1); } .vz-heat .hc.s2 { background: var(--seq-2); }
+.vz-heat .hc.s3 { background: var(--seq-3); } .vz-heat .hc.s4 { background: var(--seq-4); }
+.vz-heat .hc.s5 { background: var(--seq-5); } .vz-heat .hc.s6 { background: var(--seq-6); }
+.vz-heat .hc.s7 { background: var(--seq-7); }
+.vz-heat .hkey { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 12px; color: var(--dim); }
+.vz-heat .hkey .hc { inline-size: 13px; block-size: 13px; }
+.vz-heat .hkey span:first-child { margin-inline-end: 4px; }
+.vz-heat .hkey span:last-child { margin-inline-start: 4px; }
+
+/* ---- pages ---- */
+.vz-pages { inline-size: 100%; border-collapse: collapse; font-size: 15px; }
+.vz-pages th { text-align: start; font-weight: 400; font-size: 12px; letter-spacing: .12em;
+               text-transform: uppercase; color: var(--dim2); padding: 0 10px 9px 0; }
+.vz-pages td { padding: 8px 10px 8px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.vz-pages td:first-child { color: var(--ivory); }
+.vz-pages .num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vz-pages .spark { inline-size: 34%; padding-inline-end: 0; }
+
+/* ---- photographs ---- */
+.vz-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.vz-wall figure { margin: 0; position: relative; background: var(--card); border-radius: 3px; overflow: hidden; }
+.vz-wall img { display: block; inline-size: 100%; aspect-ratio: 4/3; object-fit: cover; }
+.vz-wall .gone { display: grid; place-items: center; aspect-ratio: 4/3; font-size: 12px; color: var(--dim); }
+.vz-wall figcaption { display: flex; align-items: baseline; gap: 7px; padding: 7px 9px; font-size: 13px; color: var(--dim2); }
+.vz-wall figcaption b { font-family: var(--serif); font-size: 17px; color: var(--gold); font-weight: 400; }
+
+/* ---- the numbers behind a chart ---- */
+.vz-table { margin-top: 12px; font-size: 14px; }
+.vz-table summary { cursor: pointer; color: var(--dim2); font-size: 13px; }
+.vz-table summary:hover { color: var(--ivory); }
+.vz-table table { inline-size: 100%; border-collapse: collapse; margin-top: 8px; }
+.vz-table th { text-align: start; font-weight: 400; color: var(--dim2); font-size: 12px;
+               letter-spacing: .1em; text-transform: uppercase; padding-bottom: 6px; }
+.vz-table td { padding: 4px 0; border-top: 1px solid var(--line); color: var(--muted);
+               font-variant-numeric: tabular-nums; }
+.vz-table tbody { display: block; max-block-size: 260px; overflow-y: auto; }
+.vz-table thead, .vz-table tbody tr { display: table; inline-size: 100%; table-layout: fixed; }
+
+@media (max-width: 720px) {
+  .vz-bars li { grid-template-columns: minmax(0, 6.5em) 1fr auto; font-size: 14px; }
+  .vz-heat .hcells { gap: 2px; }
+  .vz-pages .spark { display: none; }
+}
