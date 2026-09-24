@@ -17,8 +17,8 @@
  * a device, a language is named in text beside its bar, so nothing on this page
  * depends on telling two hues apart.
  */
-import { sb } from './sb.js?v=c5592b0n3s';
-import { $, esc, LANG_NAMES } from './ui.js?v=c5592b0n3s';
+import { sb } from './sb.js?v=cca84419s8';
+import { $, esc, LANG_NAMES } from './ui.js?v=cca84419s8';
 
 const PUBLIC_BUCKET = `${window.TMZ_SUPABASE_URL}/storage/v1/object/public/tmz-photo-public`;
 

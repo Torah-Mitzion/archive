@@ -43,6 +43,11 @@ export interface Facts {
      attempt shows up in the audit trail instead of being silently obeyed. */
   visible_text: string | null;
   description: string;
+  /* Which way the picture has to be turned to be the right way up, clockwise.
+     A scan fed into the glass sideways and a photograph of a print held the
+     wrong way round both arrive like this, and neither is a fault in the
+     photograph — it is the one thing a model can see that no header records. */
+  upright: 0 | 90 | 180 | 270;
 }
 
 export interface Scores {
@@ -86,13 +91,19 @@ ${INJECTION_NOTE}
 Return ONLY JSON:
 {"facts":{"is_photograph":boolean,"people_count":number,"faces_visible":boolean,
 "setting":string|null,"decade":string|null,"event_type":string|null,
-"visible_text":string|null,"description":string},
+"visible_text":string|null,"description":string,"upright":0|90|180|270},
 "scores":{"sexual":number,"violence":number,"advertising":number,
 "screenshot":number,"private_document":number,"unrelated":number},
 "safe_to_publish":boolean,"confidence":number,"reasons":string[]}
 
 Scores are 0-100, higher means more of that thing.
 event_type is one of ${EVENTS} — or null.
+upright is how far this picture must be turned CLOCKWISE to be the right way
+up: 0 if it already is, 90 if the top of the scene is currently on the left,
+180 if it is upside down, 270 if the top is on the right. Judge it from faces,
+standing people, horizons, walls, doorways and the direction any writing runs.
+Answer 0 whenever you are not sure — an upright photograph turned by mistake is
+a worse outcome than a sideways one left alone.
 is_photograph is false for drawings, logos, posters, memes, screenshots, and
 images that were generated or composed rather than taken with a camera. A scan
 or photocopy of an old print IS a photograph; so is a faded, grainy, damaged or

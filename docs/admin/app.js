@@ -1,7 +1,7 @@
-import { sb, captureRedirect, ensureSession, signInWithPassword, signOut } from './sb.js?v=c5592b0n3s';
-import { $, esc, REGION_NAMES } from './ui.js?v=c5592b0n3s';
-import { dashboard, campaign, communities, people, photos, translations, requests, openRequestCount } from './views.js?v=c5592b0n3s';
-import { visits } from './visits.js?v=c5592b0n3s';
+import { sb, captureRedirect, ensureSession, signInWithPassword, signOut } from './sb.js?v=cca84419s8';
+import { $, esc, REGION_NAMES } from './ui.js?v=cca84419s8';
+import { dashboard, campaign, communities, people, photos, translations, requests, openRequestCount } from './views.js?v=cca84419s8';
+import { visits } from './visits.js?v=cca84419s8';
 
 /* A token arriving in the URL fragment is captured and cleared BEFORE we ask
    the DB who we are — otherwise the first request goes out anonymous and the

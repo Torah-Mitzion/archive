@@ -16,6 +16,7 @@
  */
 
 import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
+import { screenAndReframe } from '../_shared/reframe.ts';
 import { screen as screenImage, type Verdict } from '../_shared/screen.ts';
 import { renderNames, captionOk } from '../_shared/names.ts';
 import { pushSharePage } from '../_shared/sharepage.ts';
@@ -135,15 +136,30 @@ Deno.serve(async req => {
     /* Two independent passes, neither of which sees a word the contributor
        typed. What they wrote places a photograph; it never clears one. */
     let verdict: Verdict;
+    /* What actually gets published. Usually these are the copies sanitize
+       already made; they are re-rendered only when the picture had a frame
+       worth cutting off or was lying on its side. */
+    let framed: {
+      publicBytes: Uint8Array; thumbBytes: Uint8Array; width: number; height: number;
+      edit: { rot: number; crop: unknown } | null; rescued: boolean;
+    } = {
+      publicBytes: clean.publicBytes, thumbBytes: clean.thumbBytes,
+      width: clean.width, height: clean.height, edit: null, rescued: false
+    };
+
     if (!GEMINI_KEY) {
       verdict = { decision: 'hold', reasons: ['no screening key configured'],
                   confidence: 0, facts: {}, scores: {}, passes: [] };
     } else {
       try {
-        verdict = await screenImage(toBase64(clean.archiveBytes), 'image/jpeg', {
-          model: GEMINI_MODEL, key: GEMINI_KEY,
-          minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
-        });
+        const out = await screenAndReframe(clean.archiveBytes, clean.trim, bytes =>
+          screenImage(toBase64(bytes), 'image/jpeg', {
+            model: GEMINI_MODEL, key: GEMINI_KEY,
+            minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+          }));
+        verdict = out.verdict;
+        if (out.rendered) framed = { ...out.rendered, edit: out.edit, rescued: out.rescued };
+        if (out.rescued) console.log('rescued by cutting its margins off');
       } catch (e) {
         /* Fail closed, exactly as the WhatsApp path does. */
         console.error('screening unavailable', e);
@@ -181,9 +197,13 @@ Deno.serve(async req => {
     /* Always .jpg: what is stored is what we encoded, not what arrived. */
     const key = `${new Date().getFullYear()}/${submission.id}.jpg`;
     const derivedKey = `derived/${key}`;
+    /* The master is what arrived, turned upright by its own Exif tag and
+       nothing more: a crop decided by a model is a judgement, and judgements
+       do not get to modify the thing the archive exists to keep. The served
+       copies carry the judgement, and `edit` records it so it can be undone. */
     await putObject(key, clean.archiveBytes);
-    await putObject(derivedKey, clean.publicBytes);
-    await putObject(`thumb/${key}`, clean.thumbBytes);
+    await putObject(derivedKey, framed.publicBytes);
+    await putObject(`thumb/${key}`, framed.thumbBytes);
 
     const guess = verdict.facts ?? {};
     /* The form's free text goes on a public page; refused text is dropped. */
@@ -199,9 +219,10 @@ Deno.serve(async req => {
         venue: guess.setting || null,
         storage_path: key,
         derived_path: derivedKey,
-        width: clean.width, height: clean.height,
+        width: framed.width, height: framed.height,
         bytes: clean.archiveBytes.length,
         phash: clean.phash,
+        edit: framed.edit,
         status: publishable ? 'pending' : 'rejected',
         agent_decision: verdict.decision,
         needs_rescreen: verdict.decision === 'hold',

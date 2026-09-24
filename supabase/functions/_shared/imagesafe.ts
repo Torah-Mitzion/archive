@@ -255,6 +255,16 @@ export async function sanitize(bytes: Uint8Array): Promise<Clean> {
   };
 }
 
+/* The margins of a master already in storage. sanitize measures this on the
+   way in; this reads it back for a photograph being looked at again, so the
+   rescue works the second time as well as the first. */
+export async function measureTrim(masterBytes: Uint8Array): Promise<Crop | null> {
+  const decoded = await decode(masterBytes);
+  const img = decoded instanceof Image ? decoded : (decoded as unknown as Image[])[0];
+  if (!img?.width) return null;
+  return findMargins(pixels(img));
+}
+
 /* The served copies, cut afresh from a master that is never touched.
  *
  * This is the other half of the back office's crop tool and of the automatic

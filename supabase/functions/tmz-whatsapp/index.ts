@@ -23,7 +23,8 @@
  * simulator.
  */
 
-import { sanitize, UnsafeFile } from '../_shared/imagesafe.ts';
+import { sanitize, UnsafeFile, measureTrim } from '../_shared/imagesafe.ts';
+import { screenAndReframe } from '../_shared/reframe.ts';
 import { screen, type Verdict } from '../_shared/screen.ts';
 import { say, phrase, refusalIn, configureSay } from '../_shared/say.ts';
 import { buildPrompt, converse, type HistoryRow, type Sender, type Extracted } from '../_shared/converse.ts';
@@ -1637,6 +1638,9 @@ async function handle(body: any, ch: Channel) {
 async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, from: string,
                            lang: string, ch: Channel, quote: string | null) {
   let verdict: Verdict;
+  /* Set only when the picture had a frame worth cutting off or was lying on
+     its side; null means the copies already in storage are still right. */
+  let reframed: Awaited<ReturnType<typeof screenAndReframe>> | null = null;
   if (ch.forceVerdict) {
     verdict = {
       decision: ch.forceVerdict, confidence: 1, facts: {}, scores: {},
@@ -1648,9 +1652,17 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
     verdict = holdBecause('no screening key configured');
   } else {
     try {
-      verdict = await screen(toBase64(bytes), 'image/jpeg', {
-        model: GEMINI_MODEL, key: GEMINI_KEY, minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
-      });
+      /* Measured off the master rather than carried in, so a photograph being
+         looked at a second time gets the same chance as one arriving. */
+      const trim = await measureTrim(bytes).catch(() => null);
+      const out = await screenAndReframe(bytes, trim, b =>
+        screen(toBase64(b), 'image/jpeg', {
+          model: GEMINI_MODEL, key: GEMINI_KEY, minConfidence: MIN_CONFIDENCE, requirePeople: REQUIRE_PEOPLE
+        }));
+      verdict = out.verdict;
+      reframed = out;
+      if (out.rescued) ch.trace('rescued by cutting its margins off', { crop: out.edit?.crop });
+      if (out.edit?.rot) ch.trace('turned upright', { degrees: out.edit.rot });
     } catch (e) {
       ch.trace('screening unavailable', { error: String(e).slice(0, 300) });
       verdict = holdBecause(`screening unavailable: ${String(e).slice(0, 200)}`);
@@ -1662,6 +1674,25 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
   ch.trace('screened', { decision: verdict.decision, confidence: verdict.confidence,
                          reasons: verdict.reasons, scores: verdict.scores, facts: verdict.facts });
 
+  /* The served copies are replaced in place when the decision changed the
+     framing. The master is not touched: a crop chosen by a model is a
+     judgement, and `edit` is where a judgement is recorded so that a person
+     can undo it from the back office. */
+  let reframedRow: Record<string, unknown> = {};
+  if (reframed?.rendered && reframed.edit) {
+    const rows = await pg(`/tmz_photo?select=storage_path,derived_path&id=eq.${photoId}`);
+    const p0 = rows?.[0];
+    if (p0?.derived_path) {
+      const dest = String(p0.derived_path).replace(/^derived\//, '');
+      await putObject('tmz-photo-originals', p0.derived_path, reframed.rendered.publicBytes);
+      await putObject('tmz-photo-originals', `thumb/${dest}`, reframed.rendered.thumbBytes);
+      reframedRow = {
+        edit: reframed.edit,
+        width: reframed.rendered.width, height: reframed.rendered.height
+      };
+    }
+  }
+
   await pg(`/tmz_photo?id=eq.${photoId}`, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -1669,7 +1700,8 @@ async function screenPhoto(photoId: string, bytes: Uint8Array, waId: string, fro
       needs_rescreen: verdict.decision === 'hold',
       status: verdict.decision === 'reject' ? 'rejected' : 'pending',
       ai_description: verdict.facts.description ? String(verdict.facts.description).slice(0, 300) : null,
-      event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null
+      event_type_id: verdict.facts.event_type || null, venue: verdict.facts.setting || null,
+      ...reframedRow
     })
   });
   await pg('/tmz_moderation', {
