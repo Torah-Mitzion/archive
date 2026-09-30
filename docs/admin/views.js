@@ -1,8 +1,8 @@
-import { sb } from './sb.js?v=2880df4ewb';
+import { sb } from './sb.js?v=efc647ecx9';
 import { openImageEditor, personPictures, personPicturesMarkup,
-         publishFromMaster, useAsPortrait } from './imgedit.js?v=2880df4ewb';
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=efc647ecx9';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=2880df4ewb';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=efc647ecx9';
 
 /* ---- dashboard ----------------------------------------------------------- */
 
@@ -768,151 +768,209 @@ async function loadPrivateThumbs(root) {
   } catch (e) { console.error('private thumbs', e); }
 }
 
+/* ---- the list --------------------------------------------------------------
+
+   Ordered, grouped and paged by the database. The browser used to be handed
+   the newest two hundred rows and nothing else: with 642 photographs on the
+   site that is 442 no one could reach from this page, and sorting in the
+   browser would only have sorted those two hundred against each other.
+
+   Every control here changes the query rather than the rendering, so the
+   second page of "by community" is the real second page. */
+
+const TAB_STATUS = { live: 'approved', pending: 'pending', rejected: 'rejected', all: null };
+
+const SORTS = {
+  created_at:     'Arrived',
+  published_at:   'Put up',
+  year:           'Year taken',
+  community_name: 'Community',
+  submitter_name: 'Who sent it',
+  status:         'Status'
+};
+/* The column the rows are grouped by, and the name tmz_photo_groups knows it
+   by — the two differ because the totals are counted from the table and the
+   rows come from the view. */
+const GROUPS = {
+  '':              ['Nothing', null],
+  community_slug:  ['Community', 'community'],
+  submitter_ref:   ['Who sent it', 'submitter'],
+  year:            ['Year taken', 'year']
+};
+
+const PAGE_SIZE = 100;
+let photoSort = 'created_at', photoDesc = true, photoGroup = '', photoPage = 0;
+
+const LIST_COLS =
+  'id,created_at,published_at,year,status,source,agent_decision,published_by,' +
+  'storage_path,derived_path,public_path,portrait_of,portrait_name,edit,' +
+  'submitter_ref,community_id,community_slug,community_name,' +
+  'submitter_name,submitter_phone,submitter_email,submitter_strikes,submitter_blocked_until,why';
+
+/* What a group of rows is called, taken from the first row in it rather than
+   from a second lookup. */
+function groupLabel(p) {
+  if (photoGroup === 'community_slug') return p.community_name || p.community_slug || 'Not placed';
+  if (photoGroup === 'year') return p.year ? String(p.year) : 'No year';
+  if (photoGroup === 'submitter_ref') {
+    return p.submitter_name || (p.submitter_phone ? `+${p.submitter_phone}` : null)
+        || p.submitter_email || 'Not recorded';
+  }
+  return '';
+}
+const groupKey = p => photoGroup === 'year'
+  ? (p.year == null ? '' : String(p.year))
+  : (p[photoGroup] ?? '');
+
+const senderCell = p => {
+  const phone = p.submitter_phone;
+  const name = p.submitter_name;
+  const blocked = p.submitter_blocked_until && new Date(p.submitter_blocked_until) > new Date();
+  return `${name ? `<b>${esc(name)}</b>` : '<span class="dim">name not given</span>'}
+    ${phone ? `<br><a class="mono" href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">+${esc(phone)}</a>`
+            : p.submitter_email ? `<br><span class="dim mono">${esc(p.submitter_email)}</span>`
+            : `<br><span class="dim mono">${esc(p.source === 'web' ? 'from the website' : '—')}</span>`}
+    ${p.submitter_strikes ? `<br><span class="pill ${blocked ? 'rejected' : 'pending'}">${
+      blocked ? 'paused · ' : ''}${p.submitter_strikes} refused</span>` : ''}`;
+};
+
 export async function photos() {
-  const [pending, agentUp, counts] = await Promise.all([
-    sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
-      'tmz_community(slug,tmz_community_tr(lang,name))',
-      { filter: { status: 'eq.pending' }, order: 'created_at.desc', limit: 200 }),
-    /* What is ON THE SITE, which is what the tab says — not what the agent
-       published. It used to filter on published_by=agent, so anything a
-       curator put up from here was approved, live, and invisible on the one
-       tab that claims to list the album. */
-    sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,derived_path,public_path,source,status,agent_decision,published_at,published_by,' +
-      'tmz_community(slug,tmz_community_tr(lang,name))',
-      { filter: { status: 'eq.approved' }, order: 'published_at.desc.nullslast', limit: 200 }),
-    sb.from('tmz_photo', {}).select('id,status', { limit: 2000 })
+  const status = TAB_STATUS[photoTab];
+  const filter = status ? { status: `eq.${status}` } : {};
+
+  /* Counted, not fetched. The tab line used to be worked out from a 2,000-row
+     select of id and status — which PostgREST caps at 1,000 anyway, so the
+     numbers would have started quietly under-reporting at the same moment the
+     archive got interesting. */
+  const [approved, rejected, pending, total] = await Promise.all([
+    sb.count('tmz_photo', { status: 'eq.approved' }),
+    sb.count('tmz_photo', { status: 'eq.rejected' }),
+    sb.count('tmz_photo', { status: 'eq.pending' }),
+    sb.count('tmz_photo_board', filter)
   ]);
 
-  const by = s => counts.filter(c => c.status === s).length;
-  if (photoTab === 'rejected') return refusedTab(by);
-  const rows = photoTab === 'pending' ? pending
-             : photoTab === 'live' ? agentUp
-             : await sb.from('tmz_photo', {}).select(
-                 'id,year,storage_path,derived_path,public_path,source,status,agent_decision,created_at,' +
-                 'tmz_community(slug,tmz_community_tr(lang,name))',
-                 { order: 'created_at.desc', limit: 200 });
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (photoPage >= pages) photoPage = pages - 1;
+
+  /* Grouping is an ordering: the group column leads, the chosen sort decides
+     the order within it. That is what keeps a group whole across a page break
+     instead of scattering it. */
+  const dir = photoDesc ? 'desc' : 'asc';
+  const order = (photoGroup ? `${photoGroup}.asc.nullslast,` : '') +
+                `${photoSort}.${dir}.nullslast` +
+                (photoSort === 'created_at' ? '' : ',created_at.desc');
+
+  const [rows, groupTotals] = await Promise.all([
+    sb.from('tmz_photo_board', {}).select(LIST_COLS, {
+      order, limit: PAGE_SIZE, filter: { ...filter, offset: photoPage * PAGE_SIZE }
+    }),
+    photoGroup
+      ? sb.rpc('tmz_photo_groups', { want: status ?? 'all', by: GROUPS[photoGroup][1] })
+          .catch(() => [])
+      : Promise.resolve([])
+  ]);
+  const groupN = new Map((groupTotals || []).map(g => [g.key, g.n]));
+
+  const from = total ? photoPage * PAGE_SIZE + 1 : 0;
+  const to = Math.min(total, (photoPage + 1) * PAGE_SIZE);
+  const showWhy = photoTab === 'rejected';
+
+  let lastGroup = null;
+  /* Eight, always. The refused tab swaps one column for another rather than
+     adding one, and a heading that spans seven of eight stops halfway across
+     the table. */
+  const cols = 8;
+  const body = rows.map(p => {
+    let head = '';
+    if (photoGroup) {
+      const k = groupKey(p);
+      if (k !== lastGroup) {
+        lastGroup = k;
+        const n = groupN.get(k);
+        head = `<tr class="grp"><td colspan="${cols}">${esc(groupLabel(p))}
+          ${n != null ? `<span class="dim">${n} ${n === 1 ? 'photograph' : 'photographs'}</span>` : ''}</td></tr>`;
+      }
+    }
+    return head + `<tr data-id="${p.id}">
+      <td>${thumb(p)}</td>
+      <td>${esc(p.community_name || p.community_slug || '')}${
+        !p.community_slug ? '<span class="dim">not placed</span>' : ''}</td>
+      <td>${p.year || '<span class="dim">—</span>'}</td>
+      <td>${senderCell(p)}</td>
+      <td class="mono dim">${esc(new Date(p.created_at).toISOString().slice(0, 10))}</td>
+      <td><span class="pill ${p.status}">${esc(p.status)}</span>${
+        p.published_by === 'staff' ? '<br><span class="dim" style="font-size:12px">put up here</span>' : ''}</td>
+      ${showWhy
+        ? `<td>${(p.why || []).length ? `<ul class="why">${(p.why || []).filter(Boolean).map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
+                                      : '<span class="dim">no reason was recorded</span>'}</td>`
+        : `<td>${p.agent_decision ? `<span class="pill ${p.agent_decision}">${esc(p.agent_decision)}</span>`
+                                  : '<span class="dim">—</span>'}</td>`}
+      <td class="actions">
+        <button class="edit">Open</button>
+        ${p.status === 'approved' ? `<button class="del down">Take down</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
 
   $('#page').innerHTML = `
     <div class="page-head">
       <div><h1>Photographs</h1>
-        <p>${by('approved')} on the site · ${by('rejected')} refused · ${by('pending')} unsettled.
+        <p>${approved} on the site · ${rejected} refused · ${pending} unsettled.
            The agent decides all of it; nothing here waits for you.</p></div>
     </div>
     <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
       `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
+    ${showWhy ? `<p class="dim" style="font-size:13px;margin:0 0 14px">
+      Refused automatically, by the screener. Whoever sent it was told the reason
+      at the time. Nothing here is on the site.</p>` : ''}
+
+    <div class="listbar">
+      <label>Sort<select id="lSort">${Object.entries(SORTS).map(([k, v]) =>
+        `<option value="${k}" ${k === photoSort ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+      <button class="btn sm" id="lDir" title="${photoDesc ? 'Newest or largest first' : 'Oldest or smallest first'}">${
+        photoDesc ? '↓ Descending' : '↑ Ascending'}</button>
+      <label>Group<select id="lGroup">${Object.entries(GROUPS).map(([k, v]) =>
+        `<option value="${k}" ${k === photoGroup ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
+      <span class="listbar-count dim">${total ? `${from}–${to} of ${total}` : 'nothing here'}</span>
+    </div>
+
     ${rows.length === 0 ? `<div class="empty">${
-      photoTab === 'live'
-        ? 'Nothing is on the site yet.'
-        : photoTab === 'pending'
-          ? 'Nothing unsettled. Every photograph that arrived has been decided.'
-          : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
+      photoTab === 'live' ? 'Nothing is on the site yet.'
+      : photoTab === 'pending' ? 'Nothing unsettled. Every photograph that arrived has been decided.'
+      : photoTab === 'rejected' ? 'Nothing has been refused.'
+      : 'Nothing here. Photographs arrive from the upload page and from WhatsApp.'
     }</div>` : `
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th></th><th>Community</th><th>Year</th><th>Source</th><th>Status</th><th>Screening</th><th></th></tr></thead>
-      <tbody>${rows.map(p => `<tr data-id="${p.id}">
-        <td>${thumb(p)}</td>
-        <td>${esc(pickName((p.tmz_community || {}).tmz_community_tr) || (p.tmz_community || {}).slug || '—')}</td>
-        <td>${p.year || '<span class="dim">not placed</span>'}</td>
-        <td>${esc(p.source)}${p.published_by === 'staff' ? '<br><span class="dim" style="font-size:12px">put up here</span>' : ''}</td>
-        <td><span class="pill ${p.status}">${esc(p.status)}</span></td>
-        <td>${p.agent_decision ? `<span class="pill ${p.agent_decision}">${esc(p.agent_decision)}</span>` : '<span class="dim">—</span>'}</td>
-        <td class="actions">
-          <button class="edit">Open</button>
-          ${p.status === 'approved' ? `<button class="del down">Take down</button>` : ''}
-        </td>
-      </tr>`).join('')}</tbody>
-    </table></div>`}`;
+      <thead><tr>
+        <th></th><th>Community</th><th>Year</th><th>Who sent it</th><th>Arrived</th>
+        <th>Status</th><th>${showWhy ? 'Why it was refused' : 'Screening'}</th><th></th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    ${pages > 1 ? `<div class="pager">
+      <button class="btn sm" id="pPrev" ${photoPage === 0 ? 'disabled' : ''}>← Previous</button>
+      <span class="dim">Page ${photoPage + 1} of ${pages}</span>
+      <button class="btn sm" id="pNext" ${photoPage >= pages - 1 ? 'disabled' : ''}>Next →</button>
+    </div>` : ''}`}`;
+
   loadPrivateThumbs($('#page'));
 
+  /* Any change of question starts at the first page; a page number kept from
+     the last view would answer a question nobody asked. */
+  const again = (fn) => { fn(); photoPage = 0; photos(); };
   document.querySelectorAll('#page .tab').forEach(b => {
-    b.onclick = () => { photoTab = b.dataset.tab; photos(); };
+    b.onclick = () => again(() => { photoTab = b.dataset.tab; });
   });
-  document.querySelectorAll('#page tbody tr').forEach(tr => {
+  $('#lSort').onchange = e => again(() => { photoSort = e.target.value; });
+  $('#lGroup').onchange = e => again(() => { photoGroup = e.target.value; });
+  $('#lDir').onclick = () => again(() => { photoDesc = !photoDesc; });
+  $('#pPrev')?.addEventListener('click', () => { photoPage--; photos(); });
+  $('#pNext')?.addEventListener('click', () => { photoPage++; photos(); });
+
+  document.querySelectorAll('#page tbody tr[data-id]').forEach(tr => {
     const row = rows.find(r => r.id === tr.dataset.id);
     tr.querySelector('.edit').onclick = () => photoDrawer(row);
     tr.querySelector('.del')?.addEventListener('click', () => takeDown(tr.dataset.id));
-  });
-}
-
-/* ---- refused ---------------------------------------------------------------
-   The one thing in this album that happens TO somebody. A photograph is turned
-   away by a screener with no human in the loop, and the sender is told the
-   reason and nothing else — so the only place anyone can look at what is being
-   refused, and to whom, is here.
-
-   Three refusals buys a sender a day of silence (see `strike` in the agent), so
-   the count is next to the name: a person on two is worth a second look before
-   the third one shuts the door on them. */
-async function refusedTab(by) {
-  const [rows, contacts] = await Promise.all([
-    sb.from('tmz_photo', {}).select(
-      'id,year,storage_path,derived_path,public_path,source,status,created_at,submitter_ref,' +
-      'tmz_community(slug,tmz_community_tr(lang,name)),' +
-      'tmz_submission(contributor_name,contributor_email),' +
-      'tmz_moderation(pass,decision,reasons,decided_at)',
-      { filter: { status: 'eq.rejected' }, order: 'created_at.desc', limit: 200 }),
-    /* Names and refusal counts, for the senders who came through WhatsApp. */
-    sb.from('tmz_wa_contact', {}).select('ref,person_name,display_name,lang,strikes,blocked_until')
-      .catch(() => [])
-  ]);
-  const who = new Map((contacts || []).map(c => [c.ref, c]));
-
-  /* The screener speaks twice about a photograph — it assesses, then it
-     challenges itself — and the refusal is the last word. The reasons read the
-     same on both passes, but the decision only appears on the final one. */
-  const whyOf = p => {
-    const mods = (p.tmz_moderation || []).slice()
-      .sort((a, b) => String(a.decided_at).localeCompare(String(b.decided_at)));
-    const last = mods.reverse().find(m => m.decision === 'reject') || mods[0];
-    const reasons = (last?.reasons || []).filter(Boolean);
-    return reasons.length ? reasons : null;
-  };
-
-  $('#page').innerHTML = `
-    <div class="page-head">
-      <div><h1>Photographs</h1>
-        <p>${by('approved')} on the site · ${by('rejected')} refused · ${by('pending')} unsettled.
-           The agent decides all of it; nothing here waits for you.</p></div>
-    </div>
-    <div class="tabs">${Object.entries(PHOTO_TABS).map(([k, label]) =>
-      `<button class="tab ${photoTab === k ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
-    <p class="dim" style="font-size:13px;margin:0 0 14px">
-      Refused automatically, by the screener. Whoever sent it was told the reason
-      at the time. Nothing here is on the site.</p>
-    ${rows.length === 0 ? `<div class="empty">Nothing has been refused.</div>` : `
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th></th><th>Sent</th><th>Who sent it</th><th>Source</th><th>Why it was refused</th><th></th></tr></thead>
-      <tbody>${rows.map(p => {
-        const c = who.get(p.submitter_ref);
-        const phone = (p.submitter_ref || '').startsWith('wa:') ? p.submitter_ref.slice(3) : null;
-        const name = c?.person_name || p.tmz_submission?.contributor_name || c?.display_name || null;
-        const why = whyOf(p);
-        return `<tr data-id="${p.id}">
-        <td>${thumb(p)}</td>
-        <td class="mono dim">${esc(new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' '))}</td>
-        <td>
-          ${name ? `<b>${esc(name)}</b>` : '<span class="dim">name not given</span>'}
-          ${phone ? `<br><a class="mono" href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">+${esc(phone)}</a>`
-                  : `<br><span class="dim mono">${esc(p.tmz_submission?.contributor_email || 'from the website')}</span>`}
-          ${c && c.strikes ? `<br><span class="pill ${c.blocked_until && new Date(c.blocked_until) > new Date() ? 'rejected' : 'pending'}">${
-            c.blocked_until && new Date(c.blocked_until) > new Date() ? 'paused · ' : ''}${c.strikes} refused</span>` : ''}
-        </td>
-        <td>${esc(p.source)}</td>
-        <td>${why ? `<ul class="why">${why.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
-                  : '<span class="dim">no reason was recorded</span>'}</td>
-        <td class="actions"><button class="edit">Open</button></td>
-      </tr>`; }).join('')}</tbody>
-    </table></div>`}`;
-  loadPrivateThumbs($('#page'));
-
-  document.querySelectorAll('#page .tab').forEach(b => {
-    b.onclick = () => { photoTab = b.dataset.tab; photos(); };
-  });
-  document.querySelectorAll('#page tbody tr').forEach(tr => {
-    const row = rows.find(r => r.id === tr.dataset.id);
-    tr.querySelector('.edit').onclick = () => photoDrawer(row);
   });
 }
 
