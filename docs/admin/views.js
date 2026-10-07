@@ -1,8 +1,8 @@
-import { sb } from './sb.js?v=efc647ecx9';
+import { sb } from './sb.js?v=01aed46bkq';
 import { openImageEditor, personPictures, personPicturesMarkup,
-         publishFromMaster, useAsPortrait } from './imgedit.js?v=efc647ecx9';
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=01aed46bkq';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=efc647ecx9';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=01aed46bkq';
 
 /* ---- dashboard ----------------------------------------------------------- */
 

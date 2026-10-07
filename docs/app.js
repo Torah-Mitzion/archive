@@ -348,12 +348,25 @@ function drawMap(attempt = 0) {
   const jx = proj.fx(JERUSALEM.lon), jy = proj.fy(JERUSALEM.lat);
   const step = Math.max(7, W / 190);
 
+  /* The community the map is already centred on.
+     Jerusalem is where every arc starts and it has had a star and a name drawn
+     by hand since the first sketch. Adding it to the register as a community
+     as well put a second identical name a few pixels from the first, and
+     neither of them led anywhere. So the register's entry gives up its dot,
+     its arc — which would have been a line from Jerusalem to Jerusalem — and
+     its label, and the star's name becomes the way into its page.
+     Found by where it is rather than by what it is called: the next nearest
+     community to the star is Marseille at 170px against this one's 3.6, so
+     three per cent of the short side is nowhere near either edge. */
+  const atZion = STATE.communities.find(c =>
+    Math.hypot(proj.fx(c.lon) - jx, proj.fy(c.lat) - jy) < Math.min(W, H) * 0.03);
+
   /* One path per community, so an arc can light up under the pointer and
      be clicked like the dot it leads to; a wide invisible twin gives the
      pointer something to hit. The selected community's arc is drawn last,
      on top. */
   let arcs = '', hits = '';
-  const pts = STATE.communities.map(c => {
+  const pts = STATE.communities.filter(c => c !== atZion).map(c => {
     const mx = proj.fx(c.lon), my = proj.fy(c.lat);
     const seg = arc(jx, jy, mx, my);
     const sel = c.id === view.sel;
@@ -420,7 +433,9 @@ function drawMap(attempt = 0) {
        <svg viewBox="0 0 44 44" width="44" height="44">
          <circle class="jeru-ring" cx="22" cy="22" r="18" stroke-width=".6"/>
          <path class="jeru-star" d="M22 5 L24.6 19.4 L39 22 L24.6 24.6 L22 39 L19.4 24.6 L5 22 L19.4 19.4 Z"/>
-       </svg><span>${LANG === 'he' ? 'ירושלים' : LANG === 'ru' ? 'Иерусалим' : 'Jerusalem'}</span>
+       </svg>${atZion
+         ? `<a href="#/c/${esc(atZion.id)}" title="${esc(t('cta.fly'))}">${esc(tf(atZion.name))}</a>`
+         : `<span>${LANG === 'he' ? 'ירושלים' : LANG === 'ru' ? 'Иерусалим' : 'Jerusalem'}</span>`}
      </div>` +
     markers.map((m, i) => {
       if (m.count > 1) {

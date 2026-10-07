@@ -256,10 +256,15 @@ a.lbl:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; borde
 .jeru { position: absolute; width: 0; height: 0; pointer-events: none;
         transition: left 900ms cubic-bezier(.22,.61,.36,1), top 900ms cubic-bezier(.22,.61,.36,1); }
 .jeru svg { position: absolute; left: -22px; top: -22px; }
-.jeru span { position: absolute; left: 0; top: 27px; transform: translateX(-50%); white-space: nowrap;
+.jeru span, .jeru a { position: absolute; left: 0; top: 27px; transform: translateX(-50%); white-space: nowrap;
              font-size: 12px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase;
              color: var(--gold-hi); text-shadow: 0 0 8px rgba(var(--ink-rgb),.9); }
-[dir="rtl"] .jeru span { letter-spacing: 0; text-transform: none; font-size: 15.5px; }
+[dir="rtl"] .jeru span, [dir="rtl"] .jeru a { letter-spacing: 0; text-transform: none; font-size: 15.5px; }
+/* The star ignores the pointer so a drag passes through it to the map. Once
+   Jerusalem is a community in its own right its name is the one part with
+   somewhere to go, so that part takes the pointer back. */
+.jeru a { pointer-events: auto; text-decoration: none; }
+.jeru a:hover, .jeru a:focus-visible { color: #FFF; text-decoration: underline; text-underline-offset: 3px; }
 
 .hero { position: absolute; top: 22px; left: calc(var(--gal) + clamp(16px,3vw,40px)); right: clamp(16px,3vw,40px); z-index: 20;
         display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
