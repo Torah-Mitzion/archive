@@ -1,8 +1,8 @@
-import { sb } from './sb.js?v=01aed46bkq';
+import { sb } from './sb.js?v=88485aanh7';
 import { openImageEditor, personPictures, personPicturesMarkup,
-         publishFromMaster, useAsPortrait } from './imgedit.js?v=01aed46bkq';
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=88485aanh7';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=01aed46bkq';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=88485aanh7';
 
 /* ---- dashboard ----------------------------------------------------------- */
 
@@ -367,7 +367,7 @@ let _communities = null, _institutions = null;
 async function lookups() {
   if (!_communities) {
     [_communities, _institutions] = await Promise.all([
-      sb.from('tmz_community', {}).select('id,slug,tmz_community_tr(lang,name)', { order: 'slug.asc' }),
+      sb.from('tmz_community', {}).select('id,slug,org_kind,tmz_community_tr(lang,name)', { order: 'slug.asc' }),
       sb.from('tmz_institution', {}).select('id,slug,tmz_institution_tr(lang,name)', { order: 'slug.asc' })
     ]);
   }
@@ -376,8 +376,26 @@ async function lookups() {
 
 const ROLES = {
   rosh_kollel: 'Rosh Kollel', shaliach: 'Shaliach', shlicha: 'Shlicha',
-  spouse: 'Spouse', child: 'Child', staff: 'Staff'
+  spouse: 'Spouse', child: 'Child', staff: 'Staff',
+  ceo: 'Director General', office_manager: 'Office manager', shlichut: 'Shlichut',
+  finance: 'Finance', bat_sherut: 'Bat Sherut', shaliach_family: 'Shlichim family'
 };
+
+/* Not every role belongs everywhere. A kollel has a Rosh Kollel and shlichim;
+   the Jerusalem office has a director general and the people who run it; Lev
+   Yehodi in India is one family of shlichim. Offering all twelve everywhere
+   would invite a bat sherut in Melbourne — and the thing this list protects
+   against is not a typo, it is giving a real person the wrong job title on a
+   page about their life. */
+const ROLES_FOR = {
+  kollel: ['rosh_kollel', 'shaliach', 'shlicha', 'spouse', 'child', 'staff'],
+  office: ['ceo', 'office_manager', 'shlichut', 'finance', 'bat_sherut', 'staff'],
+  family: ['shaliach_family', 'shaliach', 'shlicha', 'spouse', 'child']
+};
+/* Who leads a place of this kind — the same answer tmz_lead_role() gives in
+   the database and LEAD_ROLE gives on the site. */
+const LEAD_ROLE = { kollel: 'rosh_kollel', office: 'ceo', family: 'shaliach_family' };
+const kindOf = (comms, id) => (comms.find(c => c.id === id) || {}).org_kind || 'kollel';
 
 async function personDrawer(row) {
   const isNew = !row;
@@ -436,9 +454,7 @@ async function personDrawer(row) {
         <div><label>Community</label><select id="t_comm">
           ${comms.map(c => `<option value="${c.id}">${esc(pickName(c.tmz_community_tr) || c.slug)}</option>`).join('')}
         </select></div>
-        <div><label>Role</label><select id="t_role">
-          ${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
-        </select></div>
+        <div><label>Role</label><select id="t_role"></select></div>
       </div>
       <div class="field row2">
         <div><label>Start year</label><input id="t_from" type="number" placeholder="2001"></div>
@@ -473,19 +489,32 @@ async function personDrawer(row) {
   const wrap = el.querySelector('#householdWrap');
   const houseSel = el.querySelector('#t_house');
 
+  /* The roles follow the community, so choosing Jerusalem offers the office's
+     jobs and choosing Melbourne offers a kollel's. A role already picked is
+     kept if the new community has it. */
+  function refreshRoles() {
+    const kind = kindOf(comms, commSel.value);
+    const allowed = ROLES_FOR[kind] || ROLES_FOR.kollel;
+    const keep = allowed.includes(roleSel.value) ? roleSel.value : allowed[0];
+    roleSel.innerHTML = allowed.map(k =>
+      `<option value="${k}" ${k === keep ? 'selected' : ''}>${esc(ROLES[k] || k)}</option>`).join('');
+  }
+
   async function refreshHousehold() {
     const needs = ['spouse', 'child'].includes(roleSel.value);
     wrap.hidden = !needs;
     if (!needs) return;
+    const lead = LEAD_ROLE[kindOf(comms, commSel.value)] || LEAD_ROLE.kollel;
     const heads = await sb.from('tmz_tenure', {}).select(
       'id,start_year,end_year,tmz_person(tmz_person_tr(lang,display_name))',
-      { filter: { community_id: `eq.${commSel.value}`, role: 'eq.rosh_kollel' }, order: 'start_year.asc' });
+      { filter: { community_id: `eq.${commSel.value}`, role: `eq.${lead}` }, order: 'start_year.asc' });
     houseSel.innerHTML = '<option value="">—</option>' + heads.map(h =>
-      `<option value="${h.id}">${esc(pickName((h.tmz_person || {}).tmz_person_tr) || 'Rosh Kollel')} (${h.start_year}–${h.end_year || 'now'})</option>`
+      `<option value="${h.id}">${esc(pickName((h.tmz_person || {}).tmz_person_tr) || ROLES[lead])} (${h.start_year}–${h.end_year || 'now'})</option>`
     ).join('');
   }
   roleSel.onchange = refreshHousehold;
-  commSel.onchange = refreshHousehold;
+  commSel.onchange = () => { refreshRoles(); refreshHousehold(); };
+  refreshRoles();
 
   el.querySelector('#addTenure').onclick = async () => {
     const err = el.querySelector('#drawerErr');

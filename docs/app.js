@@ -809,7 +809,10 @@ async function overviewView(c) {
     ${wall}
     ${ov.roshei.length ? `
     <section class="ov-roshei">
-      <div class="sec-head"><span>${esc(t('ov.roshei'))}</span></div>
+      <div class="sec-head"><span>${esc(
+        ov.org_kind === 'office' ? t('ov.leaders.office')
+        : ov.org_kind === 'family' ? t('ov.leaders.family')
+        : t('ov.roshei'))}</span></div>
       <div class="cohort">${ov.roshei.map(r => `
         <a class="card" href="#/c/${esc(c.id)}/${r.from}">${initial(r.name, r.portrait)}<span class="card-txt">
           <span class="pn">${esc(r.name)}</span>
@@ -835,7 +838,18 @@ async function communityView(id, year) {
       <h3>${esc(t('err.load'))}</h3><p>${esc(e.message)}</p></div></div>`;
   }
 
-  const { rosh, household, cohort, photos } = data;
+  const { rosh, household, cohort, photos, kind } = data;
+
+  /* A role's name on screen, from the register's own word for it. Falls back to
+     the raw value rather than to "shaliach": inventing a title for someone is
+     worse than printing the one nobody has translated yet. */
+  const roleName = r => (r && t('role.' + r) !== 'role.' + r) ? t('role.' + r) : (r || '');
+  /* What the people who are not the leader are called together. A kollel has
+     shlichim; the office has a staff; a family has nobody else by any name
+     worth inventing, so they are simply also there. */
+  const teamHead = kind === 'office' ? t('yr.team.office')
+                 : kind === 'family' ? t('yr.team.family')
+                 : t('yr.cohort');
 
   const rail = h.rows.map(o => {
     const d = Math.abs(o.year - yr);
@@ -850,7 +864,7 @@ async function communityView(id, year) {
       <div class="rosh-main">
         <div class="pf big">${initial(rosh.person, rosh.portrait)}</div>
         <div class="rosh-txt">
-          <span class="eyebrow gold">${esc(t('yr.rosh'))}</span>
+          <span class="eyebrow gold">${esc(roleName(rosh.role) || t('yr.rosh'))}</span>
           <h3>${esc(rosh.person || '')}</h3>
           <p class="dim">${esc(tf(c.name))}
             <span dir="ltr">${rosh.from}&ndash;${rosh.to || ''}</span></p>
@@ -863,20 +877,19 @@ async function communityView(id, year) {
         <div class="people">${household.map(p => `
           <div class="card">${initial(p.person, p.portrait)}<span class="card-txt">
             <span class="pn">${esc(p.person || '')}</span>
-            <span class="pr">${esc(p.role === 'spouse' ? t('yr.spouse') : t('yr.child'))}</span></span></div>`).join('')}
+            <span class="pr">${esc(roleName(p.role))}</span></span></div>`).join('')}
         </div>
       </div>` : ''}
     </section>` : '';
 
   const cohortBlock = cohort.length ? `
     <section class="sec">
-      <div class="sec-head"><span>${esc(t('yr.cohort'))} <span dir="ltr">${yr}</span></span>
+      <div class="sec-head"><span>${esc(teamHead)} <span dir="ltr">${yr}</span></span>
         <span class="dim">${num(cohort.length)}</span></div>
       <div class="cohort">${cohort.map(p => `
         <div class="card">${initial(p.person, p.portrait)}<span class="card-txt">
           <span class="pn">${esc(p.person || '')}</span>
-          <span class="pr">${esc(p.institution
-            || (p.role === 'child' ? t('yr.child') : p.role === 'spouse' ? t('yr.spouse') : t('nav.shlichim')))}</span></span></div>`).join('')}
+          <span class="pr">${esc(p.institution || roleName(p.role) || t('nav.shlichim'))}</span></span></div>`).join('')}
       </div>
     </section>` : '';
 
@@ -906,7 +919,8 @@ async function communityView(id, year) {
       <div class="yhead-l">
         <a class="crumb-link" href="#/c/${esc(c.id)}">&larr; ${esc(tf(c.name))}</a>
         <h1><span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span></h1>
-        <span class="yhead-meta">${num((rosh ? 1 : 0) + household.length + cohort.length)} ${esc(t('u.shlichim')).toLowerCase()}
+        <span class="yhead-meta">${num((rosh ? 1 : 0) + household.length + cohort.length)} ${
+          esc(kind === 'office' ? t('u.onStaff') : kind === 'family' ? t('ov.people') : t('u.shlichim')).toLowerCase()}
           &middot; ${num(photos.length)} ${esc(t('u.photographs')).toLowerCase()}</span>
       </div>
       <a class="btn-gold sm" href="#/contribute/${esc(c.id)}/${yr}">${esc(t('cta.addYear'))}</a>
@@ -1208,7 +1222,15 @@ function aboutView() {
 
 function parseRoute() {
   const h = (location.hash || '#/').replace(/^#\/?/, '');
-  const parts = h.split('/').filter(Boolean);
+  /* Decoded, because a slug is allowed to contain a space. "Lev Yehodi -
+     India" reaches this as Lev%20Yehodi%20-%20India, matched nothing in the
+     register, and communityView sent the reader back to the map — so that
+     community had no page at all, and the link the map drew for it did not
+     work either. decodeURIComponent throws on a malformed escape, and a
+     mistyped address must not take the router down with it. */
+  const parts = h.split('/').filter(Boolean).map(x => {
+    try { return decodeURIComponent(x); } catch (e) { return x; }
+  });
   if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null, photo: parts[3] || null };
   if (parts[0] === 'contribute') return { name: 'contribute', id: parts[1] || null, year: parts[2] ? +parts[2] : null };
   if (parts[0] === 'communities') return { name: 'communities' };

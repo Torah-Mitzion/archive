@@ -108,27 +108,40 @@ function historyFrom(community) {
 
 /* ---- year ---------------------------------------------------------------- */
 
+/* Who leads a community, by what kind of community it is. The Jerusalem office
+   has a director general and the family in India has no kollel at all, so the
+   year page cannot go on looking for a Rosh Kollel and calling the absence of
+   one an empty year. Kept beside the grouping it feeds; the database answers
+   the same question with tmz_lead_role(). */
+const LEAD_ROLE = { kollel: 'rosh_kollel', office: 'ceo', family: 'shaliach_family' };
+/* The two roles that are somebody's family rather than somebody's job. */
+const KIN_ROLES = ['spouse', 'child'];
+
 async function loadYear(slug, year, lang) {
   const p = await rpc('tmz_year_payload', { community_slug: slug, yr: year, want: lang });
   const roster = p.roster || [];
   return {
     community: p.community,
     year: p.year,
-    // The Rosh Kollel and his household are tenures like any other; the shape
-    // the year screen wants is those three groups pulled apart. A household
-    // belongs to whoever household_of names, NOT to whoever happens to be Rosh
-    // Kollel that year — a shaliach's wife is not the Rosh Kollel's wife, and
+    // The leader and the household are tenures like any other; the shape the
+    // year screen wants is those three groups pulled apart. A household
+    // belongs to whoever household_of names, NOT to whoever happens to lead
+    // that year — a shaliach's wife is not the Rosh Kollel's wife, and
     // grouping every spouse under him says on screen that she is.
     ...(() => {
-      const rosh = roster.find(r => r.role === 'rosh_kollel') || null;
-      const kin = roster.filter(r => ['spouse', 'child'].includes(r.role));
+      const kind = (p.community || {}).kind || 'kollel';
+      const lead = LEAD_ROLE[kind] || LEAD_ROLE.kollel;
+      const rosh = roster.find(r => r.role === lead) || null;
+      const kin = roster.filter(r => KIN_ROLES.includes(r.role));
       const household = rosh ? kin.filter(r => r.household_of === rosh.id) : [];
       const claimed = new Set(household.map(r => r.id));
 
-      // Each shaliach followed immediately by whoever came with him, so a
-      // couple reads as a couple and the count matches the cards on screen.
+      // Everyone who served, whatever they were called — not a list of role
+      // names this function has to be taught again each time the register
+      // learns a new one. Each one followed immediately by whoever came with
+      // them, so a couple reads as a couple and the count matches the cards.
       const cohort = [];
-      for (const h of roster.filter(r => ['shaliach', 'shlicha', 'staff'].includes(r.role))) {
+      for (const h of roster.filter(r => !KIN_ROLES.includes(r.role) && r.id !== (rosh || {}).id)) {
         cohort.push(h);
         for (const k of kin) if (k.household_of === h.id) { cohort.push(k); claimed.add(k.id); }
       }
@@ -136,7 +149,7 @@ async function loadYear(slug, year, lang) {
       // her own rather than dropped off the screen.
       for (const k of kin) if (!claimed.has(k.id)) cohort.push(k);
 
-      return { rosh, household, cohort };
+      return { kind, rosh, household, cohort };
     })(),
     photos: (p.photos || []).map(ph => ({ ...ph, url: photoUrl(ph.path) })),
     empty: roster.length === 0 && (p.photos || []).length === 0
