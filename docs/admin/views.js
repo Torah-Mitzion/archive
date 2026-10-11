@@ -1,8 +1,8 @@
-import { sb } from './sb.js?v=88485aanh7';
+import { sb } from './sb.js?v=2aa7b27z51';
 import { openImageEditor, personPictures, personPicturesMarkup,
-         publishFromMaster, useAsPortrait } from './imgedit.js?v=88485aanh7';
+         publishFromMaster, useAsPortrait } from './imgedit.js?v=2aa7b27z51';
 import { $, esc, LANGS, LANG_NAMES, REGIONS, REGION_NAMES,
-         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=88485aanh7';
+         pickName, coverage, openDrawer, closeDrawer, toast } from './ui.js?v=2aa7b27z51';
 
 /* ---- dashboard ----------------------------------------------------------- */
 
@@ -310,6 +310,17 @@ async function deleteCommunity(c) {
 
 /* ---- people -------------------------------------------------------------- */
 
+/* A tenure's years, for a screen. A start year may be missing — the two lists
+   the organisation sent carry 51 people with nothing in the year column — and
+   the old code printed the literal word "null" for them, which reads as a
+   data-entry fault rather than as a known gap. */
+function span(t, ongoing = '') {
+  if (!t.start_year) return t.end_year ? `?–${t.end_year}` : 'no year';
+  if (t.end_year && t.end_year !== t.start_year) return `${t.start_year}–${t.end_year}`;
+  return ongoing && !t.end_year ? `${t.start_year}–${ongoing}` : String(t.start_year);
+}
+
+
 export async function people() {
   const [rows, { communities }] = await Promise.all([
     sb.all('tmz_person',
@@ -319,10 +330,11 @@ export async function people() {
   ]);
   const commName = new Map(communities.map(c => [c.id, pickName(c.tmz_community_tr) || c.slug]));
   /* One line per tenure: role, community, span — sorted by year so a career
-     reads in order. */
-  const service = r => (r.tmz_tenure || []).slice().sort((a, b) => a.start_year - b.start_year).map(t =>
+     reads in order, with the ones nobody dated at the end. */
+  const service = r => (r.tmz_tenure || []).slice()
+    .sort((a, b) => (a.start_year || 9999) - (b.start_year || 9999)).map(t =>
     `<span class="svc"><b>${esc(ROLES[t.role] || t.role)}</b> · ${esc(commName.get(t.community_id) || '?')}
-     <span class="mono dim">${t.start_year}${t.end_year && t.end_year !== t.start_year ? '–' + t.end_year : ''}</span></span>`).join('');
+     <span class="mono dim">${span(t)}</span></span>`).join('');
 
   $('#page').innerHTML = `
     <div class="page-head">
@@ -404,7 +416,7 @@ async function personDrawer(row) {
 
   const tenures = isNew ? [] : await sb.from('tmz_tenure', {}).select(
     'id,community_id,role,start_year,end_year,institution_id,household_of',
-    { filter: { person_id: `eq.${p.id}` }, order: 'start_year.asc' });
+    { filter: { person_id: `eq.${p.id}` }, order: 'start_year.asc.nullslast' });
 
   const commName = id => {
     const c = comms.find(x => x.id === id);
@@ -424,7 +436,7 @@ async function personDrawer(row) {
     <tr data-tenure="${t.id}">
       <td>${esc(commName(t.community_id))}</td>
       <td>${esc(ROLES[t.role] || t.role)}</td>
-      <td class="mono">${t.start_year}–${t.end_year || 'now'}</td>
+      <td class="mono">${span(t, 'now')}</td>
       <td class="actions"><button class="del rm-tenure">Remove</button></td>
     </tr>`).join('') : `<tr><td colspan="4" class="dim">No tenures yet.</td></tr>`;
 
@@ -457,7 +469,7 @@ async function personDrawer(row) {
         <div><label>Role</label><select id="t_role"></select></div>
       </div>
       <div class="field row2">
-        <div><label>Start year</label><input id="t_from" type="number" placeholder="2001"></div>
+        <div><label>Start year <span class="dim">(blank = not recorded)</span></label><input id="t_from" type="number" placeholder="2001"></div>
         <div><label>End year <span class="dim">(blank = ongoing)</span></label><input id="t_to" type="number"></div>
       </div>
       <div class="field"><label>Sent from <span class="dim">(optional)</span></label><select id="t_inst">
@@ -507,9 +519,9 @@ async function personDrawer(row) {
     const lead = LEAD_ROLE[kindOf(comms, commSel.value)] || LEAD_ROLE.kollel;
     const heads = await sb.from('tmz_tenure', {}).select(
       'id,start_year,end_year,tmz_person(tmz_person_tr(lang,display_name))',
-      { filter: { community_id: `eq.${commSel.value}`, role: `eq.${lead}` }, order: 'start_year.asc' });
+      { filter: { community_id: `eq.${commSel.value}`, role: `eq.${lead}` }, order: 'start_year.asc.nullslast' });
     houseSel.innerHTML = '<option value="">—</option>' + heads.map(h =>
-      `<option value="${h.id}">${esc(pickName((h.tmz_person || {}).tmz_person_tr) || ROLES[lead])} (${h.start_year}–${h.end_year || 'now'})</option>`
+      `<option value="${h.id}">${esc(pickName((h.tmz_person || {}).tmz_person_tr) || ROLES[lead])} (${span(h, 'now')})</option>`
     ).join('');
   }
   roleSel.onchange = refreshHousehold;
@@ -519,15 +531,21 @@ async function personDrawer(row) {
   el.querySelector('#addTenure').onclick = async () => {
     const err = el.querySelector('#drawerErr');
     err.innerHTML = '';
+    /* A start year is optional. Fifty-one of the people the organisation's
+       own lists carry have none, and the register would rather hold them with
+       the year missing than have someone type a plausible one in. Left empty,
+       the tenure shows on the community's "not placed" page instead. */
     const from = parseInt(el.querySelector('#t_from').value, 10);
-    if (!from) { err.innerHTML = '<div class="error">A start year is required.</div>'; return; }
+    const to = parseInt(el.querySelector('#t_to').value, 10);
+    if (!from && to) { err.innerHTML = '<div class="error">An end year with no start year is not a span. Give both, or neither.</div>'; return; }
+    if (!from && !commSel.value) { err.innerHTML = '<div class="error">Pick a community.</div>'; return; }
     try {
       await sb.from('tmz_tenure').insert({
         person_id: p.id,
         community_id: commSel.value,
         role: roleSel.value,
-        start_year: from,
-        end_year: el.querySelector('#t_to').value ? parseInt(el.querySelector('#t_to').value, 10) : null,
+        start_year: from || null,
+        end_year: to || null,
         institution_id: el.querySelector('#t_inst').value || null,
         household_of: houseSel.value || null
       });

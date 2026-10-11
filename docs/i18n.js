@@ -132,7 +132,15 @@ const STRINGS = {
     'role.ceo': 'Director General', 'role.office_manager': 'Office manager',
     'role.shlichut': 'Shlichut', 'role.finance': 'Finance', 'role.bat_sherut': 'Bat Sherut',
     'role.shaliach_family': 'Shlichim family',
-    'yr.team.office': 'The office in', 'yr.team.family': 'Also here in',
+    'yr.team.office': 'The office in', 'yr.team.family': 'The shlichim in',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'Not placed', 'yr.noYearTitle': 'Not placed in a year',
+    'yr.noYearWho': 'Those whose year was never recorded',
+    'yr.noYearSub': 'They served here. Nobody wrote down when — and we would rather say that than invent a date for a real person.',
+    'yr.noYearAsk': 'If you know the year, tell us: send a photograph and say which year it is, and they will take their place in it.',
     'u.onStaff': 'On the staff', 'ov.leaders.office': 'Those who have led the office',
     'ov.leaders.family': 'The families who have served there',
     'yr.emptyNothing': 'We have not recorded who was here either. If you know, tell us.',
@@ -258,7 +266,15 @@ const STRINGS = {
     'role.ceo': 'מנכ״ל', 'role.office_manager': 'מנהלת משרד',
     'role.shlichut': 'שליחות', 'role.finance': 'כספים', 'role.bat_sherut': 'בת שירות',
     'role.shaliach_family': 'משפחת שליחים',
-    'yr.team.office': 'הצוות בשנת', 'yr.team.family': 'גם הם, בשנת',
+    'yr.team.office': 'הצוות בשנת', 'yr.team.family': 'השליחים בשנת',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'לא שובצו', 'yr.noYearTitle': 'לא שובצו',
+    'yr.noYearWho': 'מי שהשנה שלהם לא נרשמה',
+    'yr.noYearSub': 'הם שירתו כאן. את השנה אף אחד לא רשם — ועדיף לומר את זה מלהמציא תאריך לאדם אמיתי.',
+    'yr.noYearAsk': 'אם אתם יודעים את השנה, ספרו לנו: שלחו תמונה וכתבו מאיזו שנה היא, והם ישובצו בה.',
     'u.onStaff': 'אנשי צוות', 'ov.leaders.office': 'מנכ״לי התנועה לאורך השנים',
     'ov.leaders.family': 'המשפחות ששירתו שם',
     'yr.emptyNothing': 'גם לא תיעדנו מי היה כאן. אם אתם יודעים, ספרו לנו.',
@@ -384,7 +400,15 @@ const STRINGS = {
     'role.ceo': 'Генеральный директор', 'role.office_manager': 'Офис-менеджер',
     'role.shlichut': 'Шлихут', 'role.finance': 'Финансы', 'role.bat_sherut': 'Бат шерут',
     'role.shaliach_family': 'Семья шлихим',
-    'yr.team.office': 'Офис в', 'yr.team.family': 'Также здесь в',
+    'yr.team.office': 'Офис в', 'yr.team.family': 'Шлихим в',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'Без года', 'yr.noYearTitle': 'Год не указан',
+    'yr.noYearWho': 'Те, чей год так и не записали',
+    'yr.noYearSub': 'Они служили здесь. Никто не записал, когда, — и лучше сказать это, чем придумать дату живому человеку.',
+    'yr.noYearAsk': 'Если вы знаете год, скажите нам: пришлите фотографию и укажите год — и они займут в нём своё место.',
     'u.onStaff': 'Сотрудников', 'ov.leaders.office': 'Те, кто руководил офисом',
     'ov.leaders.family': 'Семьи, служившие там',
     'yr.emptyNothing': 'Мы также не знаем, кто здесь был. Если вы знаете — расскажите нам.',
@@ -510,7 +534,15 @@ const STRINGS = {
     'role.ceo': 'Directeur général', 'role.office_manager': 'Responsable de bureau',
     'role.shlichut': 'Chlihout', 'role.finance': 'Finances', 'role.bat_sherut': 'Bat Chérout',
     'role.shaliach_family': 'Famille de chlihim',
-    'yr.team.office': 'Le bureau en', 'yr.team.family': 'Également là en',
+    'yr.team.office': 'Le bureau en', 'yr.team.family': 'Les chlihim en',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'Sans année', 'yr.noYearTitle': 'Aucune année attribuée',
+    'yr.noYearWho': 'Ceux dont l’année n’a jamais été notée',
+    'yr.noYearSub': 'Ils ont servi ici. Personne n’a noté quand — et mieux vaut le dire que d’inventer une date pour une personne réelle.',
+    'yr.noYearAsk': 'Si vous connaissez l’année, dites-le-nous : envoyez une photographie en précisant l’année, et ils y prendront leur place.',
     'u.onStaff': 'Dans l’équipe', 'ov.leaders.office': 'Ceux qui ont dirigé le bureau',
     'ov.leaders.family': 'Les familles qui y ont servi',
     'yr.emptyNothing': 'Nous ne savons pas non plus qui était là. Si vous le savez, dites-le nous.',
@@ -636,7 +668,15 @@ const STRINGS = {
     'role.ceo': 'Geschäftsführer', 'role.office_manager': 'Büroleitung',
     'role.shlichut': 'Schlichut', 'role.finance': 'Finanzen', 'role.bat_sherut': 'Bat Scherut',
     'role.shaliach_family': 'Schlichim-Familie',
-    'yr.team.office': 'Das Büro im Jahr', 'yr.team.family': 'Ebenfalls dort im Jahr',
+    'yr.team.office': 'Das Büro im Jahr', 'yr.team.family': 'Die Schlichim im Jahr',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'Ohne Jahr', 'yr.noYearTitle': 'Keinem Jahr zugeordnet',
+    'yr.noYearWho': 'Jene, deren Jahr nie festgehalten wurde',
+    'yr.noYearSub': 'Sie haben hier gedient. Niemand hat festgehalten, wann — und das zu sagen ist besser, als einem wirklichen Menschen ein Datum zu erfinden.',
+    'yr.noYearAsk': 'Wenn Sie das Jahr kennen, sagen Sie es uns: senden Sie eine Fotografie und nennen Sie das Jahr, dann finden sie dort ihren Platz.',
     'u.onStaff': 'Im Team', 'ov.leaders.office': 'Wer das Büro geleitet hat',
     'ov.leaders.family': 'Die Familien, die dort gedient haben',
     'yr.emptyNothing': 'Wir wissen auch nicht, wer hier war. Wenn Sie es wissen, sagen Sie es uns.',
@@ -762,7 +802,15 @@ const STRINGS = {
     'role.ceo': 'Director general', 'role.office_manager': 'Responsable de oficina',
     'role.shlichut': 'Shlijut', 'role.finance': 'Finanzas', 'role.bat_sherut': 'Bat Sherut',
     'role.shaliach_family': 'Familia de shlijim',
-    'yr.team.office': 'La oficina en', 'yr.team.family': 'También allí en',
+    'yr.team.office': 'La oficina en', 'yr.team.family': 'Los shlijim en',
+    /* Fifty-one of the people the organisation's own lists carry have no year
+       beside their name. Rather than invent a date for a real person or leave
+       them out of the archive, the community page offers them a tile of their
+       own next to the years, and this is what it is called. */
+    'yr.noYear': 'Sin año', 'yr.noYearTitle': 'Sin año asignado',
+    'yr.noYearWho': 'Aquellos cuyo año nunca se registró',
+    'yr.noYearSub': 'Sirvieron aquí. Nadie anotó cuándo, y es mejor decirlo que inventar una fecha para una persona real.',
+    'yr.noYearAsk': 'Si conoces el año, dínoslo: envía una fotografía indicando el año y ocuparán su lugar en él.',
     'u.onStaff': 'En el equipo', 'ov.leaders.office': 'Quienes han dirigido la oficina',
     'ov.leaders.family': 'Las familias que han servido allí',
     'yr.emptyNothing': 'Tampoco sabemos quién estuvo aquí. Si tú lo sabes, cuéntanoslo.',

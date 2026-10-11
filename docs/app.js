@@ -752,6 +752,11 @@ function photoFigure(p, i, lead = '') {
       </figcaption></figure>`;
 }
 
+/* A role's name on screen, from the register's own word for it. Falls back to
+   the raw value rather than to "shaliach": inventing a title for someone is
+   worse than printing the one nobody has translated yet. */
+const roleName = r => (r && t('role.' + r) !== 'role.' + r) ? t('role.' + r) : (r || '');
+
 /* No portraits are held yet, so a grey silhouette would only be a placeholder
    pretending to be a photograph. The first letter of the name, set in the
    serif, says who without pretending to show them. */
@@ -781,7 +786,15 @@ async function overviewView(c) {
            alt="" loading="lazy">` : ''}
       <span class="ytile-cap"><b>${o.year}</b><i>${num(o.n)}</i></span></a>` : `
     <a class="ytile none" href="#/c/${esc(c.id)}/${o.year}" title="${o.year}">
-      <em>${o.year}</em><b>+</b><i>${esc(t('ov.wereYou'))}</i></a>`).join('');
+      <em>${o.year}</em><b>+</b><i>${esc(t('ov.wereYou'))}</i></a>`).join('')
+    /* And one tile that is not a year. The organisation's own lists carry
+       people with nothing in the year column; they belong to the community but
+       to no year of it, and this is the door to them. It is a gap in the
+       record, not in the photographs, so it is not counted among the empty
+       years in the heading above. */
+    + (ov.unplaced ? `
+    <a class="ytile none nyr" href="#/c/${esc(c.id)}/${TMZApi.NO_YEAR}" title="${esc(t('yr.noYearTitle'))}">
+      <em>?</em><b>${num(ov.unplaced)}</b><i dir="auto">${esc(t('yr.noYear'))}</i></a>` : '');
   const shown = g.photos.length;
   const wall = shown ? `
     <section class="ov-wall">
@@ -828,7 +841,11 @@ async function communityView(id, year) {
   if (!year) return overviewView(c);
 
   const h = TMZApi.historyFrom(c);
-  const yr = year >= h.first && year <= h.last ? year : h.first;
+  /* One destination on this page is not a year. Everything that reads yr has
+     to be told, because yr + 1 on a string is NaN and a heading that says
+     "unplaced–Na" is worse than no page at all. */
+  const noYear = year === TMZApi.NO_YEAR;
+  const yr = noYear ? TMZApi.NO_YEAR : (year >= h.first && year <= h.last ? year : h.first);
 
   let data;
   try {
@@ -840,22 +857,25 @@ async function communityView(id, year) {
 
   const { rosh, household, cohort, photos, kind } = data;
 
-  /* A role's name on screen, from the register's own word for it. Falls back to
-     the raw value rather than to "shaliach": inventing a title for someone is
-     worse than printing the one nobody has translated yet. */
-  const roleName = r => (r && t('role.' + r) !== 'role.' + r) ? t('role.' + r) : (r || '');
   /* What the people who are not the leader are called together. A kollel has
-     shlichim; the office has a staff; a family has nobody else by any name
-     worth inventing, so they are simply also there. */
+     shlichim; the office has a staff; the family in India has shlichim too —
+     and almost never a tenure in the lead role, so this heading usually stands
+     alone and has to read as a heading rather than as an afterthought. */
   const teamHead = kind === 'office' ? t('yr.team.office')
                  : kind === 'family' ? t('yr.team.family')
                  : t('yr.cohort');
 
+  /* The rail walks the years, and then offers the one destination that is not
+     a year: where the people with no recorded year are. It is last in the DOM
+     and the rail runs ltr, so it sits at the end of the row in every
+     language. Drawn only when somebody is actually there. */
   const rail = h.rows.map(o => {
-    const d = Math.abs(o.year - yr);
+    const d = noYear ? 24 : Math.abs(o.year - yr);
     return `<button class="ry${o.year === yr ? ' on' : ''}${o.n === 0 ? ' none' : ''}" data-year="${o.year}"
       style="--ry:${Math.max(12, 26 - d * 2.2).toFixed(1)}px; opacity:${Math.max(0.3, 1 - d * 0.09).toFixed(2)}">${o.year}</button>`;
-  }).join('');
+  }).join('') + (data.unplaced ? `
+    <button class="ry nyr${noYear ? ' on' : ''}" data-year="${TMZApi.NO_YEAR}"
+      title="${esc(t('yr.noYearTitle'))}">${esc(t('yr.noYear'))}</button>` : '');
 
   const peopleNamed = photos.reduce((a, p) => a + (p.people || 0), 0);
 
@@ -884,7 +904,8 @@ async function communityView(id, year) {
 
   const cohortBlock = cohort.length ? `
     <section class="sec">
-      <div class="sec-head"><span>${esc(teamHead)} <span dir="ltr">${yr}</span></span>
+      <div class="sec-head"><span>${noYear ? esc(t('yr.noYearWho'))
+        : `${esc(teamHead)} <span dir="ltr">${yr}</span>`}</span>
         <span class="dim">${num(cohort.length)}</span></div>
       <div class="cohort">${cohort.map(p => `
         <div class="card">${initial(p.person, p.portrait)}<span class="card-txt">
@@ -897,7 +918,12 @@ async function communityView(id, year) {
      no photographs but knowing the roster makes "we know who was here" true,
      and it is the strongest thing we can say. Knowing neither does not, and
      the copy has to admit that instead. */
-  const photoBlock = photos.length === 0 ? `
+  const photoBlock = noYear ? `
+    <section class="empty-year">
+      <h3>${esc(t('yr.noYearSub'))}</h3>
+      <p>${esc(t('yr.noYearAsk'))}</p>
+      <a class="btn-gold" href="#/contribute/${esc(c.id)}">${esc(t('cta.add'))}</a>
+    </section>` : photos.length === 0 ? `
     <section class="empty-year">
       <h3>${esc(t('yr.emptyBig')).replace('{year}', yr)}</h3>
       <p>${esc(rosh || cohort.length ? t('yr.emptySub') : t('yr.emptyNothing'))}</p>
@@ -918,12 +944,13 @@ async function communityView(id, year) {
     <div class="yhead">
       <div class="yhead-l">
         <a class="crumb-link" href="#/c/${esc(c.id)}">&larr; ${esc(tf(c.name))}</a>
-        <h1><span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span></h1>
+        <h1>${noYear ? esc(t('yr.noYearTitle'))
+          : `<span dir="ltr">${yr}&ndash;${String(yr + 1).slice(2)}</span>`}</h1>
         <span class="yhead-meta">${num((rosh ? 1 : 0) + household.length + cohort.length)} ${
-          esc(kind === 'office' ? t('u.onStaff') : kind === 'family' ? t('ov.people') : t('u.shlichim')).toLowerCase()}
-          &middot; ${num(photos.length)} ${esc(t('u.photographs')).toLowerCase()}</span>
+          esc(kind === 'office' ? t('u.onStaff') : kind === 'family' ? t('ov.people') : t('u.shlichim')).toLowerCase()}${
+          noYear ? '' : ` &middot; ${num(photos.length)} ${esc(t('u.photographs')).toLowerCase()}`}</span>
       </div>
-      <a class="btn-gold sm" href="#/contribute/${esc(c.id)}/${yr}">${esc(t('cta.addYear'))}</a>
+      <a class="btn-gold sm" href="#/contribute/${esc(c.id)}${noYear ? '' : '/' + yr}">${esc(noYear ? t('cta.add') : t('cta.addYear'))}</a>
     </div>
     <div class="rail" id="rail">${rail}</div>
 
@@ -1190,10 +1217,15 @@ function wireShlichim() {
         <div class="sh-body">
           <span class="sh-name">${esc(p.name)}</span>
           <div class="sh-tenures">${(p.tenures || []).map(x => `
-            <a class="chat-link" href="#/c/${esc(x.community)}/${x.from}">
+            <a class="chat-link" href="#/c/${esc(x.community)}/${x.from || TMZApi.NO_YEAR}">
               <b>${esc(x.community_name)}</b>
-              <span dir="ltr">${x.from}${x.to && x.to !== x.from ? '–' + x.to : ''}</span>
-              <em>${esc(t('role.' + x.role))}</em></a>`).join('')}</div>
+              ${/* A tenure the register holds no year for used to print the word
+                   "null" here and link to #/c/slug/null, which was no page.
+                   It now says that the year is missing and goes to the one
+                   place on the community that admits as much. */
+                x.from ? `<span dir="ltr">${x.from}${x.to && x.to !== x.from ? '–' + x.to : ''}</span>`
+                       : `<span class="dim" dir="auto">${esc(t('yr.noYear'))}</span>`}
+              <em>${esc(roleName(x.role))}</em></a>`).join('')}</div>
         </div>
       </div>`).join('') + photoBlock;
   };
@@ -1220,6 +1252,18 @@ function aboutView() {
 
 /* ---- router -------------------------------------------------------------- */
 
+/* A route's year segment. Two things it must not do: turn "unplaced" into NaN,
+   and turn a mistyped segment into one either. "unplaced" is a real
+   destination — the 51 people the organisation's lists carry with no year
+   beside their name — and it travels through the router as itself; the rest is
+   a whole year or nothing at all. */
+function routeYear(seg) {
+  if (!seg) return null;
+  if (seg === TMZApi.NO_YEAR) return TMZApi.NO_YEAR;
+  const n = Number(seg);
+  return Number.isInteger(n) ? n : null;
+}
+
 function parseRoute() {
   const h = (location.hash || '#/').replace(/^#\/?/, '');
   /* Decoded, because a slug is allowed to contain a space. "Lev Yehodi -
@@ -1231,8 +1275,8 @@ function parseRoute() {
   const parts = h.split('/').filter(Boolean).map(x => {
     try { return decodeURIComponent(x); } catch (e) { return x; }
   });
-  if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: parts[2] ? +parts[2] : null, photo: parts[3] || null };
-  if (parts[0] === 'contribute') return { name: 'contribute', id: parts[1] || null, year: parts[2] ? +parts[2] : null };
+  if (parts[0] === 'c' && parts[1]) return { name: 'community', id: parts[1], year: routeYear(parts[2]), photo: parts[3] || null };
+  if (parts[0] === 'contribute') return { name: 'contribute', id: parts[1] || null, year: routeYear(parts[2]) };
   if (parts[0] === 'communities') return { name: 'communities' };
   if (parts[0] === 'shlichim') return { name: 'shlichim' };
   if (parts[0] === 'about') return { name: 'about' };
@@ -1307,8 +1351,21 @@ async function render() {
     root.querySelectorAll('[data-year]').forEach(b => {
       b.onclick = () => { location.hash = `#/c/${r.id}/${b.dataset.year}`; };
     });
-    const on = root.querySelector('.ry.on');
-    if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+    /* Centre the rail on whatever is being read — and do it again once the
+       fonts have arrived. The rail is set in the serif, which loads after the
+       first paint; the years are measured narrow, scrolled to, and then grow
+       under the scroll, which left the last chip cut off against the rail's
+       edge by the exact width the text had gained. Setting the offset outright
+       rather than through scrollIntoView lets the browser clamp it to what the
+       rail can actually scroll, which is what we want at the ends. */
+    const centreRail = () => {
+      const on = root.querySelector('.ry.on'), rail = root.querySelector('#rail');
+      if (!on || !rail) return;
+      const a = on.getBoundingClientRect(), b = rail.getBoundingClientRect();
+      rail.scrollLeft += (a.left - b.left) - (b.width - a.width) / 2;
+    };
+    centreRail();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(centreRail);
     wireLightbox(root);
     /* A link straight to one photograph — the one the WhatsApp agent sends
        the moment it goes up — opens on it. */

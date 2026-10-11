@@ -407,6 +407,15 @@ a.gal-name:hover { color: var(--gold-hi); }
 .ry:hover { color: var(--gold-lo); opacity: 1 !important; }
 .ry.on { color: var(--gold); font-weight: 400; }
 .ry.none { color: var(--warn); }
+/* The rail's one stop that is not a year. Set in the body face at a fixed
+   small size, because it is a word among numbers and the --ry scale that
+   sizes the years by distance has nothing to measure it against. */
+.ry.nyr { font-family: var(--sans); font-size: 12px !important; letter-spacing: .02em;
+          white-space: nowrap; opacity: 1 !important; align-self: center;
+          padding: 3px 8px; border: 1px dashed rgba(var(--gold-rgb),.45); border-radius: 999px;
+          color: var(--gold); }
+.ry.nyr:hover { border-color: var(--gold); background: rgba(var(--gold-rgb),.1); }
+.ry.nyr.on { color: var(--ink); background: var(--gold); border-style: solid; border-color: var(--gold); }
 .rail-mark { width: 46px; height: 1px; background: var(--gold); margin: 8px auto 0; }
 .yhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 34px 0 0; flex-wrap: wrap; }
 .yhead h1 { font-family: var(--serif); font-size: clamp(34px,5vw,52px); font-weight: 300; line-height: 1; margin-top: 12px; }
@@ -917,6 +926,17 @@ body.lb-open .chat { display: none; }
 .ytile.none b { font-family: var(--serif); font-size: 26px; line-height: 1; font-weight: 300; color: var(--warn); }
 .ytile.none i { font-style: normal; font-size: 12px; color: var(--warn); }
 .ytile.none:hover { background: rgba(var(--warn-rgb),.12); border-color: var(--warn); }
+/* And one tile that is not a year: the people the register holds with no year
+   beside their name. It is a gap, so it keeps the dashed frame of an empty
+   year, but a gap of a different kind — the heading above counts years without
+   photographs, not people without a year — so it is drawn in gold rather than
+   in the warning colour, and the count it carries is people, not pictures. */
+.ytile.none.nyr { background: rgba(var(--gold-rgb),.05); border-color: rgba(var(--gold-rgb),.45);
+                  padding: 0 6px; text-align: center; }
+.ytile.none.nyr b { color: var(--gold-hi); }
+.ytile.none.nyr i { color: var(--gold); line-height: 1.25; }
+.ytile.none.nyr em { color: var(--dim2); }
+.ytile.none.nyr:hover { background: rgba(var(--gold-rgb),.12); border-color: var(--gold); }
 .ov-wall { margin-top: 30px; }
 .ov-showing { margin: 14px 0 0; font-size: 13px; }
 .ov-roshei { margin-top: 30px; }

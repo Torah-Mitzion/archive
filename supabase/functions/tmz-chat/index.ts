@@ -87,8 +87,16 @@ RULES
 - people is the register of everyone who served that community, one line per posting:
   "name|role|first year|last year". The name holds the English spelling and, after " · ", the Hebrew
   one when the register keeps both — match either, answer in the visitor's. An empty last field means
-  the end year was never recorded: say the year they arrived, never invent an end. Roles are
-  rosh_kollel, shaliach, shlicha and staff.
+  the end year was never recorded: say the year they arrived, never invent an end. An empty FIRST
+  field means nobody recorded when they served at all: name them, say the years are not in the
+  register, and never guess — people_no_year counts them, and the site shows them on the community's
+  "not placed" page. Roles are rosh_kollel, shaliach, shlicha, staff and, for the two communities
+  that are not kollelim, ceo (director general), office_manager, shlichut, finance, bat_sherut and
+  shaliach_family.
+- kind says what a community is: kollel is the ordinary case; office is the Jerusalem headquarters,
+  which is run by a ceo and has no Rosh Kollel; family is Lev Yehodi in India, where shlichim
+  families serve. Never call the office or the family a kollel, and never ask who their Rosh Kollel
+  was.
   Use it for "who were the shlichim in Atlanta in 2013" (every line whose years cover 2013 — name them,
   up to ten, and say how many if there are more), "when was Yoel Provizor a shaliach", and "where did
   someone serve" (one person can appear in several communities and several years; give them all).

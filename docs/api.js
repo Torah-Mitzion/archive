@@ -117,12 +117,20 @@ const LEAD_ROLE = { kollel: 'rosh_kollel', office: 'ceo', family: 'shaliach_fami
 /* The two roles that are somebody's family rather than somebody's job. */
 const KIN_ROLES = ['spouse', 'child'];
 
+/* The pseudo-year the site uses for the people whose year nobody wrote down.
+   It is not a number and must never be treated as one: the register holds 51
+   of these, and inventing a date for them would be a false fact about a real
+   person. The database asks the same question by passing a null year. */
+const NO_YEAR = 'unplaced';
+
 async function loadYear(slug, year, lang) {
-  const p = await rpc('tmz_year_payload', { community_slug: slug, yr: year, want: lang });
+  const yr = year === NO_YEAR ? null : year;
+  const p = await rpc('tmz_year_payload', { community_slug: slug, yr, want: lang });
   const roster = p.roster || [];
   return {
     community: p.community,
     year: p.year,
+    unplaced: p.unplaced || 0,
     // The leader and the household are tenures like any other; the shape the
     // year screen wants is those three groups pulled apart. A household
     // belongs to whoever household_of names, NOT to whoever happens to lead
@@ -209,7 +217,11 @@ async function searchPhotoPeople(q, lang) {
 
 async function loadOverview(slug, lang) {
   const o = await rpc('tmz_community_overview', { community_slug: slug, want: lang });
-  return { roshei: (o?.roshei || []), people: o?.people || 0 };
+  /* org_kind was being dropped here, so the Jerusalem office and the family in
+     India had their leaders printed under "Roshei Kollel over the years" —
+     the overview asks for the kind and then threw away the answer. */
+  return { roshei: (o?.roshei || []), people: o?.people || 0,
+           org_kind: o?.org_kind || 'kollel', unplaced: o?.unplaced || 0 };
 }
 
-window.TMZApi = { photoUrl, thumbUrl, photoSrcset, loadMap, loadYear, loadTeaser, loadGallery, loadOverview, searchPeople, searchPhotoPeople, historyFrom, DEMO };
+window.TMZApi = { photoUrl, thumbUrl, photoSrcset, loadMap, loadYear, loadTeaser, loadGallery, loadOverview, searchPeople, searchPhotoPeople, historyFrom, NO_YEAR, DEMO };
