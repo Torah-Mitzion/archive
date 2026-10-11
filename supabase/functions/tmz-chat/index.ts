@@ -47,14 +47,21 @@ async function rpc(fn: string, args: unknown) {
 }
 
 /* The whole archive — every community, every year, and the register of
-   everyone who served, some 1,700 tenures — is around 90KB of JSON and changes
-   a few times a day at most; one fetch per isolate per five minutes is plenty. */
-let facts: { at: number; text: string } | null = null;
-async function factsText() {
-  if (facts && Date.now() - facts.at < FACTS_TTL_MS) return facts.text;
+   everyone who served, some 1,800 tenures — is around 170KB of JSON and
+   changes a few times a day at most; one fetch per isolate per five minutes is
+   plenty. The community slugs are kept beside it: a link the model returns is
+   checked against them rather than guessed at. */
+let facts: { at: number; text: string; slugs: string[] } | null = null;
+async function loadFacts() {
+  if (facts && Date.now() - facts.at < FACTS_TTL_MS) return facts;
   const f = await rpc('tmz_chat_facts', {});
-  facts = { at: Date.now(), text: JSON.stringify(f.communities) };
-  return facts.text;
+  const communities = f.communities ?? [];
+  facts = {
+    at: Date.now(),
+    text: JSON.stringify(communities),
+    slugs: communities.map((c: any) => String(c?.slug ?? '')).filter(Boolean)
+  };
+  return facts;
 }
 
 interface Turn { role: 'user' | 'assistant'; text: string }
@@ -117,7 +124,7 @@ ${question}
 Return JSON only: {"reply": "...", "links": [{"community": "<slug>", "year": <number|null>}]}`;
 }
 
-async function ask(p: string): Promise<Answer> {
+async function ask(p: string, slugs: string[]): Promise<Answer> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     {
@@ -133,8 +140,15 @@ async function ask(p: string): Promise<Answer> {
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('gemini returned nothing');
   const out = JSON.parse(text);
+  /* A slug is kept only if the register has it, rather than scrubbed of
+     anything outside [a-z0-9_-]. That scrub was written when every slug was
+     one word; "Lev Yehodi - India" came back from it as "LevYehodi-India",
+     which is not a community, so every button the guide drew for India led
+     nowhere. Matching against the real list also throws away an invented
+     slug, which the scrub happily passed through. */
+  const known = new Map(slugs.map(s => [s.toLowerCase().replace(/[^a-z0-9]/g, ''), s]));
   const links = Array.isArray(out.links) ? out.links.slice(0, 4).map((l: any) => ({
-    community: String(l?.community ?? '').replace(/[^a-z0-9_-]/gi, '').slice(0, 64),
+    community: known.get(String(l?.community ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')) ?? '',
     year: Number.isInteger(l?.year) && l.year >= 1990 && l.year <= 2030 ? l.year : null
   })).filter((l: any) => l.community) : [];
   return { reply: String(out.reply ?? '').trim().slice(0, 800), links };
@@ -183,8 +197,8 @@ Deno.serve(async req => {
   } catch (e) { console.error('rate', e); }
 
   try {
-    const p = prompt(await factsText(), history, question);
-    return json(await ask(p));
+    const f = await loadFacts();
+    return json(await ask(prompt(f.text, history, question), f.slugs));
   } catch (e) {
     console.error('chat', e);
     return json({ reply: BUSY[lang], links: [] }, 503);

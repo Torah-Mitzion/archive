@@ -21,7 +21,10 @@
  *
  * org_kind travels with the community for the same reason: the guide must not
  * call the Jerusalem office a kollel, or ask the family in India who their
- * Rosh Kollel was.
+ * Rosh Kollel was. The rosh_kollel field itself stays what its name says —
+ * Roshei Kollel, who carry the title the prompt tells the guide to use. The
+ * office's directors and the families in India are in people, under their own
+ * roles, with no title nobody claimed attached to them.
  *
  * Measured after the change: the facts are 170KB, about 2.5KB more than
  * before. Only 49 lines were being filtered out by the old role list — most of
@@ -40,14 +43,19 @@ returns jsonb language sql stable as $$
         'kind', c.org_kind,
         'founded', c.founded_year,
         'closed', c.closed_year,
+        /* Roshei Kollel only, and the title goes with the role. Widening this
+           to tmz_lead_role() would put the office's director general in a
+           field the prompt tells the guide to address as Rabbi, and it did:
+           asked who runs Torah MiTzion, it answered "הרב זאב שוורץ" for a man
+           who does not claim it. The office's directors and the families in
+           India are in people, under the roles they actually hold. */
         'rosh_kollel', coalesce((
           select jsonb_agg(jsonb_build_object(
             'name', tmz_rabbi_prefix('en') || tmz_person_name(t.person_id, 'en'),
             'name_he', tmz_rabbi_prefix('he') || tmz_person_name(t.person_id, 'he'),
-            'role', t.role,
             'from', t.start_year, 'to', t.end_year) order by t.start_year nulls last)
           from tmz_tenure t where t.community_id = c.id
-            and t.role = tmz_lead_role(c.org_kind)), '[]'::jsonb),
+            and t.role = 'rosh_kollel'), '[]'::jsonb),
         'people', coalesce((
           select jsonb_agg(r.line order by r.start_year nulls last, r.line)
           from (
